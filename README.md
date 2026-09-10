@@ -1,22 +1,125 @@
 # better-nest-mq
 
-NestJS-native foundations for a future integration with the `better-effect-mq` engine.
+Typed NestJS contracts and module integration for the better-effect-mq ecosystem.
 
-**Status: project bootstrap, version 0.0.0. This is not yet an operational queue library.**
+**Status: M1 — typed contracts and Nest registration, version 0.0.0. The queue engine is not connected yet.**
 
-The repository URL is `nitoba/bettter-nest-mq` (three `t` characters); the package name is `better-nest-mq`.
+The repository is `nitoba/bettter-nest-mq` (three `t` characters); the package name is `better-nest-mq`. No npm release has been published.
 
 ## Available now
 
-The package exposes a real Nest 12 dynamic module with `forRoot()` and `forRootAsync()`, including `useFactory`, `useClass`, `useExisting`, imports, injection and opt-in global registration. `MqConfiguration` exposes an immutable, validated shutdown configuration local to each application context. Registration does not open connections, start workers or install process signal handlers.
+Declare injectable Queue Services with typed job properties, `@Queue`, `@Job`, `@Retry` and `@JobTimeout`. Register them with `MqModule.forFeature()` and inspect the validated, immutable snapshot through `MqRegistry`. Payload, result and domain-failure contracts support Standard Schema validators and explicit bidirectional codecs. Zod integration is optional, through `better-nest-mq/zod`.
 
-The shutdown policy is stored and validated only. It will be consumed by the engine host when that integration is implemented.
+`MqModule.forRoot()` and `forRootAsync()` support normal Nest factories, imports, injection and opt-in global registration. The registry discovers actual Nest singleton providers, rejects conflicting identities before publishing its snapshot, and is isolated between application contexts.
 
-**Not available yet:** queue/job/worker decorators, publication, processing, database adapters, retries, flows, schedules, transactional outbox, administration and durable events. These APIs are not exported as stubs. See [the architecture](docs/architecture.md) and [the implementation roadmap](docs/roadmap.md).
+**Not implemented yet:** enqueue, workers, database connections/adapters, retry execution, flows, persistent schedules, transactional outbox and operational administration/events. Retry and shutdown settings are validated declarations only; no background processing starts. Connection names currently identify contracts, not opened or verified database resources. No simulated producer or worker APIs are exported.
 
-## Development
+See [the contract guide](docs/contracts.md), [the architecture](docs/architecture.md) and [the roadmap](docs/roadmap.md).
 
-Use Bun **1.4.2**, matching the reference repository, and Node **22.12+**. CI tests Node 22 and 24. The development compiler follows the reference project (TypeScript 7); both source and the packed library are also checked with TypeScript 6.x. The public TypeScript peer floor is `>=6.0.0`.
+## Declare a Queue Service
+
+```ts
+import { Injectable, Module } from '@nestjs/common'
+import { z } from 'zod'
+import {
+  Job,
+  JobTimeout,
+  MqModule,
+  Queue,
+  QueueService,
+  Retry,
+  type InputOf,
+  type PayloadOf,
+  type ResultOf
+} from 'better-nest-mq'
+
+@Injectable()
+@Queue({ name: 'reports', connection: 'primary' })
+export class ReportsQueue extends QueueService {
+  @Job({ name: 'generate', version: 1 })
+  @Retry({
+    attempts: 5,
+    backoff: {
+      type: 'exponential',
+      initialDelayMs: 1_000,
+      factor: 2,
+      maxDelayMs: 60_000,
+      jitter: 0.2
+    }
+  })
+  @JobTimeout(120_000)
+  readonly generate = this.job({
+    payload: z.object({ requestId: z.uuid() }),
+    result: z.object({ fileKey: z.string().min(1) }),
+    failure: z.object({ code: z.string(), retryable: z.boolean() }),
+    idempotencyKey: (payload) => payload.requestId,
+    retryable: (failure) => failure.retryable
+  })
+}
+
+export type GenerateInput = InputOf<ReportsQueue['generate']>
+export type GeneratePayload = PayloadOf<ReportsQueue['generate']>
+export type GenerateResult = ResultOf<ReportsQueue['generate']>
+
+@Module({
+  imports: [
+    MqModule.forRoot({ defaults: { priority: 0 } }),
+    MqModule.forFeature([ReportsQueue])
+  ]
+})
+export class ApplicationModule {}
+```
+
+The example is the implemented local/package API, not an instruction to install a released npm version. Application code can inject `ReportsQueue` using normal Nest constructor injection. Importing or constructing it performs no I/O.
+
+The durable identity is the connection, queue name, job name and positive integer version. Renaming a class or property does not change that identity. Definitions are inert; a producer-only process does not need worker providers.
+
+## Validate and encode contracts
+
+Each job currently exposes `parsePayload`, `encodePayload`, `decodePayload`, equivalent result operations, `encodeFailure` and `decodeFailure`, plus the declared idempotency/retry predicates. These are contract operations, not database writes.
+
+```ts
+const payload = await reports.generate.parsePayload(input)
+const json = await reports.generate.encodePayload(payload)
+const restored = await reports.generate.decodePayload(json)
+```
+
+Input and decoded values are different types when a schema transforms data. `encodePayload()` takes the decoded type and returns a JSON string. A plain schema can encode an unchanged JSON value; a non-JSON domain value or non-idempotent transformation requires an explicit inverse.
+
+```ts
+import { z } from 'zod'
+import { decodeSchema, encodeSchema } from 'better-nest-mq'
+import { zodCodec } from 'better-nest-mq/zod'
+
+const event = zodCodec(
+  z.object({
+    occurredAt: z.codec(z.iso.datetime(), z.date(), {
+      decode: (value) => new Date(value),
+      encode: (value) => value.toISOString()
+    })
+  })
+)
+
+const original = { occurredAt: new Date('2026-09-10T12:00:00.000Z') }
+const json = await encodeSchema(event, original)
+const restored = await decodeSchema(event, json)
+```
+
+`restored.occurredAt` is a `Date`. JSON fidelity and decode/encode round trips are checked; lossy conversions and one-way transforms are not silently accepted. `defineCodec(schema, encoder)` provides the same explicit inverse for other Standard Schema implementations, including asynchronous encoders. Validators/encoders must be deterministic and side-effect-free because boundary checks may call them more than once.
+
+The root entry point neither imports nor requires Zod. `@standard-schema/spec` supplies the public type contract; `zod` is an optional peer for the Zod subpath, with codecs requiring Zod 4.1 or newer.
+
+## Modules and registry
+
+`forRootAsync()` supports `useFactory`, `useClass`, `useExisting`, `imports` and `inject`. Class/existing factories implement `MqOptionsFactory.createMqOptions()`. Global registration remains opt-in through `isGlobal: true`.
+
+After application initialization, `MqRegistry.queues()` and `.jobs()` expose read-only definitions; `.get(identityKey)` returns a registered job or `undefined`. Discovery validates the complete set before exposing it. Queue contracts require singleton providers and static dependency trees; request/transient-scoped execution belongs to the future worker integration.
+
+Library, module, queue, job and property-decorator settings resolve in that order. A later retry policy replaces the earlier policy as a unit. No function or provider instance is persisted as retry configuration. The current registry also rejects duplicate queue identities across distinct providers; aliases pointing at the same instance are deduplicated.
+
+## Development and verification
+
+Use Bun **1.4.2** and Node **22.12+**. CI covers Node 22/24, the development TypeScript 7 compiler and a separate TypeScript 6.x compatibility installation. The public TypeScript peer floor is `>=6.0.0`.
 
 ```sh
 git clone https://github.com/nitoba/bettter-nest-mq.git
@@ -26,84 +129,20 @@ bun run hooks:install
 bun run check
 ```
 
-No npm release is published by CI. Development dependencies, including Zod 4 and Standard Schema, are not bundled into the library.
+Individual commands include `typecheck`, `typecheck:minimum`, `test`, `test:coverage`, `lint`, `format`, `format:check`, `build`, `publint` and `test:package`.
 
-## Current module API
+The complete check covers source/types, real Nest contexts, schema and metadata regressions, formatting, type-aware lint, ESM/declaration build, package exports and actual tarball consumption outside the workspace. External consumers first run without Zod installed, then exercise the optional Zod subpath, using both TypeScript compilers and both Node and Bun execution.
 
-```ts
-import { Injectable, Module } from '@nestjs/common'
-import { MqConfiguration, MqModule } from 'better-nest-mq'
+## Tooling provenance
 
-@Injectable()
-class ApplicationService {
-  constructor(readonly mq: MqConfiguration) {}
-}
+The `.oxlintrc.json`, `.oxfmtrc.json` and entire `tools/oxlint` plugin are copied unchanged from `nitoba/better-effect` at `42c28fb0af7882eb048ee5d4ab1c1db81142c9dd`. `bun run check:tooling` checks all 20 Git blob hashes. See [tooling provenance](docs/tooling.md) before changing this baseline.
 
-@Module({
-  imports: [
-    MqModule.forRoot({
-      shutdown: {
-        gracePeriodMs: 30_000,
-        abortAfterGracePeriod: true
-      }
-    })
-  ],
-  providers: [ApplicationService]
-})
-export class ApplicationModule {}
-```
+Bun manages dependencies/tests, tsdown builds ESM and declarations, Oxlint/oxlint-tsgolint apply the original anti-slop rules, Oxfmt formats authored files, Lefthook runs local hooks and publint validates exports. No ESLint or Prettier configuration is introduced. Vendored tooling is excluded from rewriting, not weakened.
 
-`forRoot({})` uses those defaults. Durations must be non-negative safe integers; zero and explicit `false` are preserved. Configuration is copied, not frozen in place on the caller's object. The module is not global unless `isGlobal: true` is explicitly supplied.
+## Architectural boundary
 
-```ts
-MqModule.forRootAsync({
-  useFactory: async () => ({
-    shutdown: { gracePeriodMs: 10_000 }
-  })
-})
-```
-
-Async registration also supports `imports` and `inject`. For `useClass` or `useExisting`, implement `MqOptionsFactory.createMqOptions()`; `useExisting` reuses a provider exported by an imported module.
-
-The example illustrates the local/package API, not an instruction to install an already released npm version. The package-consumer test builds and installs a real local tarball.
-
-## Tooling
-
-| Tool                     | Purpose                                                        |
-| ------------------------ | -------------------------------------------------------------- |
-| Bun                      | Package manager, lockfile, test runner and development scripts |
-| TypeScript               | Strict checking, TypeScript 6 compatibility and declarations   |
-| tsdown                   | ESM build, declaration bundle and source maps                  |
-| Oxlint + oxlint-tsgolint | Type-aware linting with the original custom anti-slop rules    |
-| Oxfmt                    | The exact formatter configuration from better-effect           |
-| Lefthook                 | Local lint, formatter and typecheck hooks                      |
-| publint                  | Validation of the package's public exports                     |
-
-The `.oxlintrc.json`, `.oxfmtrc.json` and complete `tools/oxlint` plugin are copied unchanged from `nitoba/better-effect` at commit `42c28fb0af7882eb048ee5d4ab1c1db81142c9dd`. `bun run check:tooling` verifies their Git blob hashes. See [tooling provenance](docs/tooling.md) before updating those files.
-
-The formatter uses two spaces, 100 columns, single quotes, no semicolons, no trailing commas and LF. No ESLint or Prettier configuration is added.
-
-```sh
-bun run typecheck
-bun run typecheck:minimum
-bun run test
-bun run test:coverage
-bun run lint
-bun run format
-bun run format:check
-bun run build
-bun run publint
-bun run test:package
-```
-
-`bun run check` runs the quality gates. The package test installs the packed tarball outside this repository, compiles a consumer with both TypeScript majors and executes it using Node and Bun. It verifies Nest constructor injection, module lifecycle, public declarations and package contents rather than resolving imports back to `src`.
-
-## Design boundary
-
-Application code will use Nest modules, injectable services, decorators and `async/await`. Effect/Result/Layer/Runtime types must stay private to the future engine bridge. Reusing the engine is the chosen architecture, not rewriting leases, retries or transactions in a second implementation.
-
-Database drivers will be optional integrations. Importing a module must never imply an HTTP server, a worker process or automatically applied database migrations. Durable delivery will remain at-least-once, with explicit idempotency and transactional outbox semantics.
+The planned engine bridge will reuse better-effect-mq rather than reimplement its lease, retry and transaction protocols. Effect/Result/Layer/Runtime stay private. Database drivers remain optional. Module registration must never implicitly start an HTTP server, open database connections or apply production migrations. Durable delivery will remain at-least-once with explicit idempotency and outbox semantics.
 
 ## License
 
-MIT. The vendored tooling retains the upstream license and provenance.
+MIT. Vendored tooling retains its upstream license and provenance.
