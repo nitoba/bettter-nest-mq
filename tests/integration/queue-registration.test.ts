@@ -75,7 +75,8 @@ describe('Nest queue registration', () => {
       await assert.rejects(app.init(), ContractDefinitionException)
       expect(app.get(MqRegistry).queues()).toEqual([])
     } finally {
-      await app.close()
+      // Nest close awaits the same failed initialization promise before destroy hooks.
+      await assert.rejects(app.close(), ContractDefinitionException)
     }
   })
 
@@ -93,7 +94,8 @@ describe('Nest queue registration', () => {
       await assert.rejects(app.init(), ContractDefinitionException)
       expect(app.get(MqRegistry).jobs()).toEqual([])
     } finally {
-      await app.close()
+      // No resources were acquired; Nest propagates the original bootstrap failure on close.
+      await assert.rejects(app.close(), ContractDefinitionException)
     }
   })
 
