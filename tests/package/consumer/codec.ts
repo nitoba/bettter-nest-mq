@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import { z } from 'zod'
-import { decodeSchema, encodeSchema, QueueService, type InputOf, type PayloadOf } from 'better-nest-mq'
+import {
+  decodeSchema,
+  encodeSchema,
+  QueueService,
+  type InputOf,
+  type PayloadOf
+} from 'better-nest-mq'
 import { zodCodec } from 'better-nest-mq/zod'
 
 const timestamp = z.codec(z.iso.datetime(), z.date(), {

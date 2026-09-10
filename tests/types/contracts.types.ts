@@ -1,6 +1,12 @@
 import { z } from 'zod'
 
-import { QueueService, type FailureOf, type InputOf, type PayloadOf, type ResultOf } from '../../src/index.ts'
+import {
+  QueueService,
+  type FailureOf,
+  type InputOf,
+  type PayloadOf,
+  type ResultOf
+} from '../../src/index.ts'
 import { zodCodec } from '../../src/integrations/zod.ts'
 
 const timestamp = z.codec(z.iso.datetime(), z.date(), {

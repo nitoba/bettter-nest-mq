@@ -31,7 +31,9 @@ export interface QueueDefinition {
 export function getQueueDefinition(queue: QueueService, defaults: JobPolicy = {}): QueueDefinition {
   const metadata = getOwnQueueMetadata(queue.constructor)
   if (metadata === undefined) {
-    throw new ContractDefinitionException('Every concrete QueueService must declare its own @Queue identity')
+    throw new ContractDefinitionException(
+      'Every concrete QueueService must declare its own @Queue identity'
+    )
   }
   const properties = getJobMetadata(queue)
   for (const key of Reflect.ownKeys(queue)) {
@@ -44,22 +46,46 @@ export function getQueueDefinition(queue: QueueService, defaults: JobPolicy = {}
   const jobs: RegisteredJob[] = []
   const identities = new Set<string>()
   for (const [property, declaration] of properties) {
-    if (declaration.job === undefined) throw new ContractDefinitionException(`Missing @Job on ${property}`)
+    if (declaration.job === undefined)
+      throw new ContractDefinitionException(`Missing @Job on ${property}`)
     const descriptor = Object.getOwnPropertyDescriptor(queue, property)
-    if (descriptor === undefined || descriptor.get !== undefined || descriptor.set !== undefined || !(descriptor.value instanceof JobContract)) {
-      throw new ContractDefinitionException(`${property} must be an initialized job field, not an accessor or unrelated value`)
+    if (
+      descriptor === undefined ||
+      descriptor.get !== undefined ||
+      descriptor.set !== undefined ||
+      !(descriptor.value instanceof JobContract)
+    ) {
+      throw new ContractDefinitionException(
+        `${property} must be an initialized job field, not an accessor or unrelated value`
+      )
     }
     const job = declaration.job
     const key = JSON.stringify([metadata.connection, metadata.name, job.name, job.version])
     if (identities.has(key)) throw new ContractDefinitionException(`Duplicate job identity ${key}`)
     identities.add(key)
-    jobs.push(Object.freeze({
-      property,
-      identity: Object.freeze({ connection: metadata.connection, queue: metadata.name, name: job.name, version: job.version, key }),
-      policy: resolveJobPolicy(defaults, metadata.defaults, job.defaults, { retry: declaration.retry, timeoutMs: declaration.timeoutMs }),
-      contract: descriptor.value
-    }))
+    jobs.push(
+      Object.freeze({
+        property,
+        identity: Object.freeze({
+          connection: metadata.connection,
+          queue: metadata.name,
+          name: job.name,
+          version: job.version,
+          key
+        }),
+        policy: resolveJobPolicy(defaults, metadata.defaults, job.defaults, {
+          retry: declaration.retry,
+          timeoutMs: declaration.timeoutMs
+        }),
+        contract: descriptor.value
+      })
+    )
   }
-  if (jobs.length === 0) throw new ContractDefinitionException(`Queue ${metadata.name} declares no jobs`)
-  return Object.freeze({ name: metadata.name, connection: metadata.connection, jobs: Object.freeze(jobs) })
+  if (jobs.length === 0)
+    throw new ContractDefinitionException(`Queue ${metadata.name} declares no jobs`)
+  return Object.freeze({
+    name: metadata.name,
+    connection: metadata.connection,
+    jobs: Object.freeze(jobs)
+  })
 }

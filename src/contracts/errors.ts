@@ -17,10 +17,12 @@ export class SchemaValidationException extends Error {
     super('The value does not satisfy the job schema')
     this.name = 'SchemaValidationException'
     this.issues = Object.freeze(
-      issues.map((issue) => Object.freeze({
-        message: issue.message,
-        path: issue.path === undefined ? undefined : Object.freeze([...issue.path])
-      }))
+      issues.map((issue) =>
+        Object.freeze({
+          message: issue.message,
+          path: issue.path === undefined ? undefined : Object.freeze([...issue.path])
+        })
+      )
     )
   }
 }
@@ -28,7 +30,10 @@ export class SchemaValidationException extends Error {
 export class SchemaDefectException extends Error {
   readonly code = 'MQ_SCHEMA_DEFECT'
 
-  constructor(readonly phase: 'validate' | 'encode', options: ErrorOptions) {
+  constructor(
+    readonly phase: 'validate' | 'encode',
+    options: ErrorOptions
+  ) {
     super(`The schema implementation threw during ${phase}`, options)
     this.name = 'SchemaDefectException'
   }
@@ -47,7 +52,10 @@ export class SchemaEncodingException extends Error {
 export class JobFailureException<Failure> extends Error {
   readonly code = 'MQ_JOB_FAILURE'
 
-  constructor(readonly failure: Failure, options?: ErrorOptions) {
+  constructor(
+    readonly failure: Failure,
+    options?: ErrorOptions
+  ) {
     super('The job reported a domain failure', options)
     this.name = 'JobFailureException'
   }

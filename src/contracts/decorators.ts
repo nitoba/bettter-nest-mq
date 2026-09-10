@@ -38,19 +38,26 @@ export interface JobMetadata {
   readonly timeoutMs?: number
 }
 
-export function getOwnQueueMetadata<Target extends object>(target: Target): QueueMetadata | undefined {
+export function getOwnQueueMetadata<Target extends object>(
+  target: Target
+): QueueMetadata | undefined {
   return Reflect.getOwnMetadata(QUEUE, target)
 }
 
 function ownJobs<Target extends object>(target: Target): ReadonlyMap<string, JobMetadata> {
-  const metadata: ReadonlyMap<string, JobMetadata> | undefined = Reflect.getOwnMetadata(JOBS, target)
+  const metadata: ReadonlyMap<string, JobMetadata> | undefined = Reflect.getOwnMetadata(
+    JOBS,
+    target
+  )
   return metadata ?? new Map<string, JobMetadata>()
 }
 
 function decorateProperty(kind: keyof JobMetadata, patch: JobMetadata): PropertyDecorator {
   return (target, key) => {
     if (!(target instanceof QueueService) || key !== String(key)) {
-      throw new ContractDefinitionException('Job decorators require a string-named instance property of QueueService')
+      throw new ContractDefinitionException(
+        'Job decorators require a string-named instance property of QueueService'
+      )
     }
     const property = String(key)
     const current = ownJobs(target)
@@ -77,7 +84,8 @@ export function Queue(options: QueueOptions): ClassDecorator {
     if (!(target.prototype instanceof QueueService)) {
       throw new ContractDefinitionException('@Queue requires a QueueService subclass')
     }
-    if (getOwnQueueMetadata(target) !== undefined) throw new ContractDefinitionException('Duplicate @Queue decorator')
+    if (getOwnQueueMetadata(target) !== undefined)
+      throw new ContractDefinitionException('Duplicate @Queue decorator')
     Reflect.defineMetadata(QUEUE, metadata, target)
   }
 }
@@ -86,7 +94,11 @@ export function Job(options: JobDecoratorOptions): PropertyDecorator {
   requireName(options.name, 'job.name')
   requireInteger(options.version, 'job.version', 1)
   return decorateProperty('job', {
-    job: Object.freeze({ name: options.name, version: options.version, defaults: copyJobPolicy(options.defaults ?? {}) })
+    job: Object.freeze({
+      name: options.name,
+      version: options.version,
+      defaults: copyJobPolicy(options.defaults ?? {})
+    })
   })
 }
 

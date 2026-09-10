@@ -117,7 +117,10 @@ describe('Standard Schema boundaries', () => {
   })
 
   test('validates persisted results again when decoding', async () => {
-    await assert.rejects(decodeSchema(z.object({ count: z.int() }), '{"count":"x"}'), SchemaValidationException)
+    await assert.rejects(
+      decodeSchema(z.object({ count: z.int() }), '{"count":"x"}'),
+      SchemaValidationException
+    )
   })
 
   test('rejects Date without an explicit encoder', async () => {
@@ -159,9 +162,15 @@ describe('inert job definitions', () => {
   test('validates and round-trips payload, result and known failure contracts', async () => {
     const job = new Reports().generate
     expect(await job.parsePayload({ id: 'request-1' })).toEqual({ id: 'request-1' })
-    expect(await job.decodePayload(await job.encodePayload({ id: 'request-1' }))).toEqual({ id: 'request-1' })
-    expect(await job.decodeResult(await job.encodeResult({ key: 'file-1' }))).toEqual({ key: 'file-1' })
-    expect(await job.decodeFailure(await job.encodeFailure({ retryable: true }))).toEqual({ retryable: true })
+    expect(await job.decodePayload(await job.encodePayload({ id: 'request-1' }))).toEqual({
+      id: 'request-1'
+    })
+    expect(await job.decodeResult(await job.encodeResult({ key: 'file-1' }))).toEqual({
+      key: 'file-1'
+    })
+    expect(await job.decodeFailure(await job.encodeFailure({ retryable: true }))).toEqual({
+      retryable: true
+    })
     expect(job.getIdempotencyKey({ id: 'request-1' })).toBe('request-1')
     expect(job.canRetry({ retryable: false })).toBe(false)
     expect(job.canRetry({ retryable: true })).toBe(true)
@@ -170,7 +179,10 @@ describe('inert job definitions', () => {
   })
 
   test('rejects invalid persisted failure content', async () => {
-    await assert.rejects(new Reports().generate.decodeFailure('{"retryable":1}'), SchemaValidationException)
+    await assert.rejects(
+      new Reports().generate.decodeFailure('{"retryable":1}'),
+      SchemaValidationException
+    )
   })
 
   test('keeps known failure content and cause without claiming checked exceptions', () => {
@@ -183,7 +195,11 @@ describe('inert job definitions', () => {
 
   test('rejects empty generated idempotency keys', () => {
     class Invalid extends QueueService {
-      readonly task = this.job({ payload: z.string(), result: z.string(), idempotencyKey: () => '' })
+      readonly task = this.job({
+        payload: z.string(),
+        result: z.string(),
+        idempotencyKey: () => ''
+      })
     }
     expect(() => new Invalid().task.getIdempotencyKey('x')).toThrow('idempotency')
   })

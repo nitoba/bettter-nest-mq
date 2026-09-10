@@ -7,8 +7,16 @@ interface BackoffBounds {
 
 export type RetryBackoff =
   | ({ readonly type: 'fixed'; readonly delayMs: number } & BackoffBounds)
-  | ({ readonly type: 'linear'; readonly initialDelayMs: number; readonly incrementMs: number } & BackoffBounds)
-  | ({ readonly type: 'exponential'; readonly initialDelayMs: number; readonly factor: number } & BackoffBounds)
+  | ({
+      readonly type: 'linear'
+      readonly initialDelayMs: number
+      readonly incrementMs: number
+    } & BackoffBounds)
+  | ({
+      readonly type: 'exponential'
+      readonly initialDelayMs: number
+      readonly factor: number
+    } & BackoffBounds)
   | { readonly type: 'custom'; readonly policy: string; readonly version: number }
 
 export interface RetryOptions {
@@ -32,13 +40,17 @@ export interface ResolvedJobPolicy {
 
 export function requireName(value: string, label: string): void {
   if (value.length === 0 || value.trim() !== value) {
-    throw new ContractDefinitionException(`${label} must be non-empty without surrounding whitespace`)
+    throw new ContractDefinitionException(
+      `${label} must be non-empty without surrounding whitespace`
+    )
   }
 }
 
 export function requireInteger(value: number, label: string, minimum = 0): void {
   if (!Number.isSafeInteger(value) || value < minimum) {
-    throw new ContractDefinitionException(`${label} must be a safe integer greater than or equal to ${minimum}`)
+    throw new ContractDefinitionException(
+      `${label} must be a safe integer greater than or equal to ${minimum}`
+    )
   }
 }
 
@@ -49,10 +61,14 @@ function copyBackoff(backoff: RetryBackoff): RetryBackoff {
     return Object.freeze({ ...backoff })
   }
 
-  if (backoff.jitter !== undefined && (!Number.isFinite(backoff.jitter) || backoff.jitter < 0 || backoff.jitter > 1)) {
+  if (
+    backoff.jitter !== undefined &&
+    (!Number.isFinite(backoff.jitter) || backoff.jitter < 0 || backoff.jitter > 1)
+  ) {
     throw new ContractDefinitionException('retry.backoff.jitter must be between zero and one')
   }
-  if (backoff.maxDelayMs !== undefined) requireInteger(backoff.maxDelayMs, 'retry.backoff.maxDelayMs')
+  if (backoff.maxDelayMs !== undefined)
+    requireInteger(backoff.maxDelayMs, 'retry.backoff.maxDelayMs')
 
   switch (backoff.type) {
     case 'fixed':
@@ -65,7 +81,9 @@ function copyBackoff(backoff: RetryBackoff): RetryBackoff {
     case 'exponential':
       requireInteger(backoff.initialDelayMs, 'retry.backoff.initialDelayMs')
       if (!Number.isFinite(backoff.factor) || backoff.factor < 1) {
-        throw new ContractDefinitionException('retry.backoff.factor must be finite and at least one')
+        throw new ContractDefinitionException(
+          'retry.backoff.factor must be finite and at least one'
+        )
       }
       break
     default:

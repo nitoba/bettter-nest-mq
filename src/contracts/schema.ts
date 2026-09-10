@@ -1,7 +1,11 @@
 import { isDeepStrictEqual } from 'node:util'
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 
-import { SchemaDefectException, SchemaEncodingException, SchemaValidationException } from './errors.ts'
+import {
+  SchemaDefectException,
+  SchemaEncodingException,
+  SchemaValidationException
+} from './errors.ts'
 
 const CODEC = Symbol('mq.codec')
 
@@ -9,23 +13,30 @@ const CODEC = Symbol('mq.codec')
 export interface SchemaCodec<Schema extends StandardSchemaV1> {
   readonly [CODEC]: true
   readonly schema: Schema
-  encode(value: StandardSchemaV1.InferOutput<Schema>):
-    | StandardSchemaV1.InferInput<Schema>
-    | Promise<StandardSchemaV1.InferInput<Schema>>
+  encode(
+    value: StandardSchemaV1.InferOutput<Schema>
+  ): StandardSchemaV1.InferInput<Schema> | Promise<StandardSchemaV1.InferInput<Schema>>
 }
 
 export type ValueSchema = StandardSchemaV1 | SchemaCodec<StandardSchemaV1>
 export type SchemaOf<Contract extends ValueSchema> =
-  Contract extends SchemaCodec<infer Schema> ? Schema :
-  Contract extends StandardSchemaV1 ? Contract : never
-export type SchemaInput<Contract extends ValueSchema> = StandardSchemaV1.InferInput<SchemaOf<Contract>>
-export type SchemaOutput<Contract extends ValueSchema> = StandardSchemaV1.InferOutput<SchemaOf<Contract>>
+  Contract extends SchemaCodec<infer Schema>
+    ? Schema
+    : Contract extends StandardSchemaV1
+      ? Contract
+      : never
+export type SchemaInput<Contract extends ValueSchema> = StandardSchemaV1.InferInput<
+  SchemaOf<Contract>
+>
+export type SchemaOutput<Contract extends ValueSchema> = StandardSchemaV1.InferOutput<
+  SchemaOf<Contract>
+>
 
 export function defineCodec<Schema extends StandardSchemaV1>(
   schema: Schema,
-  encoder: (value: StandardSchemaV1.InferOutput<Schema>) =>
-    | StandardSchemaV1.InferInput<Schema>
-    | Promise<StandardSchemaV1.InferInput<Schema>>
+  encoder: (
+    value: StandardSchemaV1.InferOutput<Schema>
+  ) => StandardSchemaV1.InferInput<Schema> | Promise<StandardSchemaV1.InferInput<Schema>>
 ): SchemaCodec<Schema> {
   const contract: SchemaCodec<Schema> = {
     [CODEC]: true,
@@ -45,7 +56,9 @@ export async function validateSchema<Contract extends ValueSchema, Input>(
   const schema = CODEC in contract ? contract.schema : contract
   const result = await Promise.resolve()
     .then(() => schema['~standard'].validate(input))
-    .catch((cause) => { throw new SchemaDefectException('validate', { cause }) })
+    .catch((cause) => {
+      throw new SchemaDefectException('validate', { cause })
+    })
 
   if (result.issues !== undefined) throw new SchemaValidationException(result.issues)
 
@@ -61,7 +74,9 @@ function jsonText<Value>(value: Value): string {
     throw new SchemaEncodingException('The encoded value is not JSON serializable', { cause })
   }
   if (text === undefined || !isDeepStrictEqual(JSON.parse(text), value)) {
-    throw new SchemaEncodingException('JSON encoding would lose or change data; provide an explicit codec')
+    throw new SchemaEncodingException(
+      'JSON encoding would lose or change data; provide an explicit codec'
+    )
   }
   return text
 }
@@ -93,7 +108,9 @@ export async function encodeSchema<Contract extends ValueSchema>(
 
   const validated = await validateSchema(contract, value)
   if (!isDeepStrictEqual(validated, value)) {
-    throw new SchemaEncodingException('The schema transforms decoded values; provide an explicit codec')
+    throw new SchemaEncodingException(
+      'The schema transforms decoded values; provide an explicit codec'
+    )
   }
   return jsonText(validated)
 }

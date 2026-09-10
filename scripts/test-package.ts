@@ -29,7 +29,10 @@ try {
   const archive = join(temporary, archiveName)
   const entries = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n')
   for (const entry of entries) {
-    assert.match(entry, /^package\/(?:dist(?:\/.*)?|LICENSE|README\.md|CHANGELOG\.md|package\.json)\/?$/)
+    assert.match(
+      entry,
+      /^package\/(?:dist(?:\/.*)?|LICENSE|README\.md|CHANGELOG\.md|package\.json)\/?$/
+    )
   }
   const declaration = await readFile(join(root, 'dist', 'index.d.mts'), 'utf8')
   assert.doesNotMatch(declaration, /from\s+['"](?:better-effect|better-result|zod)/)
@@ -61,10 +64,13 @@ try {
     await run(['node', 'dist/main.js'], directory)
     await run(['bun', 'dist/main.js'], directory)
 
-    await writeFile(join(directory, 'package.json'), JSON.stringify({
-      ...manifest,
-      devDependencies: { ...manifest.devDependencies, zod: await installedVersion('zod') }
-    }))
+    await writeFile(
+      join(directory, 'package.json'),
+      JSON.stringify({
+        ...manifest,
+        devDependencies: { ...manifest.devDependencies, zod: await installedVersion('zod') }
+      })
+    )
     await run(['bun', 'install', '--ignore-scripts'], directory)
     await run(['node', 'node_modules/typescript/bin/tsc', '-p', 'tsconfig.codec.json'], directory)
     await run(['node', 'dist/codec.js'], directory)

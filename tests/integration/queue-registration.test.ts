@@ -4,7 +4,14 @@ import { Inject, Injectable, Module, Scope } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { z } from 'zod'
 
-import { ContractDefinitionException, Job, MqModule, MqRegistry, Queue, QueueService } from '../../src/index.ts'
+import {
+  ContractDefinitionException,
+  Job,
+  MqModule,
+  MqRegistry,
+  Queue,
+  QueueService
+} from '../../src/index.ts'
 
 @Injectable()
 @Queue({ name: 'reports' })
@@ -23,7 +30,9 @@ class FeatureModule {}
 
 describe('Nest queue registration', () => {
   test('registers real injectable services and builds a root-owned registry at bootstrap', async () => {
-    const app = await Test.createTestingModule({ imports: [MqModule.forRoot({ defaults: { priority: 7 } }), FeatureModule] }).compile()
+    const app = await Test.createTestingModule({
+      imports: [MqModule.forRoot({ defaults: { priority: 7 } }), FeatureModule]
+    }).compile()
     try {
       expect(app.get(MqRegistry).queues()).toEqual([])
       await app.init()
@@ -59,7 +68,9 @@ describe('Nest queue registration', () => {
       @Job({ name: 'generate', version: 1 })
       readonly task = this.job({ payload: z.string(), result: z.string() })
     }
-    const app = await Test.createTestingModule({ imports: [MqModule.forRoot({}), MqModule.forFeature([Reports, Duplicate])] }).compile()
+    const app = await Test.createTestingModule({
+      imports: [MqModule.forRoot({}), MqModule.forFeature([Reports, Duplicate])]
+    }).compile()
     try {
       await assert.rejects(app.init(), ContractDefinitionException)
       expect(app.get(MqRegistry).queues()).toEqual([])
@@ -75,7 +86,9 @@ describe('Nest queue registration', () => {
       @Job({ name: 'task', version: 1 })
       readonly task = this.job({ payload: z.string(), result: z.string() })
     }
-    const app = await Test.createTestingModule({ imports: [MqModule.forRoot({}), MqModule.forFeature([Scoped])] }).compile()
+    const app = await Test.createTestingModule({
+      imports: [MqModule.forRoot({}), MqModule.forFeature([Scoped])]
+    }).compile()
     try {
       await assert.rejects(app.init(), ContractDefinitionException)
       expect(app.get(MqRegistry).jobs()).toEqual([])
@@ -85,8 +98,12 @@ describe('Nest queue registration', () => {
   })
 
   test('isolates registries and defaults between Nest application contexts', async () => {
-    const first = await Test.createTestingModule({ imports: [MqModule.forRoot({ defaults: { priority: 1 } }), FeatureModule] }).compile()
-    const second = await Test.createTestingModule({ imports: [MqModule.forRoot({ defaults: { priority: 2 } }), FeatureModule] }).compile()
+    const first = await Test.createTestingModule({
+      imports: [MqModule.forRoot({ defaults: { priority: 1 } }), FeatureModule]
+    }).compile()
+    const second = await Test.createTestingModule({
+      imports: [MqModule.forRoot({ defaults: { priority: 2 } }), FeatureModule]
+    }).compile()
     try {
       await first.init()
       await second.init()
@@ -102,7 +119,9 @@ describe('Nest queue registration', () => {
   })
 
   test('deduplicates repeated classes in forFeature and remains inert without a root', async () => {
-    const app = await Test.createTestingModule({ imports: [MqModule.forFeature([Reports, Reports])] }).compile()
+    const app = await Test.createTestingModule({
+      imports: [MqModule.forFeature([Reports, Reports])]
+    }).compile()
     try {
       await app.init()
       expect(await app.get(Reports).generate.parsePayload('value')).toBe('value')
