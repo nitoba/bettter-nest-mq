@@ -62,10 +62,7 @@ export type GeneratePayload = PayloadOf<ReportsQueue['generate']>
 export type GenerateResult = ResultOf<ReportsQueue['generate']>
 
 @Module({
-  imports: [
-    MqModule.forRoot({ defaults: { priority: 0 } }),
-    MqModule.forFeature([ReportsQueue])
-  ]
+  imports: [MqModule.forRoot({ defaults: { priority: 0 } }), MqModule.forFeature([ReportsQueue])]
 })
 export class ApplicationModule {}
 ```
