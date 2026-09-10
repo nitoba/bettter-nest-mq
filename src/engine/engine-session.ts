@@ -3,7 +3,12 @@ import { assertJobStoreProtocolCompatible } from 'better-effect-mq'
 import type { JobStoreContract } from 'better-effect-mq'
 import { Result } from 'better-result'
 
-import type { MqConnectionMap, MqConnectionMonitor, MqConnectionSnapshot, MqEngineState } from '../connections/connection.ts'
+import type {
+  MqConnectionMap,
+  MqConnectionMonitor,
+  MqConnectionSnapshot,
+  MqEngineState
+} from '../connections/connection.ts'
 import { MqConnectionException, MqEngineStateException } from '../connections/errors.ts'
 import type { QueueDefinition } from '../contracts/queue-definition.ts'
 import type { MqShutdownOptions } from '../module/mq-module.options.ts'
@@ -73,13 +78,21 @@ export class EngineSession implements MqConnectionMonitor {
       const entries = Object.entries(this.configured)
       const names = new Set(entries.map(([name]) => name))
       for (const queue of queues) {
-        if (!names.has(queue.connection)) throw new MqConnectionException(queue.connection, 'configuration')
+        if (!names.has(queue.connection))
+          throw new MqConnectionException(queue.connection, 'configuration')
       }
       const boundaries: Array<{ boundary: object | string; scope: string }> = []
       for (const [name, connection] of entries) {
         const definition = connectionDefinition(connection, name)
-        if (boundaries.some((previous) => previous.boundary === definition.boundary && previous.scope === definition.scope)) {
-          throw new MqConnectionException(name, 'configuration', { cause: new Error('The same storage boundary was configured twice') })
+        if (
+          boundaries.some(
+            (previous) =>
+              previous.boundary === definition.boundary && previous.scope === definition.scope
+          )
+        ) {
+          throw new MqConnectionException(name, 'configuration', {
+            cause: new Error('The same storage boundary was configured twice')
+          })
         }
         boundaries.push(definition)
       }
@@ -101,7 +114,9 @@ export class EngineSession implements MqConnectionMonitor {
       const layers = bindings.map((binding) => binding.resource.layer)
       this.runtime = await Runtime.make(Layer.merge(...layers), {
         onCleanupFailure: (diagnostic) => {
-          this.runtimeCleanupErrors.push(new Error('MQ runtime cleanup diagnostic', { cause: diagnostic }))
+          this.runtimeCleanupErrors.push(
+            new Error('MQ runtime cleanup diagnostic', { cause: diagnostic })
+          )
         }
       })
       const runtime = this.runtime
@@ -109,23 +124,28 @@ export class EngineSession implements MqConnectionMonitor {
       for (const binding of bindings) {
         this.assertStarting()
         acquiring = binding.name
-        const resolved = await runtime.run(() => Effect.gen(async function* () {
-          return Result.ok(yield* binding.token)
-        }))
-        if (Result.isError(resolved)) throw new MqConnectionException(binding.name, 'acquire', { cause: resolved.error })
+        const resolved = await runtime.run(() =>
+          Effect.gen(async function* () {
+            return Result.ok(yield* binding.token)
+          })
+        )
+        if (Result.isError(resolved))
+          throw new MqConnectionException(binding.name, 'acquire', { cause: resolved.error })
         const store = resolved.value
         let descriptor
         try {
           descriptor = assertJobStoreProtocolCompatible(store.descriptor)
           for (const capability of binding.definition.requirements) {
-            if (descriptor.capabilities[capability] !== true) throw new Error(`Unsupported store capability: ${capability}`)
+            if (descriptor.capabilities[capability] !== true)
+              throw new Error(`Unsupported store capability: ${capability}`)
           }
         } catch (cause) {
           throw new MqConnectionException(binding.name, 'protocol', { cause })
         }
         await runtime.run(async () => {
           const result = await store.counts()
-          if (Result.isError(result)) throw new MqConnectionException(binding.name, 'probe', { cause: result.error })
+          if (Result.isError(result))
+            throw new MqConnectionException(binding.name, 'probe', { cause: result.error })
         })
         ready.set(binding.name, {
           store,
@@ -145,12 +165,18 @@ export class EngineSession implements MqConnectionMonitor {
       this.snapshots = Object.freeze([...ready.values()].map((value) => value.snapshot))
       this.currentState = 'ready'
     } catch (cause) {
-      const primary = cause instanceof MqConnectionException || cause instanceof MqEngineStateException
-        ? cause : new MqConnectionException(acquiring, 'acquire', { cause })
+      const primary =
+        cause instanceof MqConnectionException || cause instanceof MqEngineStateException
+          ? cause
+          : new MqConnectionException(acquiring, 'acquire', { cause })
       try {
         await this.cleanup()
       } catch (cleanupCause) {
-        throw new AggregateError([primary, cleanupCause], 'MQ startup failed and resource cleanup also failed', { cause: primary })
+        throw new AggregateError(
+          [primary, cleanupCause],
+          'MQ startup failed and resource cleanup also failed',
+          { cause: primary }
+        )
       } finally {
         if (!this.stopRequested) this.currentState = 'failed'
       }
@@ -158,12 +184,18 @@ export class EngineSession implements MqConnectionMonitor {
     }
   }
 
-  async withStore<Value>(name: string, operation: (store: JobStoreContract) => Value | PromiseLike<Value>): Promise<Value> {
-    if (this.state !== 'ready' || this.runtime === undefined) throw new MqEngineStateException(this.state, 'access a store')
+  async withStore<Value>(
+    name: string,
+    operation: (store: JobStoreContract) => Value | PromiseLike<Value>
+  ): Promise<Value> {
+    if (this.state !== 'ready' || this.runtime === undefined)
+      throw new MqEngineStateException(this.state, 'access a store')
     const connection = this.ready.get(name)
     if (connection === undefined) throw new MqConnectionException(name, 'configuration')
     // Keep a callback's generic return value as data, not an inferred Effect execution program.
-    const outcome = await this.runtime.run(async () => ({ value: await operation(connection.store) }))
+    const outcome = await this.runtime.run(async () => ({
+      value: await operation(connection.store)
+    }))
     return outcome.value
   }
 
@@ -176,7 +208,8 @@ export class EngineSession implements MqConnectionMonitor {
         throw new MqConnectionException(name, 'probe', { cause })
       }
       const snapshot = this.ready.get(name)?.snapshot
-      if (snapshot === undefined || this.state !== 'ready') throw new MqEngineStateException(this.state, 'finish a probe')
+      if (snapshot === undefined || this.state !== 'ready')
+        throw new MqEngineStateException(this.state, 'finish a probe')
       return snapshot
     })
   }
