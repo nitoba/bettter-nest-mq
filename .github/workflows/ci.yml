@@ -47,3 +47,37 @@ jobs:
           name: better-nest-mq-node-${{ matrix.node }}
           path: artifacts/
           if-no-files-found: error
+
+  postgres:
+    name: PostgreSQL integration and packed consumers
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mq
+          POSTGRES_PASSWORD: mq_test_only
+          POSTGRES_DB: mq_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U mq -d mq_test" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MQ_TEST_DATABASE_URL: postgresql://mq:mq_test_only@localhost:5432/mq_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      - name: Verify real database ownership, rollback and persistence
+        run: bun run test:postgres
+      - name: Exercise public packed integrations under Node and Bun
+        run: |
+          bun run build
+          bun run test:package
+      - run: git diff --exit-code
