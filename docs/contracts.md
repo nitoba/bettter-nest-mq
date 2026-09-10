@@ -55,13 +55,13 @@ Connection defaults to `default`. In M1 it is a namespace only: there is no conn
 
 Resolved policy precedence is library defaults, module defaults, queue defaults, job defaults and property decorators, in that order. A later retry value replaces the complete earlier retry policy rather than combining incompatible backoff variants.
 
-| Setting | Library default | Validation |
-| --- | --- | --- |
-| `retry.attempts` | 1 | Positive safe integer |
-| `retry.backoff` | Unset | Validated discriminated policy |
-| `timeoutMs` | Unset | Non-negative safe integer |
-| `priority` | 0 | Non-negative safe integer |
-| `delayMs` | 0 | Non-negative safe integer |
+| Setting          | Library default | Validation                     |
+| ---------------- | --------------- | ------------------------------ |
+| `retry.attempts` | 1               | Positive safe integer          |
+| `retry.backoff`  | Unset           | Validated discriminated policy |
+| `timeoutMs`      | Unset           | Non-negative safe integer      |
+| `priority`       | 0               | Non-negative safe integer      |
+| `delayMs`        | 0               | Non-negative safe integer      |
 
 `fixed` backoff has `delayMs`; `linear` has `initialDelayMs` and `incrementMs`; `exponential` has `initialDelayMs` and a finite `factor >= 1`. Built-in policies accept optional `maxDelayMs` and finite `jitter` in `[0, 1]`. A `custom` declaration identifies a named policy and positive integer version; execution/provider resolution is not implemented in M1. These settings are not yet translated into engine retries, so runtime semantics such as zero timeout will be defined and tested in the engine bridge.
 
@@ -82,16 +82,16 @@ type Failure = FailureOf<ReportsQueue['generate']>
 
 `InputOf` is the payload schema input. `PayloadOf`, `ResultOf` and `FailureOf` are decoded schema outputs. Without a failure schema, `FailureOf` is `never`. A retryability predicate without a failure schema is rejected.
 
-| Operation | Input | Output |
-| --- | --- | --- |
-| `job.parsePayload(input)` | Payload schema input | Decoded payload |
-| `job.encodePayload(value)` | Decoded payload | JSON string |
-| `job.decodePayload(text)` | JSON string | Revalidated decoded payload |
-| `job.parseResult(input)` | Result schema input | Decoded result |
-| `job.encodeResult(value)` | Decoded result | JSON string |
-| `job.decodeResult(text)` | JSON string | Revalidated decoded result |
-| `job.encodeFailure(value)` | Decoded declared failure | JSON string |
-| `job.decodeFailure(text)` | JSON string | Revalidated declared failure |
+| Operation                  | Input                    | Output                       |
+| -------------------------- | ------------------------ | ---------------------------- |
+| `job.parsePayload(input)`  | Payload schema input     | Decoded payload              |
+| `job.encodePayload(value)` | Decoded payload          | JSON string                  |
+| `job.decodePayload(text)`  | JSON string              | Revalidated decoded payload  |
+| `job.parseResult(input)`   | Result schema input      | Decoded result               |
+| `job.encodeResult(value)`  | Decoded result           | JSON string                  |
+| `job.decodeResult(text)`   | JSON string              | Revalidated decoded result   |
+| `job.encodeFailure(value)` | Decoded declared failure | JSON string                  |
+| `job.decodeFailure(text)`  | JSON string              | Revalidated declared failure |
 
 The standalone `validateSchema`, `encodeSchema` and `decodeSchema` functions offer the same behavior for any supported contract. Validation accepts untrusted values at runtime even when the higher-level job method has a typed argument.
 
@@ -129,10 +129,7 @@ const restored = await decodeSchema(reversible, await encodeSchema(reversible, 4
 export class ReportsMessagingModule {}
 
 @Module({
-  imports: [
-    MqModule.forRoot({ defaults: { priority: 1 } }),
-    ReportsMessagingModule
-  ]
+  imports: [MqModule.forRoot({ defaults: { priority: 1 } }), ReportsMessagingModule]
 })
 export class ApplicationModule {}
 ```
