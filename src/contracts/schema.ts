@@ -48,12 +48,16 @@ export function defineCodec<Schema extends StandardSchemaV1>(
   return Object.freeze(contract)
 }
 
+function standardSchema(contract: ValueSchema): StandardSchemaV1 {
+  return CODEC in contract ? contract.schema : contract
+}
+
 /** Runtime validation boundary; input is deliberately not trusted merely because it is typed. */
 export async function validateSchema<Contract extends ValueSchema, Input>(
   contract: Contract,
   input: Input
 ): Promise<SchemaOutput<Contract>> {
-  const schema = CODEC in contract ? contract.schema : contract
+  const schema = standardSchema(contract)
   const result = await Promise.resolve()
     .then(() => schema['~standard'].validate(input))
     .catch((cause) => {
