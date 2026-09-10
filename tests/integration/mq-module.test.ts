@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import assert from 'node:assert/strict'
 import { Inject, Injectable, Module } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 
@@ -115,7 +116,7 @@ describe('MqModule in real Nest application contexts', () => {
   })
 
   test('propagates an options factory failure without hiding its cause', async () => {
-    await expect(
+    await assert.rejects(
       Test.createTestingModule({
         imports: [
           MqModule.forRootAsync({
@@ -124,7 +125,8 @@ describe('MqModule in real Nest application contexts', () => {
             }
           })
         ]
-      }).compile()
-    ).rejects.toThrow('configuration is unavailable')
+      }).compile(),
+      { message: 'configuration is unavailable' }
+    )
   })
 })
