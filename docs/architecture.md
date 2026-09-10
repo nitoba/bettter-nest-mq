@@ -2,44 +2,54 @@
 
 ## Implementation status
 
-M0 foundations and M1 typed contracts/Nest registration are implemented. The current API includes MqModule, MqConfiguration, MqRegistry, QueueService/JobDefinition, Queue/Job/Retry/JobTimeout, schema helpers and the optional Zod codec subpath. See docs/contracts.md for operational details of those APIs. The engine host, database adapters, producers, workers, flows, schedules and outbox described below remain planned.
+M0 foundations, M1 typed contracts/Nest registration and M2 engine lifecycle are implemented. The public surface includes modules, contracts/decorators, schema helpers, the registry, opaque connections and connection readiness. Optional subpaths provide Zod codecs and PostgreSQL configuration/migration helpers.
 
-## Composition
+The private host now owns a real runtime and named JobStores. Public producer/worker APIs, executable job-policy compilation, other adapter wrappers, flows, schedules, transactional outbox and administration remain planned. See docs/contracts.md and docs/connections.md for implemented behavior; do not treat the targets below as available APIs.
 
-A Nest 12 ESM library exposes Modules, Services, decorators, schemas and Promise-returning methods. The planned engine is better-effect-mq; Effect/Result/Layer/Runtime types remain private. Database integrations use optional entry points rather than eager imports from the root.
+## Composition and ownership
 
-Nest owns business services. One private engine host per application context will own its runtime and named stores. Borrowed pools must never be closed by the library; owned pools must close exactly once. Acquisition, startup, drain, cancellation and release are distinct lifecycle stages. Failed acquisition needs local rollback because Nest can rethrow failed initialization from close() before running destruction hooks.
+The public API is Nest 12 ESM: Modules, Services, decorators and Promises. The core engine remains better-effect-mq; its Effect/Result/Layer/Runtime types are private. Native database types are isolated behind optional integration subpaths. The root works without Zod, pg or the PostgreSQL adapter installed.
 
-## Contracts and execution
+Nest owns business services. Each configured application context owns one private runtime covering its named stores. Contract-only applications allocate none. Descriptor definitions are inert; they never hold a shared runtime or pool acquired on behalf of another context. Owned pools are created during startup; borrowed pools are never closed by the facade.
 
-Queue Services declare inert, versioned jobs through typed properties. Queue selects identity and connection; Job identifies the durable contract; retry and timeout policies belong to the shared producer definition. A typed this.job helper preserves schema inference without pretending decorator reflection can infer TypeScript generics.
+Startup validates queue references, resolves named tokens, checks protocol/capabilities and probes real stores before publishing connection readiness. The host explicitly invokes idempotent contract registration rather than relying on concurrent provider-hook ordering. Acquisition failure rolls back locally: Nest can rethrow failed initialization from close() before running destruction hooks.
 
-M1 discovery operates over registered singleton Nest providers and commits an immutable snapshot only after complete validation. It rejects duplicate identities, missing decorators and scoped contract dependency trees. Connection names currently remain metadata; capability/resource checks belong to the engine bridge. Provider aliases are deduplicated by actual instance identity.
+Shutdown closes admission, drains/cooperatively aborts runtime operations, releases scoped adapter resources, then closes facade-owned resources. Cleanup is memoized, continues through individual failures, and aggregates errors. It does not forcibly interrupt arbitrary JavaScript or guarantee cancellation of every non-cooperative database query.
 
-Worker Services will implement Process methods. Worker settings control local concurrency, leases and heartbeats; distributed queue controls remain storage-backed. Producer-only applications must not need processor providers. The execution pipeline must explicitly support applicable Nest enhancers: directly calling a method is not equivalent to an HTTP pipeline. Request-scoped handler dependencies need an attempt-specific context, not a fabricated HTTP request.
+## Contracts and validation
 
-## Validation and failures
+Queue Services declare inert, versioned jobs through typed properties. Queue selects connection/queue identity; Job supplies the durable job name/version. Shared producer declarations own retry/timeout policies. The typed this.job helper preserves schema inference without pretending decorators can infer TypeScript generics.
 
-Standard Schema is the validation contract; Zod is optional and never required by the root entry point. Validate publication/preparation, persisted input, handler output and persisted results/failures. HTTP validation is not a replacement for queue validation.
+Discovery uses actual registered Nest singleton providers, validates complete snapshots and rejects duplicate identities, missing metadata, accessors and scoped dependency trees. Aliases of the same provider instance are deduplicated. Each concrete QueueService declares its own queue identity. Feature module re-exports use the public MqModule class without root-only providers leaking into feature imports.
 
-Schema input, decoded value and wire JSON are distinct. Non-JSON values and non-idempotent transformations require an explicit inverse. M1 checks JSON fidelity and codec round trips, supports asynchronous validators/encoders and rejects lossy encoding. Validators are expected to be deterministic and side-effect-free.
+Standard Schema defines validation. Zod is optional. Input, decoded value and persisted JSON remain separate types; non-JSON values/non-idempotent transformations need explicit inverse encoding. JSON fidelity and codec round trips are checked. Validators and encoders must be deterministic and side-effect-free. HTTP validation never substitutes for queue boundary validation.
 
-Known domain failures carry typed serializable content validated through the job's failure contract. Unexpected defects, schema failures, timeout, cancellation and lease loss remain distinct. Promise-returning methods do not have checked exceptions. Custom retry declarations identify a versioned policy; they do not serialize executable functions or provider instances.
+Known domain failures have typed content validated by the job contract before persistence. Schema issues, encoding errors, throwing vendors and invalid declarations have distinct facade errors. Promise methods do not acquire checked exceptions. Custom retry declarations identify named/versioned policies rather than serializing executable functions.
 
-## Durable behavior to preserve
+## Persistence compatibility
 
-Publishing, bulk enqueue, querying, waiting, cancellation, promotion, retries and attempt history will delegate to the existing engine. execute means enqueue-and-wait, not an in-process handler call. A client's waiting timeout does not imply cancellation of its durable job.
+PostgreSQL delegates to the upstream adapter/migrator, not copied queue SQL. Startup validates the existing schema and never applies migrations automatically. Deployment helpers are explicit. pg idle-client failures are handled for owned pools without logging raw client/credential objects; borrowed-pool error handling belongs to its owner.
 
-Flows retain the persisted parent/children fan-out and collection model. Fan-out constructs an inert child plan; parents waiting for children must not hold a live worker slot. Preserve stable child keys, manifest recovery, bounded/paginated collection, failure policies and cross-connection capability checks. This is not arbitrary function replay or automatic saga compensation.
+The connection name is part of durable identity. The facade's stable `nestjs/<name>` token is hashed into the upstream PostgreSQL namespace. Changing a connection name does not reopen the same stored jobs, even with the same URL/schema/configured namespace. Keep this token scheme stable and require an explicit migration design before changing it.
 
-Schedules persist cron/interval definitions, time zones, misfire and overlap decisions. Reconciliation must be safe during rolling deployments. Dynamic work belongs in a coordinator job, not a serialized function or in-memory per-replica timer.
+The configuration boundary checks exact duplicate descriptors/pool-or-string identities; it does not discover arbitrary physical-database aliases. Capabilities are validated using the real upstream protocol. Advertised readiness capabilities do not imply every corresponding public facade operation has already been implemented.
 
-Application outbox writes share the actual business transaction. Preparation, transactional append, post-commit publication and settlement stay separate. Publication retries and job retries are independent. Stable IDs detect conflicting duplicates; republish windows remain at-least-once. SQL, MongoDB and Redis transactional semantics are not interchangeable, and each ORM bridge must prove transaction-resource identity.
+## Producer and worker targets
 
-The internal flow coordination outbox is separate from the application's transactional outbox.
+Job compilation, enqueue/bulk, query/wait, prepare, retry/cancel/promote and attempts will use the current lifecycle-managed stores. execute means publish-and-wait, not calling a local handler. A wait timeout does not imply cancelling the durable job. Named connections must match across producer and worker deployments.
+
+Worker Services will implement decorated Process methods with local concurrency, heartbeat, leases and stalled recovery delegated to the engine. Global/per-key concurrency and rate limits must remain storage-backed. The execution context explicitly supports appropriate Nest enhancers; invoking a method directly is not equivalent to an HTTP pipeline. Attempt-scoped handler dependencies use a job context, not a fabricated HTTP request. Producer-only modules do not import workers or start consumers.
+
+## Durable feature targets
+
+Flows retain the engine's persisted parent/child fan-out and collection model: inert child plans, stable keys/manifests, bounded/paginated results and defined failure policies. Waiting parents do not occupy a worker slot. This is not arbitrary function replay or automatic saga compensation.
+
+Schedules persist cron/interval, timezone, misfire and overlap decisions. Reconciliation must be safe during rolling deployments and competing replicas. Dynamic work belongs in a coordinator job, not a serialized function or per-replica timer.
+
+Application outbox records share the actual domain transaction. Preparation, append, post-commit publication and settlement remain separate, with independent publication/job retries. Stable IDs detect conflicting duplicates. SQL, MongoDB and Redis transaction guarantees are not interchangeable; each ORM bridge must prove resource identity. The internal flow coordination outbox is distinct from the application's transactional outbox. The currently installed upstream outbox peer does not implement these Nest APIs.
 
 ## Operations and non-goals
 
-Administration, local worker callbacks, durable events, metrics and health probes are separate contracts. Local callbacks are not durable subscriptions. Events wake waiters; persisted state is authoritative. Do not advertise consumer groups/checkpoints without implementing their persistence.
+Administration, local callbacks, durable events, metrics and health probes have distinct contracts. Local callbacks are not durable subscriptions. Persisted job state remains authoritative even when events wake consumers. Do not advertise consumer groups/checkpoints without implementing their persistence.
 
-No automatic administrative HTTP endpoints, production migrations, forceful JavaScript interruption, cross-database distributed transactions or exactly-once external side effects. Cancellation is cooperative. Lease fencing protects settlement, not arbitrary external effects already executed.
+No automatic HTTP management endpoints, production migrations, process signal handlers, cross-database atomicity or exactly-once external-side-effect promise. Cancellation is cooperative; lease fencing protects persisted settlement, not effects already executed in external systems.

@@ -3,6 +3,18 @@ import 'reflect-metadata'
 export { MqModule } from './module/mq.module.ts'
 export { MqConfiguration } from './module/mq.configuration.ts'
 export { MqRegistry } from './module/mq.registry.ts'
+export { MqConnectionsService } from './connections/mq-connections.service.ts'
+export { MqConnectionException, MqEngineStateException } from './connections/errors.ts'
+export type { MqConnectionPhase } from './connections/errors.ts'
+export type {
+  MqConnection,
+  MqConnectionMap,
+  MqConnectionSnapshot,
+  MqConnectionOwnership,
+  MqStoreCapabilities,
+  MqCapability,
+  MqEngineState
+} from './connections/connection.ts'
 export type {
   MqModuleOptions,
   MqOptionsFactory,

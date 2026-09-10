@@ -1,6 +1,6 @@
+import type { MqConnectionMap } from '../connections/connection.ts'
 import type { JobPolicy, ResolvedJobPolicy } from '../contracts/policies.ts'
 
-/** Shutdown policy reserved for the engine host; contracts do not start workers. */
 export interface MqShutdownOptions {
   readonly gracePeriodMs?: number
   readonly abortAfterGracePeriod?: boolean
@@ -9,6 +9,8 @@ export interface MqShutdownOptions {
 export interface MqModuleOptions {
   readonly shutdown?: MqShutdownOptions
   readonly defaults?: JobPolicy
+  /** Omit to register contracts without acquiring any storage resources. */
+  readonly connections?: MqConnectionMap
 }
 
 export interface MqOptionsFactory {
@@ -18,4 +20,5 @@ export interface MqOptionsFactory {
 export interface MqResolvedOptions {
   readonly shutdown: Readonly<Required<MqShutdownOptions>>
   readonly defaults: ResolvedJobPolicy
+  readonly connections: MqConnectionMap | undefined
 }

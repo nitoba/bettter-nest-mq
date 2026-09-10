@@ -2,22 +2,26 @@
 
 ## Unreleased
 
+### M2 — Private engine and PostgreSQL lifecycle
+
+- Add one private engine runtime per configured Nest application context, named stores and protocol/capability checks.
+- Add opaque inert connection descriptors and MqConnectionsService with safe snapshots and live probes.
+- Preserve contract-only module usage without a runtime or implicit in-memory fallback.
+- Add atomic startup, immediate admission closure, concurrent-close safety, failed-acquisition rollback and cleanup error aggregation.
+- Add the optional PostgreSQL integration with borrowed/owned pools, schema validation and explicit deployment migrations.
+- Handle owned pg idle-client errors without crashing the consuming process or logging raw client credentials.
+- Preserve named-store persistence semantics: connection names are part of the durable storage address.
+- Add real PostgreSQL persistence/rollback/ownership tests and public tarball consumers with deliberate connection termination under Node and Bun.
+- Expand optional-dependency isolation and check all public declaration chunks for leaked engine imports.
+
 ### M1 — Typed contracts and Nest registration
 
-- Add inert QueueService/JobDefinition contracts with schema-derived input, payload, result and failure types.
-- Add Queue, Job, Retry and JobTimeout decorators with versioned identities, metadata inheritance and configuration validation.
-- Resolve immutable module/queue/job/decorator policies, replacing retry policies as complete units.
-- Add Standard Schema validation, explicit asynchronous codecs, JSON fidelity checks and round-trip validation.
-- Add the optional better-nest-mq/zod subpath for Zod 4 nested codecs; keep the root Zod-independent.
-- Add typed domain-failure exceptions and distinct validation, encoding, defect and declaration errors.
-- Add MqModule.forFeature and an application-context-local registry over real Nest providers.
-- Reject conflicting identities and scoped queue contracts before exposing any registry snapshot.
-- Expand real Nest, schema, metadata and compile-time regressions; exercise packed consumers with and without Zod under TypeScript 6/7 and Node/Bun.
+- Add typed QueueService/JobDefinition, Queue/Job/Retry/JobTimeout, versioned identities and immutable policies.
+- Add Standard Schema validation, explicit codecs, optional Zod and typed failure categories.
+- Add real Nest feature registration, atomic registry discovery, aliases, isolation and standard module re-exports.
 
-### M0 — Project bootstrap
+### M0 — Foundation
 
-- Initialize the better-nest-mq package with Bun 1.4.2, strict TypeScript and a TypeScript 6 compatibility check, tsdown and publint.
-- Copy the original Oxlint/Oxfmt configurations and anti-slop plugin unchanged from the pinned better-effect revision.
-- Add Nest 12 configurable modules, immutable shutdown configuration, package tests and CI.
+- Configure Bun, TypeScript 6 compatibility, exact upstream Oxlint/Oxfmt/plugin, tsdown, publint, Lefthook, tests and CI.
 
-No engine-backed publication, worker execution, database adapter, flow, schedule or transactional outbox is included yet. No npm release has been published.
+No public producer/worker execution, flow, schedule or transactional outbox facade is implemented yet. No npm release has been published.

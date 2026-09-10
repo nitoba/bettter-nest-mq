@@ -19,6 +19,7 @@ export class MqRegistry implements OnApplicationBootstrap, OnModuleDestroy {
   private queueSnapshot: ReadonlyArray<QueueDefinition> = Object.freeze([])
   private jobSnapshot: ReadonlyArray<RegisteredJob> = Object.freeze([])
   private byIdentity = new Map<string, RegisteredJob>()
+  private initialized = false
 
   constructor(
     @Inject(DiscoveryService) private readonly discovery: DiscoveryService,
@@ -38,11 +39,16 @@ export class MqRegistry implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   onApplicationBootstrap(): void {
+    this.initialize()
+  }
+
+  /** Idempotent prerequisite for the host; avoids relying on concurrent Nest hook ordering. */
+  initialize(): void {
+    if (this.initialized) return
     const queues: QueueDefinition[] = []
     const jobs = new Map<string, RegisteredJob>()
     const instances = new Set<QueueService>()
     const queueKeys = new Set<string>()
-
     for (const wrapper of this.discovery.getProviders()) {
       const instance = wrapper.instance
       const isQueueClass = wrapper.metatype?.prototype instanceof QueueService
@@ -72,11 +78,10 @@ export class MqRegistry implements OnApplicationBootstrap, OnModuleDestroy {
       }
       queues.push(definition)
     }
-
-    // Commit only after the entire discovery/validation pass succeeds.
     this.queueSnapshot = Object.freeze(queues)
     this.jobSnapshot = Object.freeze([...jobs.values()])
     this.byIdentity = jobs
+    this.initialized = true
   }
 
   onModuleDestroy(): void {
