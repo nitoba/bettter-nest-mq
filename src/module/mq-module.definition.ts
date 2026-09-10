@@ -1,6 +1,10 @@
 import { ConfigurableModuleBuilder } from '@nestjs/common'
 import { DiscoveryModule } from '@nestjs/core'
 
+import type { MqConnectionMonitor } from '../connections/connection.ts'
+import { MqConnectionsService } from '../connections/mq-connections.service.ts'
+import { CONNECTION_MONITOR } from '../connections/tokens.ts'
+import { MqEngineHost } from '../engine/mq-engine.host.ts'
 import type { MqModuleOptions } from './mq-module.options.ts'
 import { MqConfiguration } from './mq.configuration.ts'
 import { MqRegistry } from './mq.registry.ts'
@@ -16,7 +20,18 @@ export const { ConfigurableModuleClass } = new ConfigurableModuleBuilder<MqModul
     ...definition,
     global: extras.isGlobal,
     imports: [...(definition.imports ?? []), DiscoveryModule],
-    providers: [...(definition.providers ?? []), MqConfiguration, MqRegistry],
-    exports: [...(definition.exports ?? []), MqConfiguration, MqRegistry]
+    providers: [
+      ...(definition.providers ?? []),
+      MqConfiguration,
+      MqRegistry,
+      MqEngineHost,
+      {
+        provide: CONNECTION_MONITOR,
+        inject: [MqEngineHost],
+        useFactory: (host: MqEngineHost): MqConnectionMonitor => host.session
+      },
+      MqConnectionsService
+    ],
+    exports: [...(definition.exports ?? []), MqConfiguration, MqRegistry, MqConnectionsService]
   }))
   .build()

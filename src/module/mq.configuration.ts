@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common'
 
 import { resolveJobPolicy } from '../contracts/policies.ts'
+import { copyConnections } from '../engine/connection-definition.ts'
 import { MODULE_OPTIONS_TOKEN } from './mq.tokens.ts'
 import type { MqModuleOptions, MqResolvedOptions } from './mq-module.options.ts'
 
-/** Immutable, application-context-local configuration; it owns no external resources. */
+/** Copies configuration without freezing caller-owned pools or opening connections. */
 @Injectable()
 export class MqConfiguration {
   readonly options: MqResolvedOptions
@@ -19,7 +20,8 @@ export class MqConfiguration {
         gracePeriodMs,
         abortAfterGracePeriod: options.shutdown?.abortAfterGracePeriod ?? true
       }),
-      defaults: resolveJobPolicy(options.defaults ?? {})
+      defaults: resolveJobPolicy(options.defaults ?? {}),
+      connections: copyConnections(options.connections)
     })
   }
 }
