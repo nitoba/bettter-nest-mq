@@ -30,7 +30,10 @@ try {
   const archive = join(temporary, archiveName)
   const entries = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n')
   for (const entry of entries) {
-    assert.match(entry, /^package\/(?:dist(?:\/.*)?|LICENSE|README\.md|CHANGELOG\.md|package\.json)\/?$/)
+    assert.match(
+      entry,
+      /^package\/(?:dist(?:\/.*)?|LICENSE|README\.md|CHANGELOG\.md|package\.json)\/?$/
+    )
   }
 
   const declaration = await readFile(join(root, 'dist', 'index.d.mts'), 'utf8')
@@ -54,7 +57,10 @@ try {
           'reflect-metadata': await installedVersion('reflect-metadata'),
           rxjs: await installedVersion('rxjs')
         },
-        devDependencies: { typescript: version, '@types/node': await installedVersion('@types/node') }
+        devDependencies: {
+          typescript: version,
+          '@types/node': await installedVersion('@types/node')
+        }
       })
     )
     await run(['bun', 'install', '--ignore-scripts'], directory)

@@ -30,7 +30,9 @@ try {
 })
 class AsyncApplicationModule {}
 
-const asyncApp = await NestFactory.createApplicationContext(AsyncApplicationModule, { logger: false })
+const asyncApp = await NestFactory.createApplicationContext(AsyncApplicationModule, {
+  logger: false
+})
 try {
   assert.deepEqual(asyncApp.get(MqConfiguration).options, options)
 } finally {

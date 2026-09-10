@@ -69,15 +69,15 @@ The example illustrates the local/package API, not an instruction to install an 
 
 ## Tooling
 
-| Tool | Purpose |
-| --- | --- |
-| Bun | Package manager, lockfile, test runner and development scripts |
-| TypeScript | Strict checking, TypeScript 6 compatibility and declarations |
-| tsdown | ESM build, declaration bundle and source maps |
-| Oxlint + oxlint-tsgolint | Type-aware linting with the original custom anti-slop rules |
-| Oxfmt | The exact formatter configuration from better-effect |
-| Lefthook | Local lint, formatter and typecheck hooks |
-| publint | Validation of the package's public exports |
+| Tool                     | Purpose                                                        |
+| ------------------------ | -------------------------------------------------------------- |
+| Bun                      | Package manager, lockfile, test runner and development scripts |
+| TypeScript               | Strict checking, TypeScript 6 compatibility and declarations   |
+| tsdown                   | ESM build, declaration bundle and source maps                  |
+| Oxlint + oxlint-tsgolint | Type-aware linting with the original custom anti-slop rules    |
+| Oxfmt                    | The exact formatter configuration from better-effect           |
+| Lefthook                 | Local lint, formatter and typecheck hooks                      |
+| publint                  | Validation of the package's public exports                     |
 
 The `.oxlintrc.json`, `.oxfmtrc.json` and complete `tools/oxlint` plugin are copied unchanged from `nitoba/better-effect` at commit `42c28fb0af7882eb048ee5d4ab1c1db81142c9dd`. `bun run check:tooling` verifies their Git blob hashes. See [tooling provenance](docs/tooling.md) before updating those files.
 
