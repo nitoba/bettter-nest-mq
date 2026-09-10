@@ -1,6 +1,13 @@
 export const connectionBrand: unique symbol = Symbol('mq.connection')
 
-export type MqEngineState = 'idle' | 'disabled' | 'starting' | 'ready' | 'stopping' | 'closed' | 'failed'
+export type MqEngineState =
+  | 'idle'
+  | 'disabled'
+  | 'starting'
+  | 'ready'
+  | 'stopping'
+  | 'closed'
+  | 'failed'
 export type MqConnectionOwnership = 'owned' | 'borrowed'
 
 export interface MqStoreCapabilities {

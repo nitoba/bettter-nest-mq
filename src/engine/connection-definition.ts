@@ -3,7 +3,12 @@ import type { JobStoreToken } from 'better-effect-mq'
 import type { Layer } from 'better-effect'
 
 import { connectionBrand } from '../connections/connection.ts'
-import type { MqCapability, MqConnection, MqConnectionMap, MqConnectionOwnership } from '../connections/connection.ts'
+import type {
+  MqCapability,
+  MqConnection,
+  MqConnectionMap,
+  MqConnectionOwnership
+} from '../connections/connection.ts'
 import { MqConnectionException } from '../connections/errors.ts'
 import { requireName } from '../contracts/policies.ts'
 
@@ -34,18 +39,24 @@ interface ConnectionDefinitionOptions {
 // Only inert configuration lives here. Each factory acquires new resources for its owning context.
 const definitions = new WeakMap<MqConnection, ConnectionDefinition>()
 
-export function defineConnection(options: ConnectionDefinitionOptions, acquire: ConnectionDefinition['acquire']): MqConnection {
+export function defineConnection(
+  options: ConnectionDefinitionOptions,
+  acquire: ConnectionDefinition['acquire']
+): MqConnection {
   const connection: MqConnection = Object.freeze({
     [connectionBrand]: true,
     adapter: options.adapter,
     ownership: options.ownership
   })
-  definitions.set(connection, Object.freeze({
-    boundary: options.boundary,
-    scope: options.scope,
-    requirements: Object.freeze([...(options.requirements ?? [])]),
-    acquire
-  }))
+  definitions.set(
+    connection,
+    Object.freeze({
+      boundary: options.boundary,
+      scope: options.scope,
+      requirements: Object.freeze([...(options.requirements ?? [])]),
+      acquire
+    })
+  )
   return connection
 }
 
@@ -55,7 +66,9 @@ export function connectionDefinition(connection: MqConnection, name: string): Co
   return definition
 }
 
-export function copyConnections(connections: MqConnectionMap | undefined): MqConnectionMap | undefined {
+export function copyConnections(
+  connections: MqConnectionMap | undefined
+): MqConnectionMap | undefined {
   if (connections === undefined) return undefined
   const entries = Object.entries(connections)
   for (const [name, connection] of entries) {

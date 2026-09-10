@@ -1,4 +1,9 @@
-import { Inject, Injectable, type OnApplicationBootstrap, type OnModuleDestroy } from '@nestjs/common'
+import {
+  Inject,
+  Injectable,
+  type OnApplicationBootstrap,
+  type OnModuleDestroy
+} from '@nestjs/common'
 
 import { MqConfiguration } from '../module/mq.configuration.ts'
 import { MqRegistry } from '../module/mq.registry.ts'
@@ -13,7 +18,10 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
     @Inject(MqConfiguration) configuration: MqConfiguration,
     @Inject(MqRegistry) private readonly registry: MqRegistry
   ) {
-    this.session = new EngineSession(configuration.options.connections, configuration.options.shutdown)
+    this.session = new EngineSession(
+      configuration.options.connections,
+      configuration.options.shutdown
+    )
   }
 
   async onApplicationBootstrap(): Promise<void> {

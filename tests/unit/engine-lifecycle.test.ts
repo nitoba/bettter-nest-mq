@@ -22,7 +22,10 @@ describe('one real engine session and its resources', () => {
   test('definitions are inert, all named stores become ready, and cleanup happens once in order', async () => {
     const first = memoryConnection()
     const second = memoryConnection()
-    const session = new EngineSession({ first: first.connection, second: second.connection }, shutdown)
+    const session = new EngineSession(
+      { first: first.connection, second: second.connection },
+      shutdown
+    )
     expect(first.trace.acquisitions).toBe(0)
     expect(session.connections()).toEqual([])
     await Promise.all([session.start([]), session.start([])])
@@ -33,7 +36,11 @@ describe('one real engine session and its resources', () => {
     expect(connections.map((value) => value.name)).toEqual(['first', 'second'])
     expect(Object.isFrozen(connections)).toBe(true)
     expect(Object.isFrozen(connections[0]?.capabilities)).toBe(true)
-    expect(await session.probe('first')).toMatchObject({ name: 'first', adapter: 'memory', ownership: 'owned' })
+    expect(await session.probe('first')).toMatchObject({
+      name: 'first',
+      adapter: 'memory',
+      ownership: 'owned'
+    })
     const firstStore = await session.withStore('first', (store) => store)
     const secondStore = await session.withStore('second', (store) => store)
     expect(firstStore).not.toBe(secondStore)
@@ -49,7 +56,10 @@ describe('one real engine session and its resources', () => {
   test('checks queue connection references before acquiring anything', async () => {
     const fixture = memoryConnection()
     const session = new EngineSession({ available: fixture.connection }, shutdown)
-    await assert.rejects(session.start([{ name: 'reports', connection: 'missing', jobs: [] }]), MqConnectionException)
+    await assert.rejects(
+      session.start([{ name: 'reports', connection: 'missing', jobs: [] }]),
+      MqConnectionException
+    )
     expect(fixture.trace.acquisitions).toBe(0)
     expect(fixture.trace.resourceReleases).toBe(0)
     expect(session.state).toBe('failed')
@@ -58,7 +68,10 @@ describe('one real engine session and its resources', () => {
 
   test('rejects repeated physical descriptors under different names before acquisition', async () => {
     const fixture = memoryConnection()
-    const session = new EngineSession({ first: fixture.connection, second: fixture.connection }, shutdown)
+    const session = new EngineSession(
+      { first: fixture.connection, second: fixture.connection },
+      shutdown
+    )
     await assert.rejects(session.start([]), MqConnectionException)
     expect(fixture.trace.acquisitions).toBe(0)
     await session.close()
@@ -68,7 +81,10 @@ describe('one real engine session and its resources', () => {
     const first = memoryConnection()
     const cause = new Error('acquisition failed')
     const second = memoryConnection({ acquisitionFailure: cause })
-    const session = new EngineSession({ first: first.connection, second: second.connection }, shutdown)
+    const session = new EngineSession(
+      { first: first.connection, second: second.connection },
+      shutdown
+    )
     await assert.rejects(session.start([]), MqConnectionException)
     expect(session.state).toBe('failed')
     expect(session.connections()).toEqual([])
@@ -106,7 +122,10 @@ describe('one real engine session and its resources', () => {
 
   test('drains admitted operations before releasing adapter resources', async () => {
     const fixture = memoryConnection()
-    const session = new EngineSession({ main: fixture.connection }, { gracePeriodMs: 1_000, abortAfterGracePeriod: false })
+    const session = new EngineSession(
+      { main: fixture.connection },
+      { gracePeriodMs: 1_000, abortAfterGracePeriod: false }
+    )
     await session.start([])
     const entered = Promise.withResolvers<void>()
     const gate = Promise.withResolvers<void>()
@@ -128,7 +147,10 @@ describe('one real engine session and its resources', () => {
   test('continues cleanup after failures and never releases the same resource twice', async () => {
     const first = memoryConnection({ resourceFailure: new Error('first cleanup') })
     const second = memoryConnection({ releaseFailure: new Error('second layer cleanup') })
-    const session = new EngineSession({ first: first.connection, second: second.connection }, shutdown)
+    const session = new EngineSession(
+      { first: first.connection, second: second.connection },
+      shutdown
+    )
     await session.start([])
     await assert.rejects(session.close(), AggregateError)
     expect(session.state).toBe('closed')
@@ -144,7 +166,9 @@ describe('one real engine session and its resources', () => {
     const second = new EngineSession({ main: fixture.connection }, shutdown)
     await Promise.all([first.start([]), second.start([])])
     try {
-      expect(await first.withStore('main', (store) => store)).not.toBe(await second.withStore('main', (store) => store))
+      expect(await first.withStore('main', (store) => store)).not.toBe(
+        await second.withStore('main', (store) => store)
+      )
       await first.close()
       expect(await second.probe('main')).toMatchObject({ name: 'main' })
     } finally {

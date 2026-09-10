@@ -1,4 +1,10 @@
-import { Inject, Injectable, Scope, type OnApplicationBootstrap, type OnModuleDestroy } from '@nestjs/common'
+import {
+  Inject,
+  Injectable,
+  Scope,
+  type OnApplicationBootstrap,
+  type OnModuleDestroy
+} from '@nestjs/common'
 import { DiscoveryService } from '@nestjs/core'
 
 import { ContractDefinitionException } from '../contracts/errors.ts'
@@ -47,18 +53,27 @@ export class MqRegistry implements OnApplicationBootstrap, OnModuleDestroy {
       const instance = wrapper.instance
       const isQueueClass = wrapper.metatype?.prototype instanceof QueueService
       if (!isQueueClass && !(instance instanceof QueueService)) continue
-      if (wrapper.scope === Scope.REQUEST || wrapper.scope === Scope.TRANSIENT || !wrapper.isDependencyTreeStatic()) {
-        throw new ContractDefinitionException('QueueService contracts require singleton providers with static dependency trees')
+      if (
+        wrapper.scope === Scope.REQUEST ||
+        wrapper.scope === Scope.TRANSIENT ||
+        !wrapper.isDependencyTreeStatic()
+      ) {
+        throw new ContractDefinitionException(
+          'QueueService contracts require singleton providers with static dependency trees'
+        )
       }
-      if (!(instance instanceof QueueService)) throw new ContractDefinitionException('QueueService provider was not initialized')
+      if (!(instance instanceof QueueService))
+        throw new ContractDefinitionException('QueueService provider was not initialized')
       if (instances.has(instance)) continue
       instances.add(instance)
       const definition = getQueueDefinition(instance, this.configuration.options.defaults)
       const queueKey = JSON.stringify([definition.connection, definition.name])
-      if (queueKeys.has(queueKey)) throw new ContractDefinitionException(`Duplicate queue identity ${queueKey}`)
+      if (queueKeys.has(queueKey))
+        throw new ContractDefinitionException(`Duplicate queue identity ${queueKey}`)
       queueKeys.add(queueKey)
       for (const job of definition.jobs) {
-        if (jobs.has(job.identity.key)) throw new ContractDefinitionException(`Duplicate job identity ${job.identity.key}`)
+        if (jobs.has(job.identity.key))
+          throw new ContractDefinitionException(`Duplicate job identity ${job.identity.key}`)
         jobs.set(job.identity.key, job)
       }
       queues.push(definition)
