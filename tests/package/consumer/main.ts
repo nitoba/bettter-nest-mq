@@ -77,11 +77,15 @@ assert.equal(app.get(MqRegistry).jobs().length, 0)
 })
 class AsyncApplicationModule {}
 
-const asyncApp = await NestFactory.createApplicationContext(AsyncApplicationModule, { logger: false })
+const asyncApp = await NestFactory.createApplicationContext(AsyncApplicationModule, {
+  logger: false
+})
 try {
   assert.deepEqual(asyncApp.get(MqConfiguration).options.shutdown, options.shutdown)
   assert.equal(asyncApp.get(MqRegistry).jobs().length, 1)
 } finally {
   await asyncApp.close()
 }
-console.log('External consumer: real DI, module re-exports, contracts, lifecycle and Zod-free root passed')
+console.log(
+  'External consumer: real DI, module re-exports, contracts, lifecycle and Zod-free root passed'
+)
