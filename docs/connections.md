@@ -61,11 +61,11 @@ Run migrations with appropriate deployment privileges and use restricted applica
 
 `MqConnectionsService` exposes:
 
-| Member | Meaning |
-| --- | --- |
-| `state` | Lifecycle state: idle, disabled, starting, ready, stopping, closed or failed |
+| Member          | Meaning                                                                               |
+| --------------- | ------------------------------------------------------------------------------------- |
+| `state`         | Lifecycle state: idle, disabled, starting, ready, stopping, closed or failed          |
 | `connections()` | Frozen successful-startup snapshot, empty before readiness and after shutdown/failure |
-| `probe(name)` | Promise performing a live store query and returning its safe descriptor |
+| `probe(name)`   | Promise performing a live store query and returning its safe descriptor               |
 
 Descriptors include adapter/version, protocol/layout version, declared capabilities and ownership. Credentials, pools, storage tokens and runtime handles never appear. `state: ready` is not continual health monitoring; use a probe when checking current connectivity. Probes currently use the store's counts query, so their cost depends on the store and job population; avoid aggressive high-frequency polling.
 

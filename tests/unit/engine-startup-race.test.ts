@@ -13,16 +13,30 @@ test('rolls back an acquisition that finishes after close was requested', async 
   const entered = Promise.withResolvers<void>()
   const gate = Promise.withResolvers<void>()
   const releases: string[] = []
-  const connection = defineConnection({
-    adapter: 'memory', ownership: 'owned', boundary: entered, scope: 'racing-acquisition'
-  }, (token) => ({
-    layer: Layer.scoped(token, async () => {
-      entered.resolve()
-      await gate.promise
-      return MemoryJobStore.make()
-    }, () => { releases.push('layer') }),
-    release: async () => { releases.push('resource') }
-  }))
+  const connection = defineConnection(
+    {
+      adapter: 'memory',
+      ownership: 'owned',
+      boundary: entered,
+      scope: 'racing-acquisition'
+    },
+    (token) => ({
+      layer: Layer.scoped(
+        token,
+        async () => {
+          entered.resolve()
+          await gate.promise
+          return MemoryJobStore.make()
+        },
+        () => {
+          releases.push('layer')
+        }
+      ),
+      release: async () => {
+        releases.push('resource')
+      }
+    })
+  )
   const session = new EngineSession({ primary: connection }, { gracePeriodMs: 0 })
   const starting = session.start([])
   const rejected = assert.rejects(starting, MqEngineStateException)

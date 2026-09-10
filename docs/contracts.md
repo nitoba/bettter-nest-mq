@@ -43,13 +43,13 @@ Connection names now participate in actual storage addressing through the upstre
 
 Policies resolve in order: library, module, queue, job, property decorators. A later retry policy replaces the complete previous one rather than mixing backoff variants. Explicit zero values are preserved.
 
-| Setting | Default | Declaration validation |
-| --- | --- | --- |
-| retry.attempts | 1 | Positive safe integer |
-| retry.backoff | Unset | Supported discriminated policy |
-| timeoutMs | Unset | Non-negative safe integer |
-| priority | 0 | Non-negative safe integer |
-| delayMs | 0 | Non-negative safe integer |
+| Setting        | Default | Declaration validation         |
+| -------------- | ------- | ------------------------------ |
+| retry.attempts | 1       | Positive safe integer          |
+| retry.backoff  | Unset   | Supported discriminated policy |
+| timeoutMs      | Unset   | Non-negative safe integer      |
+| priority       | 0       | Non-negative safe integer      |
+| delayMs        | 0       | Non-negative safe integer      |
 
 Fixed backoff has delayMs; linear has initialDelayMs/incrementMs; exponential has initialDelayMs and finite factor >=1. Built-ins accept optional maxDelayMs and finite jitter in [0,1]. Custom declarations identify a policy name/version. `resolveJobPolicy(...layers)` exposes the same immutable resolution independently of Nest.
 
@@ -68,16 +68,16 @@ type Failure = FailureOf<ReportsQueue['generate']>
 
 InputOf is the payload schema input; PayloadOf/ResultOf/FailureOf are decoded outputs. Without a failure schema, FailureOf is never. A retryable predicate without a declared failure schema is rejected.
 
-| Method | Input | Promise output |
-| --- | --- | --- |
-| parsePayload | Payload schema input | Decoded payload |
-| encodePayload | Decoded payload | JSON string |
-| decodePayload | JSON string | Revalidated decoded payload |
-| parseResult | Result schema input | Decoded result |
-| encodeResult | Decoded result | JSON string |
-| decodeResult | JSON string | Revalidated result |
-| encodeFailure | Decoded declared failure | JSON string |
-| decodeFailure | JSON string | Revalidated declared failure |
+| Method        | Input                    | Promise output               |
+| ------------- | ------------------------ | ---------------------------- |
+| parsePayload  | Payload schema input     | Decoded payload              |
+| encodePayload | Decoded payload          | JSON string                  |
+| decodePayload | JSON string              | Revalidated decoded payload  |
+| parseResult   | Result schema input      | Decoded result               |
+| encodeResult  | Decoded result           | JSON string                  |
+| decodeResult  | JSON string              | Revalidated result           |
+| encodeFailure | Decoded declared failure | JSON string                  |
+| decodeFailure | JSON string              | Revalidated declared failure |
 
 Standalone validateSchema, encodeSchema and decodeSchema implement the same boundaries. Runtime validation does not trust an input merely because TypeScript typed it.
 
