@@ -16,8 +16,7 @@ async function installedVersion(name: string): Promise<string> {
 
 async function run(command: string[], cwd: string): Promise<void> {
   const child = Bun.spawn(command, { cwd, stdout: 'inherit', stderr: 'inherit' })
-  const code = await child.exited
-  assert.equal(code, 0, `Command failed: ${command.join(' ')}`)
+  assert.equal(await child.exited, 0, `Command failed: ${command.join(' ')}`)
 }
 
 const temporary = await mkdtemp(join(tmpdir(), 'better-nest-mq-consumer-'))
@@ -30,44 +29,47 @@ try {
   const archive = join(temporary, archiveName)
   const entries = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n')
   for (const entry of entries) {
-    assert.match(
-      entry,
-      /^package\/(?:dist(?:\/.*)?|LICENSE|README\.md|CHANGELOG\.md|package\.json)\/?$/
-    )
+    assert.match(entry, /^package\/(?:dist(?:\/.*)?|LICENSE|README\.md|CHANGELOG\.md|package\.json)\/?$/)
   }
-
   const declaration = await readFile(join(root, 'dist', 'index.d.mts'), 'utf8')
-  assert.doesNotMatch(declaration, /from\s+['"](?:better-effect|better-result)/)
+  assert.doesNotMatch(declaration, /from\s+['"](?:better-effect|better-result|zod)/)
 
   for (const compiler of ['typescript-minimum', 'typescript']) {
     const version = await installedVersion(compiler)
     const directory = join(temporary, compiler)
     await mkdir(directory)
     await cp(join(root, 'tests', 'package', 'consumer'), directory, { recursive: true })
-    await writeFile(
-      join(directory, 'package.json'),
-      JSON.stringify({
-        name: 'better-nest-mq-external-consumer',
-        private: true,
-        type: 'module',
-        dependencies: {
-          'better-nest-mq': pathToFileURL(archive).href,
-          '@nestjs/common': await installedVersion('@nestjs/common'),
-          '@nestjs/core': await installedVersion('@nestjs/core'),
-          'reflect-metadata': await installedVersion('reflect-metadata'),
-          rxjs: await installedVersion('rxjs')
-        },
-        devDependencies: {
-          typescript: version,
-          '@types/node': await installedVersion('@types/node')
-        }
-      })
-    )
+    const manifest = {
+      name: 'better-nest-mq-external-consumer',
+      private: true,
+      type: 'module',
+      dependencies: {
+        'better-nest-mq': pathToFileURL(archive).href,
+        '@nestjs/common': await installedVersion('@nestjs/common'),
+        '@nestjs/core': await installedVersion('@nestjs/core'),
+        '@standard-schema/spec': await installedVersion('@standard-schema/spec'),
+        'reflect-metadata': await installedVersion('reflect-metadata'),
+        rxjs: await installedVersion('rxjs')
+      },
+      devDependencies: { typescript: version, '@types/node': await installedVersion('@types/node') }
+    }
+    await writeFile(join(directory, 'package.json'), JSON.stringify(manifest))
     await run(['bun', 'install', '--ignore-scripts'], directory)
+    // Exercise the root with the optional peer genuinely absent, even if a package manager hoisted it.
+    await rm(join(directory, 'node_modules', 'zod'), { recursive: true, force: true })
     await run(['node', 'node_modules/typescript/bin/tsc', '-p', 'tsconfig.json'], directory)
     await run(['node', 'dist/main.js'], directory)
     await run(['bun', 'dist/main.js'], directory)
-    console.log(`Packed package passed Node and Bun consumption with TypeScript ${version}`)
+
+    await writeFile(join(directory, 'package.json'), JSON.stringify({
+      ...manifest,
+      devDependencies: { ...manifest.devDependencies, zod: await installedVersion('zod') }
+    }))
+    await run(['bun', 'install', '--ignore-scripts'], directory)
+    await run(['node', 'node_modules/typescript/bin/tsc', '-p', 'tsconfig.codec.json'], directory)
+    await run(['node', 'dist/codec.js'], directory)
+    await run(['bun', 'dist/codec.js'], directory)
+    console.log(`Packed package passed Zod-free and codec consumers with TypeScript ${version}`)
   }
 } finally {
   await rm(temporary, { recursive: true, force: true })

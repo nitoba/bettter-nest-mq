@@ -1,41 +1,67 @@
 import 'reflect-metadata'
 import assert from 'node:assert/strict'
+import { createRequire } from 'node:module'
 import { Injectable, Module } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
-import { MqConfiguration, MqModule, type MqModuleOptions } from 'better-nest-mq'
+import type { StandardSchemaV1 } from '@standard-schema/spec'
+import { Job, MqConfiguration, MqModule, MqRegistry, Queue, QueueService, type MqModuleOptions } from 'better-nest-mq'
 
-const options = {
-  shutdown: { gracePeriodMs: 125, abortAfterGracePeriod: false }
-} satisfies MqModuleOptions
+assert.throws(() => createRequire(import.meta.url).resolve('zod'), { code: 'MODULE_NOT_FOUND' })
 
-// No explicit @Inject: consumer compilation must preserve normal Nest constructor metadata.
-@Injectable()
-class Consumer {
-  constructor(readonly configuration: MqConfiguration) {}
+const text: StandardSchemaV1<string> = {
+  '~standard': {
+    version: 1,
+    vendor: 'consumer',
+    validate: (value) => value === 'message' ? { value: 'message' } : { issues: [{ message: 'Expected message' }] }
+  }
 }
 
-@Module({ imports: [MqModule.forRoot(options)], providers: [Consumer] })
+@Injectable()
+@Queue({ name: 'external' })
+class ExternalQueue extends QueueService {
+  @Job({ name: 'echo', version: 1 })
+  readonly echo = this.job({ payload: text, result: text })
+}
+
+const options = {
+  shutdown: { gracePeriodMs: 125, abortAfterGracePeriod: false },
+  defaults: { priority: 5 }
+} satisfies MqModuleOptions
+
+// No explicit @Inject: the consumer must preserve normal Nest constructor metadata.
+@Injectable()
+class Consumer {
+  constructor(
+    readonly configuration: MqConfiguration,
+    readonly registry: MqRegistry,
+    readonly queue: ExternalQueue
+  ) {}
+}
+
+@Module({ imports: [MqModule.forRoot(options), MqModule.forFeature([ExternalQueue])], providers: [Consumer] })
 class ApplicationModule {}
 
 const app = await NestFactory.createApplicationContext(ApplicationModule, { logger: false })
 try {
-  assert.deepEqual(app.get(Consumer).configuration.options, options)
-  assert.equal(Object.isFrozen(app.get(MqConfiguration).options.shutdown), true)
+  const consumer = app.get(Consumer)
+  assert.deepEqual(consumer.configuration.options.shutdown, options.shutdown)
+  assert.equal(Object.isFrozen(consumer.configuration.options), true)
+  assert.equal(consumer.registry.jobs().length, 1)
+  assert.equal(consumer.registry.jobs()[0]?.policy.priority, 5)
+  assert.equal(await consumer.queue.echo.decodePayload(await consumer.queue.echo.encodePayload('message')), 'message')
 } finally {
   await app.close()
 }
+assert.equal(app.get(MqRegistry).jobs().length, 0)
 
-@Module({
-  imports: [MqModule.forRootAsync({ useFactory: async () => options })]
-})
+@Module({ imports: [MqModule.forRootAsync({ useFactory: async () => options }), MqModule.forFeature([ExternalQueue])] })
 class AsyncApplicationModule {}
 
-const asyncApp = await NestFactory.createApplicationContext(AsyncApplicationModule, {
-  logger: false
-})
+const asyncApp = await NestFactory.createApplicationContext(AsyncApplicationModule, { logger: false })
 try {
-  assert.deepEqual(asyncApp.get(MqConfiguration).options, options)
+  assert.deepEqual(asyncApp.get(MqConfiguration).options.shutdown, options.shutdown)
+  assert.equal(asyncApp.get(MqRegistry).jobs().length, 1)
 } finally {
   await asyncApp.close()
 }
-console.log('External consumer: DI, declarations, ESM and lifecycle passed')
+console.log('External consumer: real DI, contracts, ESM, lifecycle and Zod-free root passed')

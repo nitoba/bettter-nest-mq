@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: { index: 'src/index.ts' },
+  entry: { index: 'src/index.ts', zod: 'src/integrations/zod.ts' },
   format: ['esm'],
   platform: 'node',
   target: 'es2023',
@@ -9,5 +9,5 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   treeshake: true,
-  deps: { neverBundle: [/^@nestjs\//, 'reflect-metadata', 'rxjs'] }
+  deps: { neverBundle: [/^@nestjs\//, 'reflect-metadata', 'rxjs', 'zod'] }
 })

@@ -1,0 +1,42 @@
+name: Typed contracts development validation
+
+on:
+  push:
+    branches: [feat/typed-contracts]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: typed-contracts-development
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/feat/typed-contracts'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Generate lockfile and format authored files
+        run: |
+          bun install
+          bun run format
+          bun run check:tooling
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u
+          if ! git diff --cached --quiet; then
+            git commit -m 'chore: lock contract dependencies and apply upstream formatting'
+            git push origin HEAD:feat/typed-contracts
+          fi
+      - name: Validate all quality gates and actual package consumers
+        run: bun run check
