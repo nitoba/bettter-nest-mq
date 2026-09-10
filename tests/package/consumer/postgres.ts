@@ -11,12 +11,18 @@ import { migratePostgres, postgres, validatePostgres } from 'better-nest-mq/post
 const unusedPool = new Pool({ connectionString: 'postgresql://unused:unused@localhost:1/unused' })
 try {
   const borrowed: MqConnection = postgres({ pool: unusedPool, namespace: 'packed' })
-  const owned: MqConnection = postgres({ connectionString: 'postgresql://unused:unused@localhost:1/unused', max: 2 })
+  const owned: MqConnection = postgres({
+    connectionString: 'postgresql://unused:unused@localhost:1/unused',
+    max: 2
+  })
   assert.equal(borrowed.ownership, 'borrowed')
   assert.equal(owned.ownership, 'owned')
   assert.equal(unusedPool.totalCount, 0)
   // Root and integration chunks must share the same opaque-descriptor registry.
-  assert.equal(new MqConfiguration({ connections: { primary: borrowed } }).options.connections?.primary, borrowed)
+  assert.equal(
+    new MqConfiguration({ connections: { primary: borrowed } }).options.connections?.primary,
+    borrowed
+  )
 } finally {
   await unusedPool.end()
 }
@@ -37,12 +43,21 @@ async function verifyLiveDatabase(connectionString: string): Promise<void> {
     const migration = await migratePostgres({ pool: admin, schema })
     assert.equal((await validatePostgres({ pool: admin, schema })).version, migration.version)
 
-    @Module({ imports: [MqModule.forRoot({
-      connections: { primary: postgres({ connectionString: url.href, schema, namespace: 'packed' }) }
-    })] })
+    @Module({
+      imports: [
+        MqModule.forRoot({
+          connections: {
+            primary: postgres({ connectionString: url.href, schema, namespace: 'packed' })
+          }
+        })
+      ]
+    })
     class ApplicationModule {}
 
-    const app = await NestFactory.createApplicationContext(ApplicationModule, { logger: false, abortOnError: false })
+    const app = await NestFactory.createApplicationContext(ApplicationModule, {
+      logger: false,
+      abortOnError: false
+    })
     try {
       const monitor = app.get(MqConnectionsService)
       assert.equal(monitor.state, 'ready')
@@ -52,17 +67,23 @@ async function verifyLiveDatabase(connectionString: string): Promise<void> {
          WHERE application_name = $1 AND state = 'idle' AND query NOT LIKE 'LISTEN %'`,
         [tag]
       )
-      assert.ok(terminated.rows.some((row) => row.terminated), 'The fault test must disconnect an actual idle pool client')
+      assert.ok(
+        terminated.rows.some((row) => row.terminated),
+        'The fault test must disconnect an actual idle pool client'
+      )
       await setTimeout(50)
       assert.equal((await monitor.probe('primary')).name, 'primary')
     } finally {
       await app.close()
     }
     const remaining = await admin.query<{ count: number }>(
-      'SELECT count(*)::integer AS count FROM pg_stat_activity WHERE application_name = $1', [tag]
+      'SELECT count(*)::integer AS count FROM pg_stat_activity WHERE application_name = $1',
+      [tag]
     )
     assert.equal(remaining.rows[0]?.count, 0)
-    console.log('Packed PostgreSQL consumer: actual migrations, Nest readiness, idle-client recovery and owned cleanup passed')
+    console.log(
+      'Packed PostgreSQL consumer: actual migrations, Nest readiness, idle-client recovery and owned cleanup passed'
+    )
   } finally {
     try {
       await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
