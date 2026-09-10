@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common'
 import type { Pool } from 'pg'
 import {
   PostgresJobStore,
@@ -39,6 +40,15 @@ export type PostgresConnectionOptions = PostgresCommonOptions &
 
 /** Inert configuration. The optional pg driver creates an owned pool only during Nest startup. */
 export function postgres(options: PostgresConnectionOptions): MqConnection {
+  try {
+    return createPostgresConnection(options)
+  } catch (cause) {
+    if (cause instanceof MqConnectionException) throw cause
+    throw new MqConnectionException('<postgres>', 'configuration', { cause })
+  }
+}
+
+function createPostgresConnection(options: PostgresConnectionOptions): MqConnection {
   const schema = validateSchema(options.schema ?? 'public')
   const namespace = validateNamespace(options.namespace ?? 'default')
   const validate = options.validateSchema ?? true
@@ -62,13 +72,9 @@ export function postgres(options: PostgresConnectionOptions): MqConnection {
     )
   }
   const connectionString = options.connectionString
-  try {
-    const url = new URL(connectionString)
-    if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:')
-      throw new Error('Expected a PostgreSQL URL')
-  } catch (cause) {
-    throw new MqConnectionException('<postgres>', 'configuration', { cause })
-  }
+  const url = new URL(connectionString)
+  if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:')
+    throw new Error('Expected a PostgreSQL URL')
   const max = options.max ?? 10
   const connectionTimeoutMillis = options.connectionTimeoutMs ?? 10_000
   const idleTimeoutMillis = options.idleTimeoutMs ?? 10_000
@@ -85,6 +91,17 @@ export function postgres(options: PostgresConnectionOptions): MqConnection {
         connectionTimeoutMillis,
         idleTimeoutMillis
       })
+      const logger = new Logger('BetterNestMqPostgres')
+      const onIdleError = (): void => {
+        // pg removes the failed idle client itself. Never log the raw error's attached client,
+        // because it can contain connection credentials and backend session secrets.
+        logger.warn('An idle PostgreSQL client disconnected; the pool will replace it on demand')
+      }
+      pool.on('error', onIdleError)
+      const release = async (): Promise<void> => {
+        await pool.end()
+        pool.removeListener('error', onIdleError)
+      }
       try {
         return {
           layer: PostgresJobStore.layerFor(token, {
@@ -93,13 +110,11 @@ export function postgres(options: PostgresConnectionOptions): MqConnection {
             namespace,
             validateSchema: validate
           }),
-          release: async () => {
-            await pool.end()
-          }
+          release
         }
       } catch (cause) {
         try {
-          await pool.end()
+          await release()
         } catch (cleanupCause) {
           throw new AggregateError([cause, cleanupCause], 'PostgreSQL setup and cleanup failed', {
             cause
