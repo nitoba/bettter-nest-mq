@@ -1,45 +1,45 @@
 # Approved architecture
 
-## Status boundary
+## Implementation status
 
-This document records the target architecture approved before implementation. The bootstrap implements module configuration and the development/package infrastructure only. Except for MqModule and MqConfiguration, the API names below are design targets and are not currently exported.
+M0 foundations and M1 typed contracts/Nest registration are implemented. The current API includes MqModule, MqConfiguration, MqRegistry, QueueService/JobDefinition, Queue/Job/Retry/JobTimeout, schema helpers and the optional Zod codec subpath. See docs/contracts.md for operational details of those APIs. The engine host, database adapters, producers, workers, flows, schedules and outbox described below remain planned.
 
 ## Composition
 
-A single-package Nest 12 ESM library exposes Modules, Services, decorators, schemas and Promise-returning methods. The engine remains better-effect-mq; its Effect/Result/Layer/Runtime types are private. Database wrappers will use separate optional entry points, not eagerly imported root dependencies.
+A Nest 12 ESM library exposes Modules, Services, decorators, schemas and Promise-returning methods. The planned engine is better-effect-mq; Effect/Result/Layer/Runtime types remain private. Database integrations use optional entry points rather than eager imports from the root.
 
-The Nest container owns business services. One private engine host per application context owns the internal runtime and named stores. Borrowed pools are never closed by the library; owned pools are closed exactly once. Resource acquisition, start, drain, abort and release are separate lifecycle stages.
+Nest owns business services. One private engine host per application context will own its runtime and named stores. Borrowed pools must never be closed by the library; owned pools must close exactly once. Acquisition, startup, drain, cancellation and release are distinct lifecycle stages. Failed acquisition needs local rollback because Nest can rethrow failed initialization from close() before running destruction hooks.
 
 ## Contracts and execution
 
-Queue Services declare inert, versioned jobs through typed properties. @Queue selects identity and connection; @Job identifies the persisted contract; retry and timeout policies belong to the shared producer contract. A typed this.job helper preserves schema inference without relying on decorator reflection to infer TypeScript types.
+Queue Services declare inert, versioned jobs through typed properties. Queue selects identity and connection; Job identifies the durable contract; retry and timeout policies belong to the shared producer definition. A typed this.job helper preserves schema inference without pretending decorator reflection can infer TypeScript generics.
 
-Worker Services implement methods with @Process references to declared queue properties. @Worker controls local concurrency, leases and heartbeats. Queue-level distributed controls remain storage-backed and are checked against adapter capabilities. Producer-only applications can import contracts without importing processors or starting consumers.
+M1 discovery operates over registered singleton Nest providers and commits an immutable snapshot only after complete validation. It rejects duplicate identities, missing decorators and scoped contract dependency trees. Connection names currently remain metadata; capability/resource checks belong to the engine bridge. Provider aliases are deduplicated by actual instance identity.
 
-Discovery operates over registered Nest providers. Before admission starts, reject duplicate identities, missing contracts, conflicting handler/flow registrations, invalid settings and unsupported adapter capabilities. A future execution pipeline must explicitly support applicable Nest enhancers; directly invoking a method is not equivalent to the Nest HTTP pipeline. Request-scoped providers require a job-attempt context, not a fabricated HTTP request.
+Worker Services will implement Process methods. Worker settings control local concurrency, leases and heartbeats; distributed queue controls remain storage-backed. Producer-only applications must not need processor providers. The execution pipeline must explicitly support applicable Nest enhancers: directly calling a method is not equivalent to an HTTP pipeline. Request-scoped handler dependencies need an attempt-specific context, not a fabricated HTTP request.
 
-## Validation and failure contracts
+## Validation and failures
 
-Standard Schema is the public validation boundary; Zod 4 is a supported implementation, not a mandatory dependency of the entire facade. Validate publication/preparation, persisted input, handler output and persisted results/failures. HTTP validation does not replace queue validation.
+Standard Schema is the validation contract; Zod is optional and never required by the root entry point. Validate publication/preparation, persisted input, handler output and persisted results/failures. HTTP validation is not a replacement for queue validation.
 
-Schema input, decoded value and persisted JSON are distinct. Values such as Date need an explicit bidirectional codec/encoder. A one-way transform cannot be assumed to encode persisted data or safely run twice.
+Schema input, decoded value and wire JSON are distinct. Non-JSON values and non-idempotent transformations require an explicit inverse. M1 checks JSON fidelity and codec round trips, supports asynchronous validators/encoders and rejects lossy encoding. Validators are expected to be deterministic and side-effect-free.
 
-Known domain failures have validated serializable content. Unexpected defects, validation failures, timeout, cancellation and lease loss remain distinct. A Promise does not acquire checked exceptions by adding a failure schema. Retry policy references are stable/versioned identifiers, never serialized functions or provider instances.
+Known domain failures carry typed serializable content validated through the job's failure contract. Unexpected defects, schema failures, timeout, cancellation and lease loss remain distinct. Promise-returning methods do not have checked exceptions. Custom retry declarations identify a versioned policy; they do not serialize executable functions or provider instances.
 
-## Durable behavior
+## Durable behavior to preserve
 
-Publishing, bulk enqueue, queries, awaiting results, cancellation, retries, promotion and attempts will delegate to the engine. execute means publish-and-wait, not call a local handler. A wait timeout does not implicitly cancel a durable job.
+Publishing, bulk enqueue, querying, waiting, cancellation, promotion, retries and attempt history will delegate to the existing engine. execute means enqueue-and-wait, not an in-process handler call. A client's waiting timeout does not imply cancellation of its durable job.
 
-Flows retain the engine's persisted parent/children fan-out and collection model. Fan-out builds an inert child plan; parents waiting for children do not hold a live worker slot. Stable child keys, manifest recovery, paginated collection, continue/fail policies and cross-connection capability checks are required. This is not an arbitrary replay engine or automatic saga compensation.
+Flows retain the persisted parent/children fan-out and collection model. Fan-out constructs an inert child plan; parents waiting for children must not hold a live worker slot. Preserve stable child keys, manifest recovery, bounded/paginated collection, failure policies and cross-connection capability checks. This is not arbitrary function replay or automatic saga compensation.
 
-Schedules persist cron/interval definitions, time zones, misfire and overlap policies. Startup reconciliation must be rolling-deployment-safe. Do not implement them as one in-memory timer per replica. Dynamic work is a coordinator job, not a serialized function.
+Schedules persist cron/interval definitions, time zones, misfire and overlap decisions. Reconciliation must be safe during rolling deployments. Dynamic work belongs in a coordinator job, not a serialized function or in-memory per-replica timer.
 
-Application outbox writes share the actual business transaction. Preparation, transaction append, publication after commit and settlement remain distinct. Publication retries and job execution retries are independent. Stable IDs detect conflicting duplicate requests. Republish windows remain at-least-once. SQL, MongoDB and Redis capabilities are not interchangeable; ORM bridges must prove transaction-resource identity.
+Application outbox writes share the actual business transaction. Preparation, transactional append, post-commit publication and settlement stay separate. Publication retries and job retries are independent. Stable IDs detect conflicting duplicates; republish windows remain at-least-once. SQL, MongoDB and Redis transactional semantics are not interchangeable, and each ORM bridge must prove transaction-resource identity.
 
-The internal flow coordination outbox is separate from the business application's transactional outbox.
+The internal flow coordination outbox is separate from the application's transactional outbox.
 
 ## Operations and non-goals
 
-Administration, local worker events, durable events, metrics and health probes have separate contracts. Local callbacks are not durable subscriptions. Event notifications wake waiters; persisted job state remains authoritative. Do not advertise consumer groups or durable checkpoints without implementing them.
+Administration, local worker callbacks, durable events, metrics and health probes are separate contracts. Local callbacks are not durable subscriptions. Events wake waiters; persisted state is authoritative. Do not advertise consumer groups/checkpoints without implementing their persistence.
 
-No automatic administrative HTTP endpoints, automatic production migrations, exactly-once side-effect promises, forceful JavaScript interruption or cross-database distributed transactions. Cancellation is cooperative and lease fencing protects persisted settlement, not arbitrary external effects.
+No automatic administrative HTTP endpoints, production migrations, forceful JavaScript interruption, cross-database distributed transactions or exactly-once external side effects. Cancellation is cooperative. Lease fencing protects settlement, not arbitrary external effects already executed.
