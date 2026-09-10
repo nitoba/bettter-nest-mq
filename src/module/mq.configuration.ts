@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common'
 
 import { resolveJobPolicy } from '../contracts/policies.ts'
-import { MODULE_OPTIONS_TOKEN } from './mq-module.definition.ts'
+import { MODULE_OPTIONS_TOKEN } from './mq.tokens.ts'
 import type { MqModuleOptions, MqResolvedOptions } from './mq-module.options.ts'
 
 /** Immutable, application-context-local configuration; it owns no external resources. */

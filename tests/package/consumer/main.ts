@@ -32,6 +32,9 @@ class ExternalQueue extends QueueService {
   readonly echo = this.job({ payload: text, result: text })
 }
 
+@Module({ imports: [MqModule.forFeature([ExternalQueue])], exports: [MqModule] })
+class ExternalMessagingModule {}
+
 const options = {
   shutdown: { gracePeriodMs: 125, abortAfterGracePeriod: false },
   defaults: { priority: 5 }
@@ -48,7 +51,7 @@ class Consumer {
 }
 
 @Module({
-  imports: [MqModule.forRoot(options), MqModule.forFeature([ExternalQueue])],
+  imports: [MqModule.forRoot(options), ExternalMessagingModule],
   providers: [Consumer]
 })
 class ApplicationModule {}
@@ -70,20 +73,15 @@ try {
 assert.equal(app.get(MqRegistry).jobs().length, 0)
 
 @Module({
-  imports: [
-    MqModule.forRootAsync({ useFactory: async () => options }),
-    MqModule.forFeature([ExternalQueue])
-  ]
+  imports: [MqModule.forRootAsync({ useFactory: async () => options }), ExternalMessagingModule]
 })
 class AsyncApplicationModule {}
 
-const asyncApp = await NestFactory.createApplicationContext(AsyncApplicationModule, {
-  logger: false
-})
+const asyncApp = await NestFactory.createApplicationContext(AsyncApplicationModule, { logger: false })
 try {
   assert.deepEqual(asyncApp.get(MqConfiguration).options.shutdown, options.shutdown)
   assert.equal(asyncApp.get(MqRegistry).jobs().length, 1)
 } finally {
   await asyncApp.close()
 }
-console.log('External consumer: real DI, contracts, ESM, lifecycle and Zod-free root passed')
+console.log('External consumer: real DI, module re-exports, contracts, lifecycle and Zod-free root passed')
