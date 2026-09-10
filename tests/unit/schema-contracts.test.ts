@@ -16,6 +16,10 @@ import {
 } from '../../src/index.ts'
 import { zodCodec } from '../../src/integrations/zod.ts'
 
+interface CyclicValue {
+  child?: CyclicValue
+}
+
 const dateSchema = z.codec(z.iso.datetime(), z.date(), {
   decode: (text) => new Date(text),
   encode: (date) => date.toISOString()
@@ -136,7 +140,7 @@ describe('Standard Schema boundaries', () => {
 
   test('rejects nested undefined and cyclic values', async () => {
     await assert.rejects(encodeSchema(z.any(), { value: undefined }), SchemaEncodingException)
-    const cyclic: { child?: object } = {}
+    const cyclic: CyclicValue = {}
     cyclic.child = cyclic
     await assert.rejects(encodeSchema(z.any(), cyclic), SchemaEncodingException)
   })
