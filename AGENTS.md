@@ -2,36 +2,39 @@
 
 ## Scope
 
-This repository is the Nest-native facade for the better-effect-mq ecosystem. Read README.md, docs/contracts.md, docs/architecture.md and docs/roadmap.md before changing public APIs. M0/M1 implement foundations, typed contracts, schemas and Nest registration, not an operational broker. Never add fake enqueue, no-op workers or adapters that silently fall back to memory.
+Read README.md, docs/contracts.md, docs/connections.md, docs/architecture.md and docs/roadmap.md before changing public APIs. M0/M1 foundations and M2 private engine/PostgreSQL lifecycle are implemented. Public producer/worker, flow, schedule and outbox APIs are not implemented. Never export fake enqueue, no-op workers or implicit memory fallbacks.
 
 ## Toolchain
 
-- Use Bun 1.4.2 for installation, scripts and tests. Commit its generated bun.lock; use frozen installs in CI.
-- TypeScript >=6.0.0 is the consumer floor. Check both the primary compiler and TypeScript 6 alias.
-- Keep the vendored type-aware Oxlint configuration, Oxfmt, tsdown, publint and Lefthook. Do not introduce ESLint or Prettier.
-- Never weaken/exclude rules to pass a change. The upstream configs and plugin are hash-checked; deliberate updates need reviewed provenance.
-- Preserve strictness, exactOptionalPropertyTypes, noUncheckedIndexedAccess, Nest legacy decorators and emitted metadata.
+- Use Bun 1.4.2 for installation/scripts/tests and commit its generated lockfile. CI uses frozen installs.
+- TypeScript >=6.0.0 is the public floor; check the TS6 alias and the primary compiler.
+- Keep the exact vendored type-aware Oxlint/Oxfmt/plugin, tsdown, publint and Lefthook. Do not introduce ESLint/Prettier or weaken rules to pass.
+- Preserve strictness, exactOptionalPropertyTypes, noUncheckedIndexedAccess and Nest legacy decorators/metadata.
 
 ## Architecture
 
-- Public APIs use Nest DI and Promises, not Effect, Result, Layer or Runtime.
-- Keep the future engine bridge private. Use no runtime per request/job/provider and no process-global registry shared across application contexts.
-- Contracts remain inert. Workers and resources must not start in decorators or QueueService constructors.
-- Preserve Standard Schema input/output inference. Non-JSON values and non-idempotent transformations require explicit encoding; never guess an inverse.
-- Keep Zod optional and imported only by its integration subpath, not the root. Validate actual packed root consumption without Zod installed.
-- Queue declarations require singleton/static dependency trees. Attempt-scoped business services belong to the worker integration.
-- Failed bootstrap can prevent Nest shutdown hooks from running. The engine host must roll back partially acquired resources itself.
-- Outbox atomicity requires the real domain transaction. Never infer it from an argument merely named transaction.
-- Storage capabilities determine distributed guarantees. Do not emulate them with local semaphores.
-- Preserve at-least-once semantics, fencing, stable identities and cooperative cancellation.
-- Optional database drivers must not be imported from the root entry point.
+- Public APIs use Nest DI, facade-owned types and Promises. No Effect/Result/Layer/Runtime imports in public declarations, including shared declaration chunks.
+- One private runtime per configured application context; none for contract-only registrations. No runtime per request/job/provider or global mutable engine registry.
+- Connection descriptors/contracts are inert. Never acquire pools in decorators or constructors.
+- Keep optional Zod/pg/adapter imports out of the root. Test actual packed consumption with optional peers absent, then optional subpaths present.
+- Preserve Standard Schema input/output inference and explicit inverse codecs; never guess how to reverse a transform.
+- Queue declarations remain singleton/static; attempt-scoped dependencies belong to the worker bridge.
+- Preserve the stable named-store token scheme. PostgreSQL hashes the token into its namespace: renaming connections or changing `nestjs/` changes the durable address.
+- Startup validates schema and never applies migrations. Migration helpers are explicit deployment operations.
+- Roll back partial acquisition inside the failure path; failed Nest bootstrap can prevent destruction hooks.
+- Adapter resources close before owned pools. Borrowed pools remain caller-owned. Owned pg idle-client errors must not crash consumers or log raw credentials/client objects.
+- Lifecycle state is not continuous health monitoring. Probes use live store access; do not fake readiness.
+- Outbox requires the real domain transaction. The upstream outbox dependency alone does not provide the Nest facade.
+- Preserve at-least-once delivery, fencing, cooperative cancellation and storage-backed distributed guarantees.
 
-## Validation
+## Verification
 
-Run `bun run check` before declaring a change complete. Add regression tests before behavior changes, and use real Nest contexts instead of module mocks. Packed-consumer tests must install an actual tarball outside the workspace with TypeScript 6 and the primary compiler, Node and Bun. Keep public declarations free of engine types.
+Run `bun run check` for every delivery and `bun run test:postgres` with MQ_TEST_DATABASE_URL against a dedicated database for connection changes. CI creates an isolated PostgreSQL service; tests create/drop random schemas and terminate only tagged test clients. Do not point failure tests at production.
 
-For storage work add real database integration tests and failure-window tests. In-memory tests alone do not establish transaction, lease or distributed guarantees. Preserve complete registry validation before publishing a snapshot.
+Add failing regressions before behavior fixes. Use actual Nest contexts and real upstream stores; module mocks do not establish transaction/lease correctness. Packed consumers compile with TS6/7 and run under Node/Bun, including actual PostgreSQL startup and idle-client recovery in the database job.
 
-## Commits and releases
+Never infer persistence from a successful method return alone: verify durable records after recreating the application context using the same connection identity.
 
-Use conventional commits. Do not publish npm packages, create releases or change repository settings without explicit authorization. The retained CI workflow is read-only and does not publish packages.
+## Delivery
+
+Use conventional commits. No npm publication, releases or repository setting changes without explicit authorization. Retained CI is read-only; remove temporary branch-specific generation workflows before integration. Document implemented and planned boundaries accurately.
