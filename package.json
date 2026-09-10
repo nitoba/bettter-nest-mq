@@ -2,21 +2,38 @@
   "name": "better-nest-mq",
   "version": "0.0.0",
   "description": "NestJS-native module foundations for the better-effect-mq engine.",
-  "license": "MIT",
-  "type": "module",
-  "sideEffects": ["./dist/index.mjs"],
-  "repository": { "type": "git", "url": "git+https://github.com/nitoba/bettter-nest-mq.git" },
+  "keywords": [
+    "better-effect-mq",
+    "nestjs",
+    "queue",
+    "typescript"
+  ],
   "homepage": "https://github.com/nitoba/bettter-nest-mq#readme",
-  "bugs": { "url": "https://github.com/nitoba/bettter-nest-mq/issues" },
-  "keywords": ["nestjs", "queue", "better-effect-mq", "typescript"],
-  "files": ["dist", "LICENSE", "README.md", "CHANGELOG.md"],
+  "bugs": {
+    "url": "https://github.com/nitoba/bettter-nest-mq/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nitoba/bettter-nest-mq.git"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "type": "module",
+  "sideEffects": [
+    "./dist/index.mjs"
+  ],
   "exports": {
-    ".": { "types": "./dist/index.d.mts", "import": "./dist/index.mjs" },
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
     "./package.json": "./package.json"
   },
-  "engines": { "node": ">=22.12.0" },
-  "packageManager": "bun@1.4.2",
-  "devEngines": { "packageManager": { "name": "bun", "version": "1.4.2", "onFail": "error" } },
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
@@ -35,14 +52,6 @@
     "hooks:install": "lefthook install",
     "prepublishOnly": "bun run check"
   },
-  "peerDependencies": {
-    "@nestjs/common": ">=12.0.0 <13.0.0",
-    "@nestjs/core": ">=12.0.0 <13.0.0",
-    "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2",
-    "typescript": ">=6.0.0"
-  },
-  "peerDependenciesMeta": { "typescript": { "optional": true } },
   "devDependencies": {
     "@nestjs/common": "^12.0.0",
     "@nestjs/core": "^12.0.0",
@@ -63,5 +72,30 @@
     "typescript-minimum": "npm:typescript@^6.0.0",
     "zod": "^4.0.0"
   },
-  "trustedDependencies": ["lefthook"]
+  "peerDependencies": {
+    "@nestjs/common": ">=12.0.0 <13.0.0",
+    "@nestjs/core": ">=12.0.0 <13.0.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "typescript": ">=6.0.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "bun",
+      "version": "1.4.2",
+      "onFail": "error"
+    }
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "bun@1.4.2",
+  "trustedDependencies": [
+    "lefthook"
+  ]
 }

@@ -1,0 +1,86 @@
+{
+  "repository": "nitoba/better-effect",
+  "commit": "42c28fb0af7882eb048ee5d4ab1c1db81142c9dd",
+  "files": [
+    {
+      "path": ".oxfmtrc.json",
+      "gitBlob": "6b67b0300495b4fc80691323b1b5afd42136276a"
+    },
+    {
+      "path": ".oxlintrc.json",
+      "gitBlob": "f454a9cc5b764815e290557f4e47e04d1e0a0e23"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/index.ts",
+      "gitBlob": "4243e9688dc27178bdc4e22b3504bc54706a003e"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/no-chained-type-assertions.ts",
+      "gitBlob": "29c0f4272d388fef814e638372958b5732d51b2e"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/no-conditional-empty-object-spread.ts",
+      "gitBlob": "477f484bc6d7d6a32593da2006d7906a620eb412"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/no-known-value-widening.ts",
+      "gitBlob": "2a6806c699460a4f19e715bc2b36ad7fc69e7f12"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/no-module-mocking.ts",
+      "gitBlob": "813e1a06fb74be10c5f4177580d1ab7dd713e9b3"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/no-object-parameters.ts",
+      "gitBlob": "8596990fc4e311b62ff22d79cdea4eefd95f21c6"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/no-reflect-apply.ts",
+      "gitBlob": "444afbb57d569ec28566ea52f354d6a4ffdbb7a6"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/no-reflect-get.ts",
+      "gitBlob": "655e8fea986fb9427eeb43e4b847af225a15c351"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/no-runtime-typeof.ts",
+      "gitBlob": "aece0140fd0e9b326f0860e5f4a33d0cda9589e2"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/no-shape-in-symbol-names.ts",
+      "gitBlob": "174a1d727a6b5d5b5f5bdbe7db05113a1bc73c8c"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/no-unknown-parameters.ts",
+      "gitBlob": "0117cd3caffd0a2afb9026560c9fc753bb35ae3a"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/no-unknown-returns.ts",
+      "gitBlob": "c15e9fa863eff93ecf9b4709e042aa1059cab993"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/no-unknown-type-aliases.ts",
+      "gitBlob": "af6464a5b1054a93c0d58a54914bde682bb7a091"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/no-unsafe-dictionary-type.ts",
+      "gitBlob": "8c45eed27628fa2c70b64017ebd3a7da998df151"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/no-widen-then-assert.ts",
+      "gitBlob": "f0afee0d4984208e1144d08a21de7bcfb68a6888"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/rules/require-safety-comment-for-type-assertion.ts",
+      "gitBlob": "56ecb8d26b63fd155c1d90b67bcd9ad3821956b5"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/shared/dictionary-types.ts",
+      "gitBlob": "865170047f330705aa74e9cabfe44ad004297e86"
+    },
+    {
+      "path": "tools/oxlint/anti-slop/shared/reflect-method.ts",
+      "gitBlob": "39bc218c3bbf1eada15c00b825202e2835771ea7"
+    }
+  ]
+}
