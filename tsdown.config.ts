@@ -9,5 +9,5 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   treeshake: true,
-  external: [/^@nestjs\//, 'reflect-metadata', 'rxjs']
+  deps: { neverBundle: [/^@nestjs\//, 'reflect-metadata', 'rxjs'] }
 })

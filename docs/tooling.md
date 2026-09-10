@@ -8,6 +8,8 @@ The root Oxlint and Oxfmt JSON files and all of `tools/oxlint` are copied withou
 
 This protects more than a similar set of lint rules: comments, paths and rule implementations are checked byte-for-byte. The provenance check performs no network access.
 
+The copied plugin is vendored source, not application code. The formatter scripts and hook explicitly exclude `tools/oxlint/**` so formatting this project cannot rewrite the upstream implementation. The original configuration files themselves are not modified to achieve this separation.
+
 ## Versions
 
 Bun 1.4.2 and the Oxlint, Oxfmt, oxlint-tsgolint, @oxlint/plugins, tsdown, publint and Lefthook dependency specifications follow the reference root or better-effect-mq package. TypeScript uses the same 7.x development compiler, with an additional `typescript-minimum` alias restricted to 6.x. The public TypeScript peer floor is >=6.0.0 and optional for JavaScript-only consumers.
