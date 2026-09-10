@@ -1,0 +1,51 @@
+name: Execution development inspection
+
+on:
+  push:
+    branches: [feat/producers-workers]
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      - name: Verify the new public API regression fails against M2
+        run: bun test
+      - name: Inspect installed execution contracts
+        if: always()
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, readdirSync } from 'node:fs'
+          const searches = {
+            'better-effect-mq': [
+              [/interface JobBoundOperations/, 110], [/type PreparedEnqueue/, 85],
+              [/type PersistedBackoff/, 55], [/declare const Retry/, 70],
+              [/interface RetryPolicy/, 65], [/class JobContext/, 75],
+              [/interface JobContextInput/, 70], [/type JobState/, 35],
+              [/type JobFailureKind/, 55], [/interface AttemptRecord/, 60]
+            ],
+            'better-effect': [[/run</, 75], [/type RuntimeAvailable/, 30]]
+          }
+          for (const [pkg, searchesForPackage] of Object.entries(searches)) {
+            for (const file of readdirSync(`node_modules/${pkg}/dist`).filter(file => /\.d\.(mts|ts)$/.test(file))) {
+              const lines = readFileSync(`node_modules/${pkg}/dist/${file}`, 'utf8').split('\n')
+              for (const [pattern, count] of searchesForPackage) {
+                const index = lines.findIndex(line => pattern.test(line))
+                if (index >= 0) console.log(`\n${pkg}/${file} ${pattern}\n${lines.slice(index, index + count).join('\n')}`)
+              }
+            }
+          }
+          NODE
