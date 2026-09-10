@@ -14,7 +14,7 @@ const invalidConfigurations: ReadonlyArray<PostgresConnectionOptions> = [
   { connectionString: 'postgresql://localhost/database', schema: 'invalid;schema' }
 ]
 
-test.each(invalidConfigurations)(
+test.each([...invalidConfigurations])(
   'normalizes PostgreSQL configuration failures into facade errors: %p',
   (options) => {
     assert.throws(
