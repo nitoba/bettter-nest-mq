@@ -21,38 +21,42 @@
 
 Files: tests/unit/contracts-public-api.test.ts and these design/plan documents.
 
-- [ ] Assert the approved public exports with `expect(Object.keys(mq)).toContain(name)` against the actual bootstrap.
-- [ ] Run the existing CI and confirm failure specifically because QueueService is absent, while baseline tests remain green.
+- [x] Assert the approved public exports with `expect(Object.keys(mq)).toContain(name)` against the actual bootstrap.
+- [x] Run the existing CI and confirm failure specifically because QueueService is absent, while baseline tests remain green.
 
 ## Task 2 — Schema and typed job contracts
 
 Files: src/contracts/schema.ts, src/contracts/errors.ts, src/contracts/job-definition.ts, src/contracts/queue-service.ts, src/integrations/zod.ts; tests/unit/schema-contracts.test.ts and tests/types/contracts.types.ts.
 
-- [ ] Test Standard Schema async success/issues/throwing vendors, typed payload/results/failures, explicit encode/decode round trips, corrupt JSON and lossy JSON values.
-- [ ] Implement `defineCodec(schema, encoder)`, typed schema validation/encoding, inert `this.job({ payload, result, failure })`, and JobFailureException.
-- [ ] Make tests reject repeated one-way transforms rather than silently persisting the wrong representation.
+- [x] Test Standard Schema async success/issues/throwing vendors, typed payload/results/failures, explicit encode/decode round trips, corrupt JSON and lossy JSON values.
+- [x] Implement `defineCodec(schema, encoder)`, typed schema validation/encoding, inert `this.job({ payload, result, failure })`, and JobFailureException.
+- [x] Make tests reject repeated one-way transforms rather than silently persisting the wrong representation.
 
 ## Task 3 — Metadata and policy resolution
 
 Files: src/contracts/policies.ts, src/contracts/decorators.ts, src/contracts/queue-definition.ts; tests/unit/queue-contracts.test.ts.
 
-- [ ] Test stable identity, distinct versions/connections, duplicate/missing decorators, non-invoked getters, inherited metadata and independent subclass policies.
-- [ ] Implement copy-on-write metadata and library/module/queue/job/decorator precedence with complete retry-policy replacement.
-- [ ] Test invalid versions, attempts, durations, jitter and custom policy references.
+- [x] Test stable identity, distinct versions/connections, duplicate/missing decorators, non-invoked getters, inherited metadata and independent subclass policies.
+- [x] Implement copy-on-write metadata and library/module/queue/job/decorator precedence with complete retry-policy replacement.
+- [x] Test invalid versions, attempts, durations, jitter and custom policy references.
 
 ## Task 4 — Real Nest registry
 
 Files: src/module/mq.module.ts, src/module/mq.registry.ts, module options/configuration, tests/integration/queue-registration.test.ts.
 
-- [ ] Test `MqModule.forFeature([QueueClass])`, real constructor DI, bootstrap discovery, alias deduplication, duplicate identity failure, scoped-provider rejection and application-context isolation.
-- [ ] Build a complete temporary registry before swapping the snapshot and clear it on close.
-- [ ] Preserve existing forRoot/forRootAsync/global and configuration tests.
+- [x] Test `MqModule.forFeature([QueueClass])`, real constructor DI, bootstrap discovery, alias deduplication, duplicate identity failure, scoped-provider rejection and application-context isolation.
+- [x] Build a complete temporary registry before swapping the snapshot and clear it on close.
+- [x] Preserve existing forRoot/forRootAsync/global and configuration tests.
+- [x] Add an observed failing regression for `exports: [MqModule]`, then preserve public module identity while limiting root providers to forRoot/forRootAsync.
+- [x] Exercise feature-module re-exports in the actual packed consumer, not only source tests.
 
 ## Task 5 — Package qualification and delivery
 
 Files: package.json, bun.lock, tsdown.config.ts, scripts/test-package.ts, external consumer fixtures, README.md, CHANGELOG.md, docs/contracts.md and roadmap/status documentation.
 
-- [ ] Make Standard Schema a production type dependency and Zod an optional peer/subpath; do not import Zod from the root.
-- [ ] Exercise the packed library outside the workspace with real Nest DI, both TypeScript versions, Node and Bun; test the root without installing Zod.
-- [ ] Run `bun run check`, inspect lint/build/test output, and remove any temporary development workflow before integration.
-- [ ] Deliver verified commits with exact implemented scope and the next engine-bridge milestone documented.
+- [x] Make Standard Schema a production type dependency and Zod an optional peer/subpath; do not import Zod from the root.
+- [x] Exercise the packed library outside the workspace with real Nest DI, both TypeScript versions, Node and Bun; test the root without installing Zod.
+- [x] Run `bun run check`, inspect lint/build/test output, and remove any temporary development workflow before integration.
+- [x] Deliver verified commits with exact implemented scope and the next engine-bridge milestone documented.
+
+The final cleanup commit is gated by the retained read-only CI matrix before integration. No npm publication is part of this milestone.
