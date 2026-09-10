@@ -1,0 +1,53 @@
+name: Engine development inspection
+
+on:
+  push:
+    branches: [feat/engine-lifecycle]
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Run regression against existing foundation
+        run: |
+          bun install --frozen-lockfile
+          bun test
+      - name: Inspect published runtime and store signatures
+        if: always()
+        run: |
+          mkdir -p /tmp/mq-inspection
+          cd /tmp/mq-inspection
+          echo '{"private":true,"type":"module"}' > package.json
+          bun add better-effect@0.14.0 better-effect-mq@0.1.2 better-effect-mq-postgres@0.1.3 better-effect-mq-outbox@0.1.3 better-result@^3 pg@^8.16.3
+          node --input-type=module <<'NODE'
+          import { readFileSync, readdirSync } from 'node:fs'
+          import { join } from 'node:path'
+          const searches = {
+            'better-effect': [/class Runtime/, /interface RuntimeDisposeOptions/, /type RuntimeDisposeOptions/, /class Layer/, /static merge/, /static complete/],
+            'better-effect-mq': [/interface JobStoreContract/, /interface JobStoreCapabilities/, /interface JobStoreDescriptor/, /declare const MemoryJobStore/, /class MemoryJobStore/, /type CountsRequest/, /interface CountsRequest/],
+            'better-effect-mq-postgres': [/declare const PostgresJobStore/, /interface PostgresJobStoreConfig/, /type PostgresJobStoreConfig/, /interface PostgresJobStoreConnectionConfig/]
+          }
+          for (const [pkg, patterns] of Object.entries(searches)) {
+            console.log('PACKAGE', pkg, JSON.parse(readFileSync(`node_modules/${pkg}/package.json`, 'utf8')).version)
+            for (const file of readdirSync(`node_modules/${pkg}/dist`).filter(file => /\.d\.(?:mts|ts)$/.test(file))) {
+              const lines = readFileSync(join('node_modules', pkg, 'dist', file), 'utf8').split('\n')
+              for (const pattern of patterns) {
+                const start = lines.findIndex(line => pattern.test(line))
+                if (start >= 0) console.log(file, pattern.toString(), '\n' + lines.slice(start, start + 65).join('\n'))
+              }
+            }
+          }
+          NODE
