@@ -6,30 +6,9 @@ function replace(path, before, after) {
   assert.equal(text.split(before).length - 1, 1, `Missing compatibility anchor: ${path}: ${before}`)
   writeFileSync(path, text.replace(before, after))
 }
-replace(
-  'src/engine/engine-session.ts',
-  'JobSchedules.reconcile(definition,',
-  'JobSchedules.reconcile<ScheduleRegistry>(definition,'
-)
-replace('src/engine/schedule-plan.ts', 's.job.schedule(', 'JobSchedules.schedule(s.job, ')
-replace(
-  'src/engine/schedules.ts',
-  "import type { ScheduleRecord } from 'better-effect-mq'",
-  "import type { ScheduleRecord } from 'better-effect-mq'\nimport { makeQueueName } from 'better-effect-mq'"
-)
-replace(
-  'src/engine/schedules.ts',
-  "record: Pick<ScheduleRecord, 'queue'>",
-  'record: { readonly queue: string }'
-)
-replace(
-  'src/engine/schedules.ts',
-  'extension.getControls({ queue: record.queue })',
-  'extension.getControls({ queue: valueOf(makeQueueName(record.queue)) })'
-)
-const pg = 'src/integrations/postgres.ts'
-const text = readFileSync(pg, 'utf8')
-writeFileSync(
-  pg,
-  text.replaceAll('          options.schedules ?? false\n', '          schedules\n')
-)
+replace('src/engine/engine-session.ts', 'JobSchedules.reconcile<ScheduleRegistry>', 'JobSchedules.reconcile<string, ScheduleDrafts, readonly OperationStoreToken[]>')
+replace('src/engine/engine-session.ts', '  ScheduleRegistry\n', '  ScheduleRegistry,\n  ScheduleDrafts\n')
+replace('src/engine/schedule-compiler.ts', 'JobSchedule, JobScheduleOptions', 'JobSchedule, JobScheduleDraft, JobScheduleOptions')
+replace('src/engine/schedule-compiler.ts', 'export interface CompiledSchedule {', 'export interface CompiledSchedule {\n  readonly draft: JobScheduleDraft<CompiledJob, string>')
+replace('src/engine/schedule-compiler.ts', 'return { registered, schedule, encoded }', 'return { registered, schedule, encoded, draft }')
+replace('src/schedules/decorator.ts', "requireInteger(resolved.maxStoreRetries, 'schedules.maxStoreRetries')", "requireInteger(resolved.maxStoreRetries, 'schedules.maxStoreRetries', 1)")
