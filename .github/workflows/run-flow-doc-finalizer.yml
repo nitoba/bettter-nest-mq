@@ -1,0 +1,31 @@
+name: Apply durable flow documentation finalizer
+
+on:
+  push:
+    branches: [feat/durable-flows]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Apply documentation updates
+        run: |
+          node scripts/finalize-flow-docs.mjs
+          bunx --no-install oxfmt --write README.md docs/architecture.md CHANGELOG.md AGENTS.md
+          git rm scripts/finalize-flow-docs.mjs .github/workflows/finalize-flow-docs.yml .github/workflows/run-flow-doc-finalizer.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md docs/architecture.md CHANGELOG.md AGENTS.md
+          git diff --cached --check
+          git commit -m 'docs: mark durable flows qualified with released engine versions'
+          git push origin HEAD:feat/durable-flows
