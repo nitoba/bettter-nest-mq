@@ -2,6 +2,7 @@ import type { Effect } from 'better-effect'
 import type {
   AttemptRecord,
   AttemptRecordV2,
+  ControlledJobStoreContract,
   CountsRequest,
   FlowStoreV2,
   JobCountsV2,
@@ -15,6 +16,7 @@ import type {
 } from 'better-effect-mq'
 import { JobStoreFailure as StoreFailure } from 'better-effect-mq'
 import { Result } from 'better-result'
+import { controlledStore } from './controlled-store.ts'
 
 export type FlowReadError = JobDefinitionError | JobStoreFailure
 export interface FlowJobReads {
@@ -32,7 +34,24 @@ export function flowReadStore(
   flow: () => FlowStoreV2 | undefined
 ): JobStoreContract {
   if (reads === undefined) return store
-  const view: Pick<JobStoreContract, 'getJob' | 'getAttempts' | 'counts' | 'cancel'> = {
+  const view: JobStoreContract = {
+    descriptor: store.descriptor,
+    enqueue: store.enqueue.bind(store),
+    enqueueMany: store.enqueueMany.bind(store),
+    claim: store.claim.bind(store),
+    heartbeat: store.heartbeat.bind(store),
+    settle: store.settle.bind(store),
+    release: store.release.bind(store),
+    recoverStalled: store.recoverStalled.bind(store),
+    awaitWake: store.awaitWake.bind(store),
+    list: store.list.bind(store),
+    retry: store.retry.bind(store),
+    requestCancellation: store.requestCancellation.bind(store),
+    promote: store.promote.bind(store),
+    remove: store.remove.bind(store),
+    pause: store.pause.bind(store),
+    resume: store.resume.bind(store),
+    pausedQueues: store.pausedQueues.bind(store),
     async getJob(request) {
       const value = await reads.getJob(request.jobId)
       // SAFETY: the upstream read/observation paths accept v2 state strings at runtime.
@@ -103,11 +122,20 @@ export function flowReadStore(
       return Result.ok(transition) as Effect<JobTransition, never>
     }
   }
-  return new Proxy(store, {
-    get(target, key) {
-      if (Object.hasOwn(view, key)) return Reflect.get(view, key)
-      const value = Reflect.get(target, key, target)
-      return value instanceof Function ? value.bind(target) : value
-    }
-  })
+  const controls = controlledStore(store)
+  if (controls === undefined) return view
+  // Preserve the complete typed extension. Dropping it would silently bypass distributed
+  // queue policies when dispatchStore wraps this view later in the operation layer.
+  const controlledView: JobStoreContract & ControlledJobStoreContract = {
+    ...view,
+    get: (queue) => controls.getControls({ queue }),
+    getControls: controls.getControls.bind(controls),
+    reconcile: controls.reconcile.bind(controls),
+    claimControlled: controls.claimControlled.bind(controls),
+    settleControlled: controls.settleControlled.bind(controls),
+    releaseControlled: controls.releaseControlled.bind(controls),
+    recoverStalledControlled: controls.recoverStalledControlled.bind(controls),
+    cancelControlled: controls.cancelControlled.bind(controls)
+  }
+  return controlledView
 }
