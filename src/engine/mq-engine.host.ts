@@ -20,6 +20,7 @@ import { discoverWorkers } from './worker-discovery.ts'
 @Injectable()
 export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
   readonly session: EngineSession
+  private readonly bindingOwner = Symbol('MqJobBindingOwner')
   private readonly bound: JobContract[] = []
 
   constructor(
@@ -60,7 +61,11 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
       await this.session.start(this.registry.queues(), plans)
       if (this.session.state === 'ready') {
         for (const [contract, { registered, compiled }] of entries) {
-          bindJobClient(contract, this, createJobClient(this.session, registered, compiled))
+          bindJobClient(
+            contract,
+            this.bindingOwner,
+            createJobClient(this.session, registered, compiled)
+          )
           this.bound.push(contract)
         }
         await this.session.activateWorkers()
@@ -79,7 +84,7 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   private detach(): void {
-    for (const contract of this.bound) unbindJobClient(contract, this)
+    for (const contract of this.bound) unbindJobClient(contract, this.bindingOwner)
     this.bound.length = 0
   }
 

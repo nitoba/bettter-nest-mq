@@ -25,7 +25,7 @@ export interface JobClient<Success, Failure> {
 
 type ContractValue = SchemaOutput<ValueSchema>
 interface Binding {
-  readonly owner: object
+  readonly owner: symbol
   readonly client: JobClient<ContractValue, ContractValue>
 }
 // Entries belong to concrete Nest instances and are removed on shutdown; no runtime is global.
@@ -33,7 +33,7 @@ const bindings = new WeakMap<JobContract, Binding>()
 
 export function bindJobClient(
   contract: JobContract,
-  owner: object,
+  owner: symbol,
   client: JobClient<ContractValue, ContractValue>
 ): void {
   if (bindings.has(contract))
@@ -44,7 +44,7 @@ export function bindJobClient(
   bindings.set(contract, { owner, client })
 }
 
-export function unbindJobClient(contract: JobContract, owner: object): void {
+export function unbindJobClient(contract: JobContract, owner: symbol): void {
   if (bindings.get(contract)?.owner === owner) bindings.delete(contract)
 }
 
