@@ -8,7 +8,9 @@ import { ContractDefinitionException, JobFailureException } from '../contracts/e
 import type { RegisteredJob } from '../contracts/queue-definition.ts'
 import type { JobExecutionContext, ProcessOptions, WorkerOptions } from '../workers/types.ts'
 import type { MqShutdownOptions } from '../module/mq-module.options.ts'
+import { operationStoreToken } from './operation-store.ts'
 import type { OperationStore } from './operation-store.ts'
+import type { FlowJobReads } from './flow-read-store.ts'
 import type { CompiledJob, ContractValue } from './job-compiler.ts'
 import type { OperationFlow } from './flow-plan.ts'
 import type { EngineFlowDefinition } from './flow-discovery.ts'
@@ -16,6 +18,7 @@ import { validateDomainFailure } from './job-compiler.ts'
 
 export type EngineWorker = WorkerServiceInstance<`nestjs.worker/${string}`>
 export interface WorkerPlan {
+  recover(readers: ReadonlyMap<string, FlowJobReads>): Promise<void>
   readonly name: string
   readonly token: WorkerServiceToken<`nestjs.worker/${string}`>
   readonly layer: Layer<EngineWorker, OperationStore | OperationFlow>
@@ -93,15 +96,29 @@ export function compileWorker(
       invocation.options
     )
   )
+  let recoveryIds: readonly string[] = []
   const { name: _name, ...settings } = options
   return {
     name: options.name,
     token,
+    async recover(readers) {
+      const ids = new Set<string>()
+      for (const [connection, reader] of readers) {
+        const route = operationStoreToken(connection).serviceTag
+        const definitions = flows.map((entry) => ('fanOut' in entry ? entry.flow : entry))
+        const names = definitions
+          .filter((entry) => entry.parent.store.serviceTag === route)
+          .map((entry) => entry.name)
+        for (const id of await reader.recoveryIds(names)) ids.add(id)
+      }
+      recoveryIds = Object.freeze([...ids])
+    },
     layer: token.layer(() => ({
       ...settings,
       retryDefects: options.retryDefects ?? false,
       handlers,
       flows,
+      flowSweepFlowIds: recoveryIds,
       shutdown
     }))
   }

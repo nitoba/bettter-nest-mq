@@ -8,7 +8,14 @@ export type JobJsonValue =
   | string
   | readonly JobJsonValue[]
   | { readonly [key: string]: JobJsonValue }
-export type JobState = 'waiting' | 'delayed' | 'active' | 'completed' | 'failed' | 'cancelled'
+export type JobState =
+  | 'waiting'
+  | 'delayed'
+  | 'active'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'waiting-children'
 export type JobFailureKind =
   | 'typed'
   | 'defect'
@@ -24,6 +31,7 @@ export type JobAttemptOutcome =
   | 'cancelled'
   | 'stalled'
   | 'released'
+  | 'fanned-out'
 
 export type JobScheduleOptions =
   | { readonly delayMs?: never; readonly at?: never }

@@ -14,10 +14,18 @@ export function operationStoreToken(name: string): OperationStoreToken {
   return JobStore.named(tag)
 }
 /** Raw identity is unchanged; these are runtime protocol/read views over the same physical store. */
-export function operationStoreLayer(name: string, queues: readonly QueueDefinition[], reads?: FlowJobReads, flow: () => FlowStoreV2 | undefined = () => undefined): Layer<OperationStore, NamedStore> {
+export function operationStoreLayer(
+  name: string,
+  queues: readonly QueueDefinition[],
+  reads?: FlowJobReads,
+  flow: () => FlowStoreV2 | undefined = () => undefined
+): Layer<OperationStore, NamedStore> {
   const raw = namedStoreToken(name)
   return Layer.gen(operationStoreToken(name), async function* () {
     const store = flowReadStore(yield* raw, reads, flow)
-    return dispatchStore(store, queues.filter((queue) => queue.connection === name))
+    return dispatchStore(
+      store,
+      queues.filter((queue) => queue.connection === name)
+    )
   })
 }

@@ -1,3 +1,4 @@
+import { postgresFlowReads } from './postgres-flow-reads.ts'
 import { postgresFlowLayer } from './postgres-flow-resource.ts'
 import { Logger } from '@nestjs/common'
 import type { Pool } from 'pg'
@@ -72,7 +73,11 @@ function withOutbox(
       schedules: (name) => postgresScheduleLayer(name, pool, schema, namespace)
     }
   if (flows)
-    result = { ...result, flows: (name) => postgresFlowLayer(name, pool, schema, namespace) }
+    result = {
+      ...result,
+      flows: (name) => postgresFlowLayer(name, pool, schema, namespace),
+      flowReads: (name) => postgresFlowReads(name, pool, schema, namespace)
+    }
   return result
 }
 
