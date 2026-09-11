@@ -104,7 +104,7 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
           schema,
           namespace,
           outbox,
-          options.schedules ?? false
+          schedules
         )
     )
   }
@@ -152,7 +152,7 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
           schema,
           namespace,
           outbox,
-          options.schedules ?? false
+          schedules
         )
       } catch (cause) {
         try {

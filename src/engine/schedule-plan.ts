@@ -66,7 +66,8 @@ export function declarationRegistry(entry: CompiledSchedule): ScheduleRegistry {
     misfire: s.misfire,
     overlap: s.overlap
   }
-  const draft = s.job.schedule(
+  const draft = JobSchedules.schedule(
+    s.job,
     s.key,
     s.cron === undefined ? { ...options, everyMs: s.everyMs! } : { ...options, cron: s.cron }
   )

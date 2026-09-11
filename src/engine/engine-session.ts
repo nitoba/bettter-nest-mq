@@ -402,7 +402,9 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
       throw new MqScheduleException('unavailable', 'The MQ engine is not ready')
     const result = await runtime.run(() =>
       Effect.gen(async function* () {
-        return Result.ok(yield* JobSchedules.reconcile(definition, { removal: 'warn' }))
+        return Result.ok(
+          yield* JobSchedules.reconcile<ScheduleRegistry>(definition, { removal: 'warn' })
+        )
       })
     )
     if (Result.isError(result))

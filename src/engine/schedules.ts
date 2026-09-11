@@ -1,6 +1,7 @@
 import type { Type } from '@nestjs/common'
 import { ModuleRef } from '@nestjs/core'
 import type { ScheduleRecord } from 'better-effect-mq'
+import { makeQueueName } from 'better-effect-mq'
 import { Result } from 'better-result'
 import { isDeepStrictEqual } from 'node:util'
 import { MqScheduleException } from '../schedules/errors.ts'
@@ -115,12 +116,14 @@ export class SchedulesCoordinator implements SchedulesMonitor {
   }
   private async assertStorePolicy(
     connection: string,
-    record: Pick<ScheduleRecord, 'queue'>
+    record: { readonly queue: string }
   ): Promise<void> {
     await this.session.withStore(connection, async (store) => {
       const extension = controlledStore(store)
       if (extension === undefined) return
-      const controls = valueOf(await extension.getControls({ queue: record.queue }))
+      const controls = valueOf(
+        await extension.getControls({ queue: valueOf(makeQueueName(record.queue)) })
+      )
       if (controls?.enabled && controls.perKeyConcurrency !== undefined)
         throw new MqScheduleException(
           'definition',
