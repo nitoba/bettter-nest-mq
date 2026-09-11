@@ -1,48 +1,30 @@
-# Durable flows — work in progress
+# Durable flows
 
-**Status: implemented on `feat/durable-flows` / PR #9, not merged and not qualified for PostgreSQL production use.** The stable main branch remains the schedules delivery. The current published PostgreSQL adapter cannot compose its JobStore with the persisted `waiting-children` state written by FlowStore. This is tracked in [better-effect issue #387](https://github.com/nitoba/better-effect/issues/387).
+Durable flows are implemented through the Nest facade and persisted by the existing better-effect-mq flow protocol. The qualified PostgreSQL combination is `better-effect-mq@0.1.3` with `better-effect-mq-postgres@0.1.4`, both managed as internal dependencies of better-nest-mq. Applications do not install or configure those packages directly.
 
-The examples below describe the implemented candidate API, not a released feature. The reference-store tests exercise the phases, schemas and Nest lifecycle, but do not establish PostgreSQL correctness. Do not bypass the failing database gate or ship this branch as a finished flow implementation.
+A flow separates a parent job into two durable phases. `@FanOut` validates and persists a finite child manifest. The parent then leaves its original lease. `@Collect` runs only after the parent becomes ready again and is acquired under a fresh lease. Waiting for children does not occupy an ordinary worker execution slot, and the facade does not replace this coordination with `Promise.all` or a process-local timer.
 
-## Confirmed upstream blocker
+## Declare a flow
 
-The independent reproduction in `tests/postgres/flow-protocol.ts` imports only published engine/adapter packages, never Nest or this facade. It applies native migrations, uses one native pool/schema/namespace, claims a parent and successfully persists a one-child fan-out. FlowStore then reads the parent as `waiting-children`, with one pending child.
-
-The same parent fails native JobStore `getJob`, `heartbeat` and `release` with `JobDefinitionError: unsupported job state`. The heartbeat cannot classify the old lease as lost, and release cannot return the expected ownership failure. In the installed consumer this also prevents clean completion of the intended attempt/shutdown path. Reading administration directly through FlowStore does not repair the engine's heartbeat and release operations.
-
-Verified combination: better-effect 0.14.0, better-effect-mq 0.1.2, better-effect-mq-postgres 0.1.3, better-result 3.0.1, Bun 1.4.2 and PostgreSQL 16.15. The recorded failing run is [34616650978](https://github.com/nitoba/bettter-nest-mq/actions/runs/34616650978). These are version-specific observations, not an assertion about every adapter or future release.
-
-To reproduce, use a dedicated test database:
-
-```sh
-bun install --frozen-lockfile
-MQ_TEST_DATABASE_URL='postgresql://user:password@localhost/test_database' \
-  bun tests/postgres/flow-protocol.ts
-```
-
-The script creates and removes its own random schema. A failing exit is the currently observed defect, not a successful integration result. The correction belongs at the explicit v1/v2 adapter/Worker compatibility boundary; do not coerce suspended parents into ordinary waiting jobs or silently widen the frozen v1 contract.
-
-## Candidate Nest API
-
-Queue Services still declare typed parent and child jobs. A Worker Service owns separate FanOut and Collect methods. No runtime, Effect program or coordination outbox is exposed to the application.
+Queue Services keep the ordinary typed job declarations:
 
 ```ts
 import { Injectable } from '@nestjs/common'
 import { z } from 'zod'
 import {
+  Collect,
+  FanOut,
+  Flow,
+  FlowChildren,
+  FlowData,
+  Job,
+  JobData,
+  Process,
   Queue,
   QueueService,
-  Job,
   Worker,
-  Process,
-  JobData,
-  Flow,
-  FanOut,
-  Collect,
-  FlowData,
-  FlowChildren,
-  flowJob,
   flowChildren,
+  flowJob,
   type FlowResultsReader
 } from 'better-nest-mq'
 
@@ -56,14 +38,17 @@ export class CalculationsQueue extends QueueService {
   })
 
   @Job({ name: 'double', version: 1 })
-  readonly double = this.job({ payload: z.number(), result: z.number() })
+  readonly double = this.job({
+    payload: z.number(),
+    result: z.number()
+  })
 }
 
 const sum = flowJob(CalculationsQueue, 'sum')
 const double = flowJob(CalculationsQueue, 'double')
 
 @Injectable()
-@Worker({ name: 'calculations', concurrency: 1 })
+@Worker({ name: 'calculations', concurrency: 4 })
 @Flow({
   name: 'sum-doubles-v1',
   parent: sum,
@@ -98,34 +83,113 @@ export class CalculationsWorker {
 }
 ```
 
-Register the Queue Service with `MqModule.forFeature` and the Worker as a normal provider. The parent is published through its normal job descriptor. In this branch, `postgres({ flows: true })` enables the flow resource, but the published-adapter defect above prevents treating that opt-in as a supported PostgreSQL deployment.
+Register the queue through `MqModule.forFeature([CalculationsQueue])` and the Worker as a normal Nest provider. The parent is published using the ordinary `CalculationsQueue.sum` job descriptor.
 
-`flowJob` creates an immutable typed reference. `flowChildren` creates a finite, copied JSON-input plan without publication; its payload type comes from the referenced job. Runtime discovery also verifies registration. FanOut validates every child before submitting a manifest. Stable child keys identify entries across recovery. Empty plans, input/output codec distinctions and ordinary scoped Nest injection are covered by reference-store tests.
+`flowJob()` creates an immutable typed reference to a registered job. `flowChildren()` creates a copied, finite child plan; it does not enqueue anything immediately. Every child receives a stable key so recovery can identify the same manifest entry after a crash or process restart.
 
-## Result collection and policy boundaries
+## PostgreSQL resource
 
-Collect receives a phase-owned `FlowResultsReader`. Completed, failed and cancelled outcomes are discriminated; results and available declared domain failures are decoded using the referenced contract. FlowData is decoded parent data, whereas child plans carry schema inputs. Date codecs therefore use ISO strings in plans and Date values after decoding.
+Enable the flow store explicitly on the existing connection:
 
-`page(reference, { limit, cursor })` defaults to 100 and permits at most 1000 manifest entries. Cursors advance over the entire manifest before reference filtering, so an empty filtered page may still have a next cursor. Only cursors issued by that active Collect reader are accepted. `all(reference, { maxItems })` requires a bound and rejects overflow. Closing the phase prevents new reads and drains admitted ones.
+```ts
+postgres({
+  pool,
+  schema: 'mq',
+  namespace: 'calculations-app',
+  flows: true
+})
+```
 
-**The upstream page implementation loads a flow snapshot and slices it.** This is not SQL cursor pagination or constant-memory streaming. Manifest size and child outputs must be bounded separately.
+The flow resource shares the same application Runtime and native PostgreSQL pool as jobs, schedules and outbox resources. It does not create another process-global runtime or pool. Migrations remain explicit and must be applied before application startup.
 
-The candidate policies delegate to upstream `onChildFailure: 'continue' | 'fail'`. Continue exposes terminal child outcomes to Collect; fail is intended to terminate the parent and cooperatively cancel unfinished siblings without Collect. Fail-fast failure propagation may require compatible parent/child failure schemas. PostgreSQL fail-fast, cancellation and nested-flow behavior are still unqualified, because the real database scenario stops at the earlier blocker.
+The named JobStore namespace remains stable. The facade supplies the flow resource with the matching durable namespace and keeps its JSON decoding view private so application-level PostgreSQL parsers are not mutated.
 
-`MqFlowsService.get(parentReference, id)` reads the materialized flow; it returns undefined before a manifest exists. `cancel` requests cancellation using the registered flow/job identity. Identity checks are not tenant authorization, and cancellation is not a guarantee that already-started external side effects have been reversed or stopped. No HTTP administration endpoint or manifest reset/replay API is installed.
+## Phase and lease semantics
 
-## Resource integration and explicit restrictions
+PostgreSQL fan-out atomically persists the manifest and relinquishes the parent job lease. The original FanOut attempt then ends without encoding its child plan as the parent result, settling the parent, or trying to release the old lease a second time.
 
-The candidate integration shares the existing application Runtime and PostgreSQL pool. It supplies FlowStore with the namespace derived from the raw JobStore token, because the pinned adapters do not derive named namespaces identically. Flow queries use a separate non-owning decoded-JSON view; the ordinary JobStore uses its encoded-JSON view. Native application parsers remain untouched. The namespace and parser unit tests do not resolve the separate state-protocol failure.
+When all required child state is ready, the parent is made claimable again. Collect executes under a **new active lease and a new delivery**. The persisted fan-out token is historical state, not permission to execute Collect.
 
-Participating workers receive registered flow definitions for reporting/reconciliation. `execution.workers: false` keeps phase execution disabled. Schedule and application-outbox publisher enablement remain independent; migrations are explicit.
+Old parent leases are fenced. Heartbeat classifies a relinquished parent lease as lost without invalidating unrelated leases in the same batch, while stale release/settlement operations fail rather than rewriting a suspended parent.
 
-Unsupported combinations fail instead of being simulated: a flow-owning Worker needs at least one real Process handler in the pinned engine; a parent cannot also have an ordinary handler; ambiguous identities, recursive definition cycles, incompatible parent controls and per-key child dispatch are rejected. No fabricated handler, local substitute for persistence, second runtime or serialized executable function is introduced. Nested definitions are represented in the candidate API, but their complete database recovery remains to be verified.
+The upstream v1 `JobStore.getJob()` contract intentionally remains v1 and does not expose the `waiting-children` state. Suspended-parent inspection therefore goes through the FlowStore/v2 boundary. The Nest integration maintains an explicit validated v2 read projection for public flow administration and restart recovery instead of widening or weakening the v1 job decoder.
 
-## Verification and resumption
+## Child results and codecs
 
-The source/reference gate at commit `89c66e8` passed both TypeScript checks, the 261-test unit/Nest suite, formatting, build, type-aware lint and publint in development run 34616650927. That run **failed** its installed PostgreSQL flow scenario. The isolated published-protocol run separately confirmed all three compatibility errors. A successful reference test is not a database guarantee.
+FanOut receives decoded parent data through `@FlowData`, but child plans contain **input representation** for the referenced child contract. For example, a Date codec uses an ISO string in `flowChildren()` and a Date after decoding in the child handler or result reader.
 
-The packed consumer scenarios already include process death after manifest creation, two replacement processes, JSON/date values, bounded collection, nesting, continue/fail and cascade cancellation. Their presence is not evidence that they all pass. Re-run the complete suite after the upstream correction is available through an explicitly agreed dependency path.
+Collect receives a phase-owned `FlowResultsReader`. Its outcomes are discriminated:
 
-Before merge: resolve issue #387, rerun the pure protocol reproduction and full installed Node/Bun/TypeScript matrix, confirm all existing controls/outbox/schedules regressions, review the complete diff and require green read-only CI on the exact final head. Keep main unchanged until then. No npm publication, production deployment, dependency upgrade or successful PostgreSQL flow qualification is claimed by this checkpoint.
+- `completed` carries the decoded child result;
+- `failed` carries the declared typed failure when available;
+- `cancelled` has no successful result.
+
+PostgreSQL JSON `null` is distinguished from SQL `NULL`. Scalar strings that resemble JSON remain strings, and the same explicit codec/round-trip rules used by ordinary jobs apply to flow payloads and results.
+
+## Bounded collection
+
+`page(reference, { limit, cursor })` defaults to a bounded page and accepts only cursors issued by the active Collect reader. The cursor advances over the complete manifest before reference filtering, so a filtered page may contain no items and still return a next cursor.
+
+`all(reference, { maxItems })` requires an explicit maximum and rejects overflow instead of silently discarding children. The current upstream page operation reads a persisted flow snapshot and slices it; this is **not SQL cursor streaming or constant-memory iteration**. Bound `maxChildren`, manifest size and result size according to the workload.
+
+Closing the Collect phase rejects new reader operations and drains reads that were already admitted.
+
+## Failure policies
+
+`onChildFailure: 'continue'` allows Collect to run with completed, failed and cancelled child outcomes. `onChildFailure: 'fail'` terminates the parent according to the flow protocol and cooperatively cancels unfinished siblings instead of invoking Collect.
+
+Failure propagation still obeys the declared schemas. A child failure is not an exception tunnel: typed failure content is validated before it becomes an outcome. External side effects remain at-least-once concerns and should be idempotent where required.
+
+Fail-fast does not imply that JavaScript or a remote system can be forcefully rolled back. Cancellation is cooperative, and already-started external effects are not automatically reversed.
+
+## Recovery and multiple workers
+
+Flow coordination is durable. Qualification includes a process that persists the manifest and is then killed with `SIGKILL`, followed by two independent replacement Worker processes that recover the same parent/children from PostgreSQL. Stable child identities prevent reconstruction from creating a different logical manifest.
+
+Child terminal reports use the FlowStore route associated with the child's JobStore. The recovery sweep is an independent safety path: it rotates over known routes, parents and pending children so a small batch size cannot indefinitely starve work later in the set.
+
+Startup recovery of known parents is intentionally bounded in this facade. If more than the supported recovery bound is found, startup fails explicitly instead of silently truncating the set. The current upstream snapshot API is not advertised as an unbounded SQL cursor.
+
+## Nest DI and worker restrictions
+
+FanOut and Collect methods are actual Nest provider methods. Constructor injection and request/transient-scoped business dependencies work normally; attempt-local `JobContext` is supplied internally by the worker runtime rather than becoming a dependency the application must provide.
+
+Unsupported combinations fail before resource acquisition where possible:
+
+- a flow parent cannot also have an ordinary `@Process` handler in the same Worker;
+- ambiguous queue/name/version handler identities are rejected;
+- parent controls that conflict with flow lease ownership are rejected;
+- child per-key dispatch requirements are rejected when the flow protocol cannot persist the required dispatch key;
+- invalid child schemas, duplicate child keys, recursive definition cycles and configured fan-out limits fail rather than being approximated.
+
+No dummy handler is created to satisfy the upstream worker. No executable JavaScript function is serialized into the manifest.
+
+## Administration
+
+`MqFlowsService` provides contract-scoped inspection and cancellation. `get(parentReference, id)` returns the materialized flow after FanOut; before a manifest exists it returns `undefined`. `cancel()` validates the registered flow/job identity and delegates to the appropriate durable job/flow cancellation path.
+
+These identity checks are not tenant authorization. If flow administration is exposed over HTTP, authentication and authorization remain application responsibilities. The package does not install an administrative HTTP controller.
+
+## Guarantees and non-guarantees
+
+The qualified flow implementation provides durable manifest persistence, stable child identities, fresh-lease collection, bounded recovery, typed result collection, fail-fast/continue policies and cooperative cancellation across process restarts.
+
+It does **not** promise exactly-once external effects, automatic saga compensation, arbitrary JavaScript replay, cross-database atomicity, unbounded manifest streaming, or forceful cancellation of an external side effect. The emitted jobs retain at-least-once delivery semantics.
+
+The engine and PostgreSQL adapter remain internal dependencies of better-nest-mq. Applications install the Nest package plus their selected native/schema peers such as `pg` and Zod; they do not install `better-effect`, `better-result`, `better-effect-mq` or its adapters manually.
+
+## Qualification
+
+The released dependency combination is verified through the normal source suite and installed-package consumers using TypeScript 6 and 7, Node and Bun, and PostgreSQL 16. Coverage includes:
+
+- process death after manifest persistence and recovery by two independent processes;
+- scalar, JSON-looking string, object, array and `null` values;
+- explicit Date codecs;
+- paged collection and bounded `all()`;
+- typed child failure with `continue`;
+- empty and nested flows;
+- fail-fast without Collect;
+- cooperative cascading cancellation;
+- ordinary jobs, distributed controls, outbox and schedules in the same regression matrix.
+
+The isolated protocol regression intentionally checks the supported boundary: FlowStore/v2 inspects the suspended parent, while v1 JobStore heartbeat and release safely fence the relinquished lease. It does not require v1 `getJob()` to expose a v2-only state.
