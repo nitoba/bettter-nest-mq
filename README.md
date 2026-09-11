@@ -1,64 +1,69 @@
 # better-nest-mq
 
-NestJS-native contracts and lifecycle integration for the better-effect-mq engine.
+NestJS-native producers and decorated workers backed by the better-effect-mq engine.
 
-**Status: M2 — private engine host, named stores and PostgreSQL integration. Version 0.0.0; not yet a complete producer/worker library. No npm release has been published.**
+**Status: M3 core execution is implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can now be published, processed, retried, cancelled and queried through the Nest facade. Flows, schedules, transactional outbox and additional integrations remain on the roadmap.
 
-The repository is `nitoba/bettter-nest-mq` (three `t` characters); the package name is `better-nest-mq`.
+Repository: `nitoba/bettter-nest-mq` (three `t` characters). Package name: `better-nest-mq`.
 
-## Available now
+## What works
 
-Typed Queue Services and Job definitions, Queue/Job/Retry/JobTimeout decorators, Standard Schema validation and explicit codecs, optional Zod integration, Nest feature-module registration, and a validated registry are implemented.
+Queue Services declare typed jobs using Standard Schema or optional Zod codecs. Worker Services implement methods decorated with `@Process`, using normal Nest dependency injection and Promise-returning methods. One private runtime per configured application owns the existing engine's named stores, Clock and worker supervisors. Application code does not import Effect, Result, Layer or Runtime.
 
-Configuring connections now starts the real engine: one private runtime per application context, named JobStores, protocol/capability checks, live readiness probes, rollback after failed acquisition and ownership-aware shutdown. PostgreSQL is the first optional production integration, with explicit migration and validation helpers.
+Producers support enqueue, decoded enqueue, batches, preparation without publication, polling, result waiting, publish-and-wait execution, attempt history, promotion, retry and cancellation. Workers support known failures, configurable retries, execution timeout, local worker/handler concurrency, cooperative cancellation and attempt-local scoped dependencies. PostgreSQL resource ownership, explicit migrations and live connection probes remain available.
 
-**Not implemented yet:** public enqueue/query/wait methods, Worker/Process decorators and handler execution, retry execution, flows, persistent schedules, transactional outbox, other database wrappers and operational job administration. Retry and timeout decorators remain validated contracts until the producer/worker bridge is implemented. No fake enqueue or worker methods are exported.
+See [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
 
-See [contracts](docs/contracts.md), [connections and PostgreSQL](docs/connections.md), [architecture](docs/architecture.md) and [roadmap](docs/roadmap.md).
-
-## Queue contracts
+## Declare a queue and a worker
 
 ```ts
 import { Injectable } from '@nestjs/common'
 import { z } from 'zod'
-import { Job, JobTimeout, Queue, QueueService, Retry } from 'better-nest-mq'
+import {
+  Job,
+  JobData,
+  Queue,
+  QueueService,
+  Process,
+  Worker,
+  type PayloadOf,
+  type ResultOf
+} from 'better-nest-mq'
 
 @Injectable()
 @Queue({ name: 'reports', connection: 'primary' })
 export class ReportsQueue extends QueueService {
-  @Job({ name: 'generate', version: 1 })
-  @Retry({ attempts: 3, backoff: { type: 'fixed', delayMs: 1_000 } })
-  @JobTimeout(60_000)
-  readonly generate = this.job({
-    payload: z.object({ requestId: z.uuid() }),
-    result: z.object({ fileKey: z.string() }),
-    failure: z.object({ code: z.string(), retryable: z.boolean() }),
-    idempotencyKey: (payload) => payload.requestId,
-    retryable: (failure) => failure.retryable
+  @Job({ name: 'summarize', version: 1 })
+  readonly summarize = this.job({
+    payload: z.object({ values: z.array(z.number()) }),
+    result: z.object({ count: z.int(), total: z.number() })
   })
+}
+
+@Injectable()
+@Worker({ name: 'reports-worker', concurrency: 8 })
+export class ReportsWorker {
+  @Process(ReportsQueue, 'summarize', { concurrency: 4 })
+  async summarize(
+    @JobData() payload: PayloadOf<ReportsQueue['summarize']>
+  ): Promise<ResultOf<ReportsQueue['summarize']>> {
+    return {
+      count: payload.values.length,
+      total: payload.values.reduce((sum, value) => sum + value, 0)
+    }
+  }
 }
 ```
 
-`InputOf`, `PayloadOf`, `ResultOf` and `FailureOf` preserve schema inference. Payload/result/failure validation and JSON encoding are usable independently of storage. `defineCodec` supplies an explicit inverse for any Standard Schema validator; `zodCodec` from `better-nest-mq/zod` uses Zod 4.1+ nested codecs. The root does not require Zod.
+Use the consuming application's normal legacy TypeScript decorators and emitted metadata. Business Services can be constructor-injected into the worker. `@JobContext()` supplies attempt information and an AbortSignal without exposing a lease token. Queue constructors and decorators perform no I/O.
 
-Every concrete queue declares its own identity. Class/property renaming does not change it; connection, queue name, job name and version do. Queue constructors and decorators never perform I/O.
-
-## Connect PostgreSQL
-
-The example below uses the implemented local/package API, not an already published npm release. After consuming a local tarball, PostgreSQL users need the optional integration dependencies:
-
-```sh
-bun add pg@^8.16.3 better-effect-mq-postgres@0.1.3 better-effect-mq-outbox@0.1.3
-bun add -d @types/pg
-```
-
-The outbox package is required by the upstream PostgreSQL adapter's package graph; this does not enable the future Nest outbox API.
+Register the connection and providers:
 
 ```ts
 import { Module } from '@nestjs/common'
 import { MqModule } from 'better-nest-mq'
 import { postgres } from 'better-nest-mq/postgres'
-import { ReportsQueue } from './reports.queue.js'
+import { ReportsQueue, ReportsWorker } from './reports.js'
 
 @Module({
   imports: [
@@ -68,29 +73,40 @@ import { ReportsQueue } from './reports.queue.js'
         if (!connectionString) throw new Error('DATABASE_URL is required')
         return {
           connections: {
-            primary: postgres({
-              connectionString,
-              schema: 'mq',
-              namespace: 'my-application'
-            })
-          },
-          shutdown: { gracePeriodMs: 30_000, abortAfterGracePeriod: true }
+            primary: postgres({ connectionString, schema: 'mq', namespace: 'reports-app' })
+          }
         }
       }
     }),
     MqModule.forFeature([ReportsQueue])
-  ]
+  ],
+  providers: [ReportsWorker]
 })
 export class ApplicationModule {}
 ```
 
-**Run explicit migrations before starting this application.** Startup validates the existing schema by default and fails if it is missing; it never creates or upgrades database tables automatically. The connection factory itself remains inert until the Nest application initializes.
+After initialization, an injected queue can publish and await persisted work:
 
-To reuse a pool, call `postgres({ pool, schema, namespace })` inside `forRootAsync` and inject the application's pool provider. Borrowed pools are never closed by this library. Owned pools are created lazily, handle idle-client disconnections and close after adapter resources are released.
+```ts
+const id = await reports.summarize.enqueue({ values: [10, 20, 30] })
+const result = await reports.summarize.awaitResult(id, { timeoutMs: 30_000 })
+// { count: 3, total: 60 }
+```
 
-Connection names are durable addresses: the upstream named-store protocol includes the connection token in its PostgreSQL namespace. Keep `primary`, schema and namespace stable between deployments; renaming the connection does not reopen the old jobs. Use the same names in producer and worker applications when those roles become available.
+The examples describe the actual local/tarball API, not a published npm release. Run the explicit migration below before starting the application. A queue alone never starts a consumer. An API-only deployment sets `execution: { workers: false }` and imports only shared queue modules. Producer and worker applications must use the same connection name, schema, namespace and job identity/version.
 
-## Explicit deployment migrations
+## PostgreSQL setup
+
+Consumers of the optional PostgreSQL subpath install its peers alongside the local package tarball:
+
+```sh
+bun add pg@^8.16.3 better-effect-mq-postgres@0.1.3 better-effect-mq-outbox@0.1.3
+bun add -d @types/pg
+```
+
+The outbox peer is required by the upstream adapter's dependency graph; it does not enable a Nest transactional outbox API. The root entry point works without PostgreSQL or Zod integration packages installed.
+
+Execute migrations deliberately in a deployment script:
 
 ```ts
 import { Pool } from 'pg'
@@ -100,37 +116,29 @@ const connectionString = process.env.DATABASE_URL
 if (!connectionString) throw new Error('DATABASE_URL is required')
 const pool = new Pool({ connectionString })
 try {
-  const report = await migratePostgres({ pool, schema: 'mq' })
-  console.log(report)
+  await migratePostgres({ pool, schema: 'mq' })
 } finally {
   await pool.end()
 }
 ```
 
-`validatePostgres({ pool, schema })` verifies the layout without applying migrations. Both helpers borrow their pool, preserve failure causes and return plain Promise results with facade-owned types.
+Startup validates the existing schema by default and never applies migrations automatically. `postgres({ pool, schema, namespace })` borrows an application-owned pool without closing it. A connectionString creates an owned pool during startup and closes it after worker/store resources. Keep named connections stable: the upstream token is part of the durable PostgreSQL namespace.
 
-## Connection readiness
+## Operational semantics
 
-Inject `MqConnectionsService` into a Service:
+`@Retry` policies are now executed, not merely stored as metadata. Fixed, linear and exponential backoffs use the upstream supervisor. Typed failures must satisfy the declared failure schema; unexpected exceptions remain defects and are not retried unless `retryDefects: true` is explicitly set on the worker. An execution timeout must be positive.
 
-```ts
-@Injectable()
-export class MessagingHealthService {
-  constructor(private readonly connections: MqConnectionsService) {}
+Waiting timeout/abort only ends the caller's wait. It does not cancel persisted work. `execute` means enqueue and wait, never direct local invocation. Cancelling active work requests cooperative cancellation and leaves the engine to perform fenced settlement; it cannot undo external side effects.
 
-  check() {
-    return this.connections.probe('primary')
-  }
-}
-```
+Input and decoded types remain distinct through `InputOf`, `PayloadOf`, `ResultOf` and `FailureOf`. Non-JSON values use explicit inverse codecs, including the optional `better-nest-mq/zod` integration. Invalid outputs cannot be persisted as successful results.
 
-Import `Injectable` from `@nestjs/common` and `MqConnectionsService` from `better-nest-mq`. `connections()` returns a frozen diagnostic snapshot; `probe(name)` queries the actual store. The snapshot contains adapter/protocol versions, capabilities and ownership, not credentials or raw pools. `state` describes lifecycle, not an automatically refreshed database-health guarantee. No HTTP health endpoint or timer is installed.
+`MqConnectionsService` exposes safe connection snapshots/live probes. `MqWorkersService` exposes local state and awaitIdle; idle does not mean every delayed job in the database has completed. Shutdown detaches producers, stops admission and drains/cooperatively aborts workers before releasing stores and owned pools.
 
-Omitting `connections` keeps the original contract-only mode: the registry works, the engine reports `disabled`, and no runtime/store is acquired. A configured connection map requires every registered queue to reference a declared connection.
+Current boundaries: polling result waits only; class-based Worker providers; explicit JobData/JobContext parameters; no HTTP enhancer execution. Method/class HTTP guards, pipes, interceptors and filters are rejected instead of silently ignored. Global HTTP enhancers do not apply. Named custom retry providers, distributed-control decorators, durable events, other adapters, flows, schedules and transactional outbox are still pending.
 
-## Development and verification
+## Development and tests
 
-Use Bun **1.4.2**, Node **22.12+**, and the committed lockfile. TypeScript's public floor is **>=6.0.0**; source and packed consumers are checked with TypeScript 6 and the primary TypeScript 7 compiler.
+Use Bun **1.4.2**, Node **22.12+**, the committed lockfile, and the strict TypeScript configuration. Public TypeScript floor: **>=6.0.0**; source and actual tarball consumers are checked with TypeScript 6 and 7.
 
 ```sh
 git clone https://github.com/nitoba/bettter-nest-mq.git
@@ -140,18 +148,17 @@ bun run hooks:install
 bun run check
 ```
 
-`check` runs tooling integrity, both typechecks, unit/real-Nest tests, Oxfmt, type-aware Oxlint, the ESM/declaration build, publint and tarball consumers outside the workspace. The consumers first run without Zod/pg/adapter packages installed, then validate optional integration subpaths using Node and Bun.
+The complete gate checks tooling hashes, both compilers, real Nest/engine tests, formatting, type-aware lint, ESM/declarations, publint and external package consumers. CI covers Node 22/24 and a real PostgreSQL 16 service. The PostgreSQL job additionally runs packed producers/workers under Node and Bun with both compiler versions, including producer shutdown, separate consumer startup and durable result verification.
 
 ```sh
 MQ_TEST_DATABASE_URL='postgresql://user:password@localhost:5432/dedicated_test_db' bun run test:postgres
+MQ_TEST_DATABASE_URL='postgresql://user:password@localhost:5432/dedicated_test_db' bun run test:package
 ```
 
-Use a dedicated test database. Integration tests create/drop random schemas, inspect connections and deliberately terminate tagged test clients. The read-only CI has Node 22/24 quality jobs and a real PostgreSQL 16 job that also runs the packed public integration under Node and Bun.
+Build before running test:package individually. Use a dedicated test database: tests create/drop random schemas and terminate tagged idle clients to exercise recovery. Never use production credentials for these tests.
 
-## Tooling provenance
-
-The `.oxlintrc.json`, `.oxfmtrc.json` and complete anti-slop plugin retain the exact better-effect baseline at `42c28fb0af7882eb048ee5d4ab1c1db81142c9dd`. `bun run check:tooling` verifies all 20 file hashes. Bun, tsdown, Oxlint/oxlint-tsgolint, Oxfmt, Lefthook and publint remain the toolchain; no ESLint or Prettier is added.
+The 20 original Oxlint/Oxfmt/custom-plugin files retain their exact better-effect baseline at `42c28fb0af7882eb048ee5d4ab1c1db81142c9dd`, verified by `bun run check:tooling`. Bun, tsdown, Oxlint/oxlint-tsgolint, Oxfmt, Lefthook and publint remain the tooling; no ESLint/Prettier was introduced.
 
 ## License
 
-MIT. Vendored tooling retains its upstream license and provenance.
+MIT. Vendored tooling retains the original license and provenance.

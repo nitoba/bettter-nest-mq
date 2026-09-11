@@ -29,19 +29,17 @@ try {
   assert.ok(archiveName)
   const archive = join(temporary, archiveName)
   const entries = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n')
-  for (const entry of entries) {
+  for (const entry of entries)
     assert.match(
       entry,
       /^package\/(?:dist(?:\/.*)?|LICENSE|README\.md|CHANGELOG\.md|package\.json)\/?$/
     )
-  }
   const declarations = (await readdir(join(root, 'dist'))).filter((name) => name.endsWith('.d.mts'))
-  for (const file of declarations) {
+  for (const file of declarations)
     assert.doesNotMatch(
       await readFile(join(root, 'dist', file), 'utf8'),
       /from\s+['"](?:better-effect|better-result)/
     )
-  }
   assert.doesNotMatch(
     await readFile(join(root, 'dist', 'index.d.mts'), 'utf8'),
     /from\s+['"](?:zod|pg)['"]/
@@ -68,7 +66,6 @@ try {
     }
     await writeFile(join(directory, 'package.json'), JSON.stringify(manifest))
     await run(['bun', 'install', '--ignore-scripts'], directory)
-    // Verify optional integrations are truly absent, not accidentally supplied by workspace hoisting.
     for (const name of optionalIntegrations)
       await rm(join(directory, 'node_modules', name), { recursive: true, force: true })
     await run(
@@ -99,7 +96,7 @@ try {
       })
     )
     await run(['bun', 'install', '--ignore-scripts'], directory)
-    for (const fixture of ['codec', 'postgres']) {
+    for (const fixture of ['codec', 'postgres', 'execution']) {
       await run(
         ['node', 'node_modules/typescript/bin/tsc', '-p', `tsconfig.${fixture}.json`],
         directory

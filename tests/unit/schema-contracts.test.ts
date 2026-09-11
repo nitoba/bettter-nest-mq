@@ -179,7 +179,7 @@ describe('inert job definitions', () => {
     expect(job.canRetry({ retryable: false })).toBe(false)
     expect(job.canRetry({ retryable: true })).toBe(true)
     expect(Object.isFrozen(job.schemas)).toBe(true)
-    expect('enqueue' in job).toBe(false)
+    expect('enqueue' in job).toBe(true)
   })
 
   test('rejects invalid persisted failure content', async () => {

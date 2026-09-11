@@ -1,6 +1,7 @@
 import { Effect, Layer, Runtime } from 'better-effect'
+import { Clock, ClockLive } from 'better-effect/standard-services'
 import { assertJobStoreProtocolCompatible } from 'better-effect-mq'
-import type { JobStoreContract } from 'better-effect-mq'
+import type { JobOperation, JobStoreContract, WorkerHandle } from 'better-effect-mq'
 import { Result } from 'better-result'
 
 import type {
@@ -11,29 +12,39 @@ import type {
 } from '../connections/connection.ts'
 import { MqConnectionException, MqEngineStateException } from '../connections/errors.ts'
 import type { QueueDefinition } from '../contracts/queue-definition.ts'
+import { MqJobException } from '../jobs/errors.ts'
 import type { MqShutdownOptions } from '../module/mq-module.options.ts'
+import type { WorkerIdleOptions, WorkerMonitor, WorkerSnapshot } from '../workers/types.ts'
 import { connectionDefinition, copyConnections, namedStoreToken } from './connection-definition.ts'
-import type { AcquiredConnection, NamedStore } from './connection-definition.ts'
+import type { AcquiredConnection, NamedStore, NamedStoreToken } from './connection-definition.ts'
+import type { EngineWorker, WorkerPlan } from './worker-plan.ts'
 
 interface ReadyConnection {
   readonly store: JobStoreContract
   readonly snapshot: MqConnectionSnapshot
+}
+interface RunningWorker {
+  readonly name: string
+  readonly handle: WorkerHandle
 }
 
 function cleanupError<Cause>(cause: Cause): Error {
   return cause instanceof Error ? cause : new Error('An MQ resource failed to close', { cause })
 }
 
-/** Private owner of exactly one runtime. Application code receives only its monitor interface. */
-export class EngineSession implements MqConnectionMonitor {
+/** The only owner of an application's runtime; stores, Clock and Workers share its lifetime. */
+export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
   private currentState: MqEngineState = 'idle'
   private readonly configured: MqConnectionMap | undefined
   private readonly shutdown: Readonly<Required<MqShutdownOptions>>
-  private runtime: Runtime<NamedStore> | undefined
+  private runtime: Runtime<NamedStore | EngineWorker | Clock> | undefined
   private acquired: AcquiredConnection[] = []
   private ready = new Map<string, ReadyConnection>()
   private snapshots: ReadonlyArray<MqConnectionSnapshot> = Object.freeze([])
+  private plans: readonly WorkerPlan[] = []
+  private runningWorkers: RunningWorker[] = []
   private starting: Promise<void> | undefined
+  private activating: Promise<void> | undefined
   private closing: Promise<void> | undefined
   private cleaning: Promise<void> | undefined
   private stopRequested = false
@@ -50,14 +61,14 @@ export class EngineSession implements MqConnectionMonitor {
   get state(): MqEngineState {
     return this.currentState
   }
-
   connections(): ReadonlyArray<MqConnectionSnapshot> {
     return this.snapshots
   }
 
-  start(queues: ReadonlyArray<QueueDefinition>): Promise<void> {
+  start(queues: ReadonlyArray<QueueDefinition>, plans: readonly WorkerPlan[] = []): Promise<void> {
     if (this.stopRequested) return Promise.reject(new MqEngineStateException(this.state, 'start'))
     if (this.starting !== undefined) return this.starting
+    this.plans = plans
     this.currentState = 'starting'
     this.starting = this.initialize(queues)
     return this.starting
@@ -107,12 +118,13 @@ export class EngineSession implements MqConnectionMonitor {
         bindings.push({ name, connection, definition, token, resource })
       }
       this.assertStarting()
-      if (bindings.length === 0) {
+      if (bindings.length === 0 && this.plans.length === 0) {
         this.currentState = 'ready'
         return
       }
-      const layers = bindings.map((binding) => binding.resource.layer)
-      this.runtime = await Runtime.make(Layer.merge(...layers), {
+      const stores = Layer.merge(...bindings.map((binding) => binding.resource.layer))
+      const workers = Layer.merge(...this.plans.map((plan) => plan.layer))
+      this.runtime = await Runtime.make(Layer.merge(ClockLive, stores, workers), {
         onCleanupFailure: (diagnostic) => {
           this.runtimeCleanupErrors.push(
             new Error('MQ runtime cleanup diagnostic', { cause: diagnostic })
@@ -184,6 +196,61 @@ export class EngineSession implements MqConnectionMonitor {
     }
   }
 
+  /** Called after clients are bound; lazy Worker layers still belong to the same runtime. */
+  activateWorkers(): Promise<void> {
+    this.activating ??= this.activate()
+    return this.activating
+  }
+
+  private async activate(): Promise<void> {
+    if (this.plans.length === 0) return
+    const runtime = this.runtime
+    if (this.state !== 'ready' || runtime === undefined)
+      throw new MqEngineStateException(this.state, 'start workers')
+    for (const plan of this.plans) {
+      this.assertStarting()
+      const result = await runtime.run(() =>
+        Effect.gen(async function* () {
+          return Result.ok(yield* plan.token)
+        })
+      )
+      if (Result.isError(result))
+        throw new MqJobException('binding', 'Worker activation failed', { cause: result.error })
+      this.runningWorkers.push({ name: plan.name, handle: result.value })
+    }
+    this.assertStarting()
+  }
+
+  async runOperation<Value, Failure>(
+    operation: () => JobOperation<Value, Failure, NamedStoreToken, true>
+  ): Promise<Result<Value, Failure>> {
+    const runtime = this.runtime
+    if (this.state !== 'ready' || runtime === undefined)
+      throw new MqJobException('binding', `The MQ engine is ${this.state}`)
+    return runtime.run(() =>
+      Effect.gen(async function* () {
+        return Result.ok(yield* operation())
+      })
+    )
+  }
+
+  workers(): readonly WorkerSnapshot[] {
+    return Object.freeze(
+      this.runningWorkers.map(({ name, handle }) =>
+        Object.freeze({ name, id: handle.id, state: handle.state, activeCount: handle.activeCount })
+      )
+    )
+  }
+
+  async awaitIdle(options: WorkerIdleOptions = {}): Promise<void> {
+    if (this.state !== 'ready') throw new MqEngineStateException(this.state, 'wait for workers')
+    await Promise.all(
+      this.runningWorkers.map(async ({ handle }) => {
+        await handle.awaitIdle(options)
+      })
+    )
+  }
+
   async withStore<Value>(
     name: string,
     operation: (store: JobStoreContract) => Value | PromiseLike<Value>
@@ -192,7 +259,6 @@ export class EngineSession implements MqConnectionMonitor {
       throw new MqEngineStateException(this.state, 'access a store')
     const connection = this.ready.get(name)
     if (connection === undefined) throw new MqConnectionException(name, 'configuration')
-    // Keep a callback's generic return value as data, not an inferred Effect execution program.
     const outcome = await this.runtime.run(async () => ({
       value: await operation(connection.store)
     }))
@@ -225,8 +291,8 @@ export class EngineSession implements MqConnectionMonitor {
 
   private async finishClose(): Promise<void> {
     try {
-      // Startup owns and reports its primary failure. Closing still waits for its rollback.
       if (this.starting !== undefined) await Promise.allSettled([this.starting])
+      if (this.activating !== undefined) await Promise.allSettled([this.activating])
       await this.cleanup()
     } finally {
       this.currentState = 'closed'
@@ -250,6 +316,7 @@ export class EngineSession implements MqConnectionMonitor {
     } finally {
       this.runtime = undefined
       this.ready.clear()
+      this.runningWorkers = []
       this.snapshots = Object.freeze([])
     }
     if (failures.length === 0) failures.push(...this.runtimeCleanupErrors)

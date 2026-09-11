@@ -1,40 +1,43 @@
 # Repository instructions
 
-## Scope
+## Scope and status
 
-Read README.md, docs/contracts.md, docs/connections.md, docs/architecture.md and docs/roadmap.md before changing public APIs. M0/M1 foundations and M2 private engine/PostgreSQL lifecycle are implemented. Public producer/worker, flow, schedule and outbox APIs are not implemented. Never export fake enqueue, no-op workers or implicit memory fallbacks.
+Read README.md and docs/contracts.md, docs/connections.md, docs/execution.md, docs/architecture.md and docs/roadmap.md before changing APIs. M0/M1 foundations, M2 private engine/PostgreSQL lifecycle and M3 core producer/worker execution are implemented. Flows, schedules, transactional outbox, other driver wrappers and execution extensions remain planned. Never simulate planned APIs or silently fall back to memory.
 
 ## Toolchain
 
 - Use Bun 1.4.2 for installation/scripts/tests and commit its generated lockfile. CI uses frozen installs.
-- TypeScript >=6.0.0 is the public floor; check the TS6 alias and the primary compiler.
-- Keep the exact vendored type-aware Oxlint/Oxfmt/plugin, tsdown, publint and Lefthook. Do not introduce ESLint/Prettier or weaken rules to pass.
-- Preserve strictness, exactOptionalPropertyTypes, noUncheckedIndexedAccess and Nest legacy decorators/metadata.
+- TypeScript >=6.0.0 is the public floor; check TS6 and the primary compiler.
+- Preserve exact upstream Oxlint/Oxfmt/custom plugin hashes, type-aware lint, strict compiler options, tsdown, publint and Lefthook. Do not add ESLint/Prettier or disable rules to pass a change.
+- Keep legacy Nest decorators, emitted metadata, exactOptionalPropertyTypes and noUncheckedIndexedAccess.
 
 ## Architecture
 
-- Public APIs use Nest DI, facade-owned types and Promises. No Effect/Result/Layer/Runtime imports in public declarations, including shared declaration chunks.
-- One private runtime per configured application context; none for contract-only registrations. No runtime per request/job/provider or global mutable engine registry.
-- Connection descriptors/contracts are inert. Never acquire pools in decorators or constructors.
-- Keep optional Zod/pg/adapter imports out of the root. Test actual packed consumption with optional peers absent, then optional subpaths present.
-- Preserve Standard Schema input/output inference and explicit inverse codecs; never guess how to reverse a transform.
-- Queue declarations remain singleton/static; attempt-scoped dependencies belong to the worker bridge.
-- Preserve the stable named-store token scheme. PostgreSQL hashes the token into its namespace: renaming connections or changing `nestjs/` changes the durable address.
-- Startup validates schema and never applies migrations. Migration helpers are explicit deployment operations.
-- Roll back partial acquisition inside the failure path; failed Nest bootstrap can prevent destruction hooks.
-- Adapter resources close before owned pools. Borrowed pools remain caller-owned. Owned pg idle-client errors must not crash consumers or log raw credentials/client objects.
-- Lifecycle state is not continuous health monitoring. Probes use live store access; do not fake readiness.
-- Outbox requires the real domain transaction. The upstream outbox dependency alone does not provide the Nest facade.
-- Preserve at-least-once delivery, fencing, cooperative cancellation and storage-backed distributed guarantees.
+- Public API: Nest DI, Promises and facade-owned types. No Effect/Result/Layer/Runtime imports in any public declaration chunk.
+- One private runtime per configured application, sharing Clock/stores/lazy Workers. No runtime per request/job/provider and no global runtime singleton. Contract-only apps allocate none.
+- Descriptors/decorators are inert. Bind producers only after store readiness and before worker activation; detach on shutdown/failure. An unbound or closed descriptor rejects explicitly.
+- Delegate leases, heartbeats, claims, retries and settlement to the existing engine. Do not implement another polling/supervisor protocol.
+- Active cancel must request cancellation through the store and let the owner settle with its lease. Never steal leases or mark an active job terminal directly.
+- Caller wait timeout/abort is not job cancellation. execute is enqueue-and-wait, not a local method call.
+- Preserve input/decoded/JSON distinctions and explicit inverse codecs. Validate results and typed failures before persistence. Do not guess transform inverses.
+- Unexpected exceptions remain defects; retryDefects defaults to false at this facade, even if upstream defaults differ. Typed failures require the declared failure schema and retryability predicate.
+- Queue contracts remain singleton/static. Worker class providers may use request/transient dependencies via a fresh ContextId per attempt; never fabricate an HTTP Request.
+- Process arguments require JobData/JobContext. Preserve base processors when extending classes and require annotations on overridden implementations. Reject unsupported HTTP enhancer metadata instead of silently bypassing it.
+- Local concurrency is not distributed concurrency. Custom retry providers, distributed-control decorators and event-based waits must not be advertised before implementation.
+- Keep optional Zod/pg/adapter imports out of the root. Verify installed tarballs with optional peers genuinely absent, then present.
+- Preserve stable named-store tokens: `nestjs/<name>` participates in PostgreSQL's durable namespace. A connection rename is not a harmless refactor.
+- Startup validates schema, never applies migrations. Borrowed resources remain caller-owned. Roll back acquisition/activation locally after failed bootstrap; Nest close may not reach destruction hooks.
+- Drain/quiesce workers before stores, then close owned pools. Owned pg error handlers must not log raw clients/credentials.
+- Prepared requests are not transactions. Outbox requires the real domain transaction and at-least-once/idempotency semantics.
 
 ## Verification
 
-Run `bun run check` for every delivery and `bun run test:postgres` with MQ_TEST_DATABASE_URL against a dedicated database for connection changes. CI creates an isolated PostgreSQL service; tests create/drop random schemas and terminate only tagged test clients. Do not point failure tests at production.
+Run `bun run check` before delivery. It includes TypeScript 6/7, actual Nest/engine tests, formatting/lint, build, declarations, publint and tarball consumers. Add failing regressions before behavior fixes and keep public type-negative tests.
 
-Add failing regressions before behavior fixes. Use actual Nest contexts and real upstream stores; module mocks do not establish transaction/lease correctness. Packed consumers compile with TS6/7 and run under Node/Bun, including actual PostgreSQL startup and idle-client recovery in the database job.
+Run PostgreSQL tests with MQ_TEST_DATABASE_URL against a dedicated database: `bun run test:postgres`, then build/test:package. The CI PostgreSQL job exercises actual packed producers/workers under Node/Bun, producer exit/restart, retries, codec results, ownership and client disconnections. Tests create/drop random schemas and terminate tagged clients; never target production.
 
-Never infer persistence from a successful method return alone: verify durable records after recreating the application context using the same connection identity.
+Do not infer durability from a returned ID alone: verify the record after recreating application contexts with identical connection identity. Do not replace real DB/lease failure tests with module mocks. Preserve existing regression coverage for scope, inheritance, idempotency, active cancellation and shutdown draining.
 
 ## Delivery
 
-Use conventional commits. No npm publication, releases or repository setting changes without explicit authorization. Retained CI is read-only; remove temporary branch-specific generation workflows before integration. Document implemented and planned boundaries accurately.
+Use conventional commits. No npm publication, release or repository setting change without explicit authorization. Retained CI is read-only; remove temporary branch-only formatter/generation workflows before merging. Report actual verification results and remaining scope without implying full engine feature parity.

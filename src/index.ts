@@ -19,7 +19,8 @@ export type {
   MqModuleOptions,
   MqOptionsFactory,
   MqResolvedOptions,
-  MqShutdownOptions
+  MqShutdownOptions,
+  MqExecutionOptions
 } from './module/mq-module.options.ts'
 export { QueueService } from './contracts/queue-service.ts'
 export { JobContract, JobDefinition } from './contracts/job-definition.ts'
@@ -51,3 +52,35 @@ export {
   SchemaDefectException,
   SchemaEncodingException
 } from './contracts/errors.ts'
+export { Worker, Process, JobData, JobContext } from './workers/decorators.ts'
+export { MqWorkersService } from './workers/mq-workers.service.ts'
+export type {
+  WorkerOptions,
+  ProcessOptions,
+  JobExecutionContext,
+  WorkerSnapshot,
+  WorkerIdleOptions
+} from './workers/types.ts'
+export {
+  MqJobException,
+  JobWaitTimeoutException,
+  JobWaitAbortedException,
+  JobCancelledException
+} from './jobs/errors.ts'
+export type { JobOperationName } from './jobs/errors.ts'
+export type {
+  JobEnqueueOptions,
+  JobEnqueueItem,
+  JobScheduleOptions,
+  JobWaitOptions,
+  JobExecuteOptions,
+  JobJsonValue,
+  JobState,
+  JobFailureKind,
+  JobAttemptOutcome,
+  JobFailureView,
+  JobSnapshot,
+  JobAttempt,
+  PreparedJob,
+  PreparedBackoff
+} from './jobs/types.ts'
