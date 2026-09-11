@@ -35,6 +35,7 @@ class WorkerProcess {
       }
     })
     this.child.stderr?.on('data', (chunk: Buffer) => {
+      process.stderr.write(chunk)
       this.errors = `${this.errors}${chunk.toString()}`.slice(-16_000)
     })
     this.exited = new Promise((resolve) => {
@@ -163,6 +164,11 @@ async function verifyDistributed(connectionString: string): Promise<void> {
       const global = producer.get(GlobalQueue)
       const gLeft = await global.left.enqueue({ key: 'left', gate: 'global' })
       await until(() => entered(gLeft), 'left global worker entered')
+      // Prove renewal while the job is held beyond its initial lease, not just fast completion.
+      await sleep(2_200)
+      const renewed = await global.left.poll(gLeft)
+      assert.equal(renewed?.state, 'active')
+      assert.equal(renewed.deliveryCount, 1)
       const gRight = await global.right.enqueueMany(
         Array.from({ length: 5 }, (_, index) => ({
           payload: { key: `right-${index}`, gate: 'global' }
@@ -310,8 +316,9 @@ async function verifyDistributed(connectionString: string): Promise<void> {
 }
 
 const connectionString = process.env.MQ_TEST_DATABASE_URL
-if (connectionString !== undefined) await verifyDistributed(connectionString)
-else
+if (connectionString !== undefined) {
+  for (let cycle = 0; cycle < 3; cycle += 1) await verifyDistributed(connectionString)
+} else
   console.log(
     'Packed controls declarations/types passed; independent-process execution runs in PostgreSQL CI'
   )

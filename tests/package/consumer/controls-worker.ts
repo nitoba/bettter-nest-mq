@@ -27,6 +27,18 @@ const pool = new Pool({ connectionString: config.MQ_TEST_DATABASE_URL, max: 8 })
 @Injectable()
 class Probe {
   async run(payload: { key: string; gate: string }, context: JobExecutionContext) {
+    context.signal.addEventListener(
+      'abort',
+      () => {
+        console.error(
+          'ATTEMPT ABORT DIAGNOSTIC',
+          context.jobId,
+          context.delivery,
+          context.signal.reason
+        )
+      },
+      { once: true }
+    )
     await pool.query(
       `INSERT INTO "${schema}".handler_probe(job_id,queue,key,pid) VALUES($1,$2,$3,$4)`,
       [context.jobId, context.queue, payload.key, process.pid]
