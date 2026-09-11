@@ -18,7 +18,6 @@ try {
   assert.equal(borrowed.ownership, 'borrowed')
   assert.equal(owned.ownership, 'owned')
   assert.equal(unusedPool.totalCount, 0)
-  // Root and integration chunks must share the same opaque-descriptor registry.
   assert.equal(
     new MqConfiguration({ connections: { primary: borrowed } }).options.connections?.primary,
     borrowed
@@ -30,6 +29,28 @@ try {
 export function invalidOwnership(pool: Pool): void {
   // @ts-expect-error A connection cannot be both borrowed and owned.
   postgres({ pool, connectionString: 'postgresql://localhost/database' })
+}
+
+async function assertDisconnected(admin: Pool, tag: string): Promise<void> {
+  // Observe remote backend teardown rather than assuming socket close and a query on a
+  // different session are synchronous. The same bounded check is used by the ownership suite.
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const result = await admin.query<{ count: number }>(
+      'SELECT count(*)::integer AS count FROM pg_stat_activity WHERE application_name = $1',
+      [tag]
+    )
+    if (result.rows[0]?.count === 0) return
+    await setTimeout(20)
+  }
+  const remaining = await admin.query<{ pid: number; state: string }>(
+    'SELECT pid, state FROM pg_stat_activity WHERE application_name = $1',
+    [tag]
+  )
+  assert.deepEqual(
+    remaining.rows,
+    [],
+    'Owned PostgreSQL backends remained open after application shutdown'
+  )
 }
 
 async function verifyLiveDatabase(connectionString: string): Promise<void> {
@@ -76,11 +97,7 @@ async function verifyLiveDatabase(connectionString: string): Promise<void> {
     } finally {
       await app.close()
     }
-    const remaining = await admin.query<{ count: number }>(
-      'SELECT count(*)::integer AS count FROM pg_stat_activity WHERE application_name = $1',
-      [tag]
-    )
-    assert.equal(remaining.rows[0]?.count, 0)
+    await assertDisconnected(admin, tag)
     console.log(
       'Packed PostgreSQL consumer: actual migrations, Nest readiness, idle-client recovery and owned cleanup passed'
     )

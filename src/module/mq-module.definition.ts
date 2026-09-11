@@ -3,6 +3,8 @@ import { DiscoveryModule } from '@nestjs/core'
 import type { MqConnectionMonitor } from '../connections/connection.ts'
 import { MqConnectionsService } from '../connections/mq-connections.service.ts'
 import { CONNECTION_MONITOR } from '../connections/tokens.ts'
+import { MqQueueControlsService, QUEUE_CONTROLS_MONITOR } from '../controls/service.ts'
+import type { QueueControlsMonitor } from '../controls/types.ts'
 import { MqEngineHost } from '../engine/mq-engine.host.ts'
 import { MqWorkersService, WORKER_MONITOR } from '../workers/mq-workers.service.ts'
 import type { WorkerMonitor } from '../workers/types.ts'
@@ -36,15 +38,22 @@ export const { ConfigurableModuleClass } = new ConfigurableModuleBuilder<MqModul
         inject: [MqEngineHost],
         useFactory: (host: MqEngineHost): WorkerMonitor => host.session
       },
+      {
+        provide: QUEUE_CONTROLS_MONITOR,
+        inject: [MqEngineHost],
+        useFactory: (host: MqEngineHost): QueueControlsMonitor => host.controls
+      },
       MqConnectionsService,
-      MqWorkersService
+      MqWorkersService,
+      MqQueueControlsService
     ],
     exports: [
       ...(definition.exports ?? []),
       MqConfiguration,
       MqRegistry,
       MqConnectionsService,
-      MqWorkersService
+      MqWorkersService,
+      MqQueueControlsService
     ]
   }))
   .build()

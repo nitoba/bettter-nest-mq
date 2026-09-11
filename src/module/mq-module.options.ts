@@ -1,4 +1,5 @@
 import type { MqConnectionMap } from '../connections/connection.ts'
+import type { MqControlsOptions } from '../controls/types.ts'
 import type { JobPolicy, ResolvedJobPolicy } from '../contracts/policies.ts'
 
 export interface MqShutdownOptions {
@@ -13,8 +14,8 @@ export interface MqModuleOptions {
   readonly shutdown?: MqShutdownOptions
   readonly defaults?: JobPolicy
   readonly connections?: MqConnectionMap
-  /** Worker services run only when registered and enabled. Producers never require them. */
   readonly execution?: MqExecutionOptions
+  readonly controls?: MqControlsOptions
 }
 
 export interface MqOptionsFactory {
@@ -25,4 +26,5 @@ export interface MqResolvedOptions {
   readonly defaults: ResolvedJobPolicy
   readonly connections: MqConnectionMap | undefined
   readonly execution: Readonly<Required<MqExecutionOptions>>
+  readonly controls: Readonly<Required<MqControlsOptions>>
 }

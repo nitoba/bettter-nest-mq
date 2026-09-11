@@ -7,7 +7,8 @@ import type {
 import { JobExecutionCancelledError, JobNotCancellableError } from 'better-effect-mq'
 import { Result } from 'better-result'
 
-import { JobFailureException } from '../contracts/errors.ts'
+import { validateDispatchKey } from '../controls/decorator.ts'
+import { ContractDefinitionException, JobFailureException } from '../contracts/errors.ts'
 import { requireInteger } from '../contracts/policies.ts'
 import type { RegisteredJob } from '../contracts/queue-definition.ts'
 import type { JobClient } from '../jobs/binding.ts'
@@ -33,6 +34,11 @@ function enqueueOptions(
   registered: RegisteredJob,
   options: JobEnqueueOptions = {}
 ): EngineEnqueueOptions {
+  if (options.dispatchKey !== undefined) validateDispatchKey(options.dispatchKey)
+  if (registered.controls?.perKeyConcurrency !== undefined && options.dispatchKey === undefined)
+    throw new ContractDefinitionException(
+      'A per-key-limited queue requires a dispatchKey on every new job'
+    )
   const { policy } = registered
   const retry = options.retry ?? policy.retry
   const fields = {
@@ -159,15 +165,13 @@ async function cancelJob(
   job: CompiledJob,
   id: string
 ): Promise<void> {
-  // The upstream Job operation validates identity and atomically cancels pending jobs.
   const cancelled = await session.runOperation(() => job.cancel(id))
   if (Result.isOk(cancelled)) return
   if (!(cancelled.error instanceof JobNotCancellableError) || cancelled.error.state !== 'active') {
     unwrap(cancelled, 'cancel')
     return
   }
-  // An active lease is never stolen. Revalidate the contract, then ask the owning worker to
-  // cancel cooperatively through the store protocol and perform its own fenced settlement.
+  // Active cancellation is requested without stealing the owning worker's lease.
   const record = unwrap(await session.runOperation(() => job.poll(id)), 'cancel')
   if (record === undefined) throw new MqJobException('cancel', 'The job no longer exists')
   unwrap(
@@ -185,12 +189,9 @@ export function createJobClient(
 ): JobClient<ContractValue, ContractValue> {
   return {
     async enqueue(payload, options) {
-      return unwrap(
-        await session.runOperation(() =>
-          job.enqueue(JSON.parse(payload), enqueueOptions(registered, options))
-        ),
-        'enqueue'
-      )
+      const configured = enqueueOptions(registered, options)
+      const value = JSON.parse(payload)
+      return unwrap(await session.runOperation(() => job.enqueue(value, configured)), 'enqueue')
     },
     async enqueueMany(items) {
       const inputs = items.map((item) => ({
@@ -200,10 +201,10 @@ export function createJobClient(
       return unwrap(await session.runOperation(() => job.enqueueMany(inputs)), 'enqueueMany')
     },
     async prepare(payload, options) {
+      const configured = enqueueOptions(registered, options)
+      const value = JSON.parse(payload)
       const request = unwrap(
-        await session.runOperation(() =>
-          job.prepare(JSON.parse(payload), enqueueOptions(registered, options))
-        ),
+        await session.runOperation(() => job.prepare(value, configured)),
         'prepare'
       )
       return Object.freeze({ connection: registered.identity.connection, request })

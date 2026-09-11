@@ -2,7 +2,7 @@
 
 ## Status
 
-M0 foundation, M1 contracts/Nest registration, M2 runtime/PostgreSQL lifecycle and M3 core producer/worker execution are implemented. The API now publishes and processes actual jobs. It is not full better-effect-mq feature parity: distributed-control APIs, custom retry providers, MQ enhancers/events, other adapters, flows, schedules and transactional outbox are still planned.
+M0 foundation, M1 contracts/Nest registration, M2 runtime/PostgreSQL lifecycle and M3 core producer/worker execution are implemented. The API now publishes and processes actual jobs. It is not full better-effect-mq feature parity: custom retry providers, MQ enhancers/events, other adapters, flows, schedules and transactional outbox are still planned.
 
 Read contracts.md, connections.md and execution.md for the exported behavior. The package remains unreleased at 0.0.0; no simulated methods stand in for missing features.
 
@@ -48,14 +48,18 @@ Connection readiness reports sanitized lifecycle/protocol information; explicit 
 
 ## Remaining durable features
 
-Distributed controls must use storage-backed coordination and multiple-replica tests, not local semaphores. Named/versioned custom retry providers must resolve through DI without persisting executable functions. Durable-event waits/subscriptions need defined cursor and recovery semantics.
+Distributed controls are implemented through QueueControls metadata and an internal protocol-dispatch view over the existing raw store. Global/per-key concurrency and fixed-window admission call the upstream controlled operations; no local semaphore or new lease algorithm is substituted. The raw persistence token stays stable. Replica startup validates persisted policy read-only; explicit coordinated deployment reconciles without disabling omissions. See controls.md for group checks, partial multi-store deployments, typed dispatch keys and separate-process PostgreSQL qualification. Named/versioned custom retry providers must resolve through DI without persisting executable functions. Durable-event waits/subscriptions need defined cursor and recovery semantics.
 
 Flows will retain the engine's persisted parent/children fan-out and collection model: stable manifests, bounded/paginated results and defined failure policies, with no worker slot held by waiting parents. This is not arbitrary function replay or automatic saga compensation.
 
 Schedules will persist cron/interval/timezone/misfire/overlap decisions and reconcile safely during rolling deployments. Dynamic work belongs in coordinator jobs, not serialized functions or per-replica timers.
 
-Application outbox must share the actual domain transaction. Preparation, append, post-commit publication and settlement remain separate, with independent publication and execution retries. SQL/MongoDB/Redis semantics are not interchangeable; each ORM bridge must establish transaction-resource identity. Application outbox is distinct from internal flow coordination. The current upstream outbox peer does not implement a Nest outbox facade.
+Application outbox must share the actual domain transaction. Preparation, append, post-commit publication and settlement remain separate, with independent publication and execution retries. SQL/MongoDB/Redis semantics are not interchangeable; each ORM bridge must establish transaction-resource identity. Application outbox is distinct from internal flow coordination. The current internal outbox dependency does not implement a Nest outbox facade.
 
 ## Verification and release
 
 Real Nest/engine tests cover contracts, scopes, retries, cancellation, concurrency and shutdown. Actual tarballs compile with TS6/7, run with Node/Bun and verify optional dependency isolation. PostgreSQL tests prove persisted jobs/results across recreated producer/worker contexts and exercise ownership/recovery failures. Full parity still needs further distributed/crash/flow/outbox coverage before a production release; no exactly-once external effects or cross-database atomicity is claimed.
+
+## Internal dependency ownership
+
+The engine and its PostgreSQL/outbox adapters are installed as normal dependencies managed by this library. Nest applications do not need their own Effect/Result setup or manual adapter version selection. Only Nest/support peers and chosen native/schema integrations remain application-facing. Root isolation means no eager optional-driver loading, not the absence of internal packages from the dependency tree. See dependencies.md and controls.md for the qualified consumer and distributed-policy boundaries.

@@ -1,3 +1,5 @@
+import { queueControlsMetadata } from '../controls/decorator.ts'
+import type { QueueControlsOptions } from '../controls/types.ts'
 import { getJobMetadata, getOwnQueueMetadata } from './decorators.ts'
 import { ContractDefinitionException } from './errors.ts'
 import { JobContract } from './job-definition.ts'
@@ -15,6 +17,7 @@ export interface JobIdentity {
 }
 
 export interface RegisteredJob {
+  readonly controls?: QueueControlsOptions | undefined
   readonly property: string
   readonly identity: JobIdentity
   readonly policy: ResolvedJobPolicy
@@ -22,6 +25,7 @@ export interface RegisteredJob {
 }
 
 export interface QueueDefinition {
+  readonly controls?: QueueControlsOptions | undefined
   readonly name: string
   readonly connection: string
   readonly jobs: ReadonlyArray<RegisteredJob>
@@ -35,6 +39,7 @@ export function getQueueDefinition(queue: QueueService, defaults: JobPolicy = {}
       'Every concrete QueueService must declare its own @Queue identity'
     )
   }
+  const controls = queueControlsMetadata(queue.constructor)
   const properties = getJobMetadata(queue)
   for (const key of Reflect.ownKeys(queue)) {
     const value = Object.getOwnPropertyDescriptor(queue, key)?.value
@@ -65,6 +70,7 @@ export function getQueueDefinition(queue: QueueService, defaults: JobPolicy = {}
     identities.add(key)
     jobs.push(
       Object.freeze({
+        controls,
         property,
         identity: Object.freeze({
           connection: metadata.connection,
@@ -86,6 +92,7 @@ export function getQueueDefinition(queue: QueueService, defaults: JobPolicy = {}
   return Object.freeze({
     name: metadata.name,
     connection: metadata.connection,
+    controls,
     jobs: Object.freeze(jobs)
   })
 }

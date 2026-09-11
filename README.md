@@ -2,7 +2,7 @@
 
 NestJS-native producers and decorated workers backed by the better-effect-mq engine.
 
-**Status: M3 core execution is implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can now be published, processed, retried, cancelled and queried through the Nest facade. Flows, schedules, transactional outbox and additional integrations remain on the roadmap.
+**Status: M3 core execution and M3.1a distributed controls are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can now be published, processed, retried, cancelled and queried through the Nest facade. Flows, schedules, transactional outbox and additional integrations remain on the roadmap.
 
 Repository: `nitoba/bettter-nest-mq` (three `t` characters). Package name: `better-nest-mq`.
 
@@ -12,7 +12,25 @@ Queue Services declare typed jobs using Standard Schema or optional Zod codecs. 
 
 Producers support enqueue, decoded enqueue, batches, preparation without publication, polling, result waiting, publish-and-wait execution, attempt history, promotion, retry and cancellation. Workers support known failures, configurable retries, execution timeout, local worker/handler concurrency, cooperative cancellation and attempt-local scoped dependencies. PostgreSQL resource ownership, explicit migrations and live connection probes remain available.
 
-See [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+See [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+
+## Distributed controls
+
+Queues can now declare limits shared by workers across processes:
+
+```ts
+@QueueControls({
+  globalConcurrency: 10,
+  perKeyConcurrency: 2,
+  rateLimit: { max: 100, durationMs: 1_000 }
+})
+```
+
+Import QueueControls from better-nest-mq and apply it to the same QueueService as @Queue. Jobs derive a typed dispatch key through `this.job({ payload, result, dispatchKey: (value) => value.tenantId })`. Per-key declarations require a key for every new publication; callers cannot override a derived key with a different value.
+
+Ordinary applications default to read-only policy validation. Apply policies in one coordinated deployment process using `controls: { mode: 'reconcile', group: 'your-deployment' }`; replicas use validate mode and the same group. Missing/different policies fail startup before consumers start. Reconciliation never disables omitted queues and unchanged policies retain their revision. This is not a cross-database deployment transaction or a leader-election protocol.
+
+Global/per-key permits and fixed-window admissions use the existing controlled-store protocol. Local Worker/Process concurrency remains a separate bound. See the complete syntax, deployment example, guarantees and limitations in [docs/controls.md](docs/controls.md).
 
 ## Declare a queue and a worker
 
@@ -97,14 +115,14 @@ The examples describe the actual local/tarball API, not a published npm release.
 
 ## PostgreSQL setup
 
-Consumers of the optional PostgreSQL subpath install its peers alongside the local package tarball:
+Consumers of the PostgreSQL subpath install only the selected native driver alongside the local package tarball; internal engine adapters install automatically:
 
 ```sh
-bun add pg@^8.16.3 better-effect-mq-postgres@0.1.3 better-effect-mq-outbox@0.1.3
+bun add pg@^8.16.3
 bun add -d @types/pg
 ```
 
-The outbox peer is required by the upstream adapter's dependency graph; it does not enable a Nest transactional outbox API. The root entry point works without PostgreSQL or Zod integration packages installed.
+The engine and its PostgreSQL/outbox adapters are normal internal dependencies, installed automatically with this library. Nest consumers do not install better-effect, better-result or any better-effect-mq package manually. Only the chosen native driver/schema library is application-facing. The root remains usable without loading pg or Zod, and the internal outbox dependency does not enable the pending Nest transactional-outbox API. See [dependency ownership](docs/dependencies.md).
 
 Execute migrations deliberately in a deployment script:
 
@@ -134,7 +152,7 @@ Input and decoded types remain distinct through `InputOf`, `PayloadOf`, `ResultO
 
 `MqConnectionsService` exposes safe connection snapshots/live probes. `MqWorkersService` exposes local state and awaitIdle; idle does not mean every delayed job in the database has completed. Shutdown detaches producers, stops admission and drains/cooperatively aborts workers before releasing stores and owned pools.
 
-Current boundaries: polling result waits only; class-based Worker providers; explicit JobData/JobContext parameters; no HTTP enhancer execution. Method/class HTTP guards, pipes, interceptors and filters are rejected instead of silently ignored. Global HTTP enhancers do not apply. Named custom retry providers, distributed-control decorators, durable events, other adapters, flows, schedules and transactional outbox are still pending.
+Current boundaries: polling result waits only; class-based Worker providers; explicit JobData/JobContext parameters; no HTTP enhancer execution. Method/class HTTP guards, pipes, interceptors and filters are rejected instead of silently ignored. Global HTTP enhancers do not apply. Named custom retry providers, durable events, other adapters, flows, schedules and transactional outbox are still pending.
 
 ## Development and tests
 

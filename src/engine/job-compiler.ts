@@ -12,8 +12,8 @@ import type { RetryOptions } from '../contracts/policies.ts'
 import type { RegisteredJob } from '../contracts/queue-definition.ts'
 import { decodeSchema, encodeSchema, validateSchema } from '../contracts/schema.ts'
 import type { SchemaOutput, ValueSchema } from '../contracts/schema.ts'
-import { namedStoreToken } from './connection-definition.ts'
-import type { NamedStoreToken } from './connection-definition.ts'
+import { operationStoreToken } from './operation-store.ts'
+import type { OperationStoreToken } from './operation-store.ts'
 
 export type ContractValue = SchemaOutput<ValueSchema>
 export type DomainFailure = JobFailureException<ContractValue>
@@ -24,7 +24,7 @@ export type CompiledJob = EngineJobDefinition<
   Codec<ContractValue>,
   Codec<ContractValue>,
   Codec<DomainFailure>,
-  NamedStoreToken
+  OperationStoreToken
 >
 
 /** One schema bridge for every persisted boundary; codec errors remain engine encode/decode failures. */
@@ -134,7 +134,7 @@ export function compileJob(registered: RegisteredJob): CompiledJob {
     result: schemaCodec(contract.schemas.result),
     failure: failureCodec(contract.schemas.failure),
     defaults,
-    store: namedStoreToken(identity.connection),
+    store: operationStoreToken(identity.connection),
     idempotencyKey: (payload) => contract.getIdempotencyKey(payload),
     retryable: (failure) => contract.canRetry(failure.failure)
   })
