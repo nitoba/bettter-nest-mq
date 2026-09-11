@@ -4,7 +4,7 @@ import { JobContext, Worker } from 'better-effect-mq'
 import type { WorkerServiceInstance, WorkerServiceToken } from 'better-effect-mq'
 import { Result } from 'better-result'
 
-import { JobFailureException } from '../contracts/errors.ts'
+import { ContractDefinitionException, JobFailureException } from '../contracts/errors.ts'
 import type { RegisteredJob } from '../contracts/queue-definition.ts'
 import type { JobExecutionContext, ProcessOptions, WorkerOptions } from '../workers/types.ts'
 import type { MqShutdownOptions } from '../module/mq-module.options.ts'
@@ -31,6 +31,19 @@ export function compileWorker(
   invocations: ReadonlyArray<WorkerInvocation>,
   shutdown: MqShutdownOptions
 ): WorkerPlan {
+  // The pinned supervisor keys handlers by queue/name/version, without connection. Keep
+  // its limitation explicit rather than failing lazily after database resources are open.
+  const identities = new Set<string>()
+  for (const invocation of invocations) {
+    const identity = invocation.registered.identity
+    const key = JSON.stringify([identity.queue, identity.name, identity.version])
+    if (identities.has(key)) {
+      throw new ContractDefinitionException(
+        'One Worker cannot process identical queue/name/version across connections; use separate Worker Services'
+      )
+    }
+    identities.add(key)
+  }
   const tag: `nestjs.worker/${string}` = `nestjs.worker/${options.name}`
   const token = Worker.service(tag)
   const handlers = invocations.map((invocation) =>
