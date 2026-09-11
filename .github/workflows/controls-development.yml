@@ -37,18 +37,16 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
-      - name: Apply checked integration patches and format authored code
+      - name: Generate the dependency lockfile and format authored sources
         run: |
-          node .github/apply-controls.mjs
-          node .github/qualify-controls.mjs
-          bun install --frozen-lockfile
+          bun install
           bun run format
           bun run check:tooling
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -u
           if ! git diff --cached --quiet; then
-            git commit -m 'test: qualify distributed controls and format authored sources'
+            git commit -m 'chore: lock internal adapter dependencies and format authored sources'
             git push origin HEAD:feat/distributed-controls
           fi
       - name: Verify full package and actual distributed PostgreSQL execution
