@@ -68,6 +68,11 @@ export function compileWorker(
   return {
     name: options.name,
     token,
-    layer: token.layer(() => ({ ...settings, handlers, shutdown }))
+    layer: token.layer(() => ({
+      ...settings,
+      retryDefects: options.retryDefects ?? false,
+      handlers,
+      shutdown
+    }))
   }
 }
