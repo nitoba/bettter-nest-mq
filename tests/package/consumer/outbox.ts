@@ -142,6 +142,7 @@ export async function verifyOutbox(connectionString: string): Promise<void> {
       let escaped: PostgresOutboxTransaction | undefined
       const transaction = outbox.transaction(async (tx) => {
         escaped = tx
+        assert.deepEqual(Object.keys(tx).sort(), ['append', 'query'])
         await tx.query(`INSERT INTO "${schema}".business VALUES($1,$2)`, ['commit', 'value'])
         const native = await tx.query<{ json: { native: { value: number } } }>(
           'SELECT $1::jsonb AS json',
@@ -257,7 +258,7 @@ export async function verifyOutbox(connectionString: string): Promise<void> {
         'PASS domain rollback, caught-operation poisoning and full route/key duplicate conflicts'
       )
 
-      const values: JobJsonValue[] = [
+      const values: Array<z.input<ReturnType<typeof z.json>>> = [
         '123',
         'null',
         '',
@@ -381,7 +382,8 @@ export async function verifyOutbox(connectionString: string): Promise<void> {
         'committed outbox records publish'
       )
       const replay = await publisher.get(MqOutboxService).get('primary', 'replay-record')
-      assert.equal(replay?.attemptsMade, 2)
+      assert.ok(replay)
+      assert.equal(replay.attemptsMade, 2)
       assert.equal(replay.request.id, 'replay-job')
       for (const record of delivered) {
         const queue =

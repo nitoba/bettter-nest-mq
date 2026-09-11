@@ -17,24 +17,48 @@ ${text.slice(end)}`
 }
 const tests = 'tests/unit/outbox-contracts.test.ts'
 text = readFileSync(tests, 'utf8')
-writeFileSync(tests, text.replace("expect(record.request.id).toBe('explicit-job')", "assert.equal(record.request.id, 'explicit-job')"))
+writeFileSync(
+  tests,
+  text.replace(
+    "expect(record.request.id).toBe('explicit-job')",
+    "assert.equal(record.request.id, 'explicit-job')"
+  )
+)
 const packages = 'scripts/test-package.ts'
 text = readFileSync(packages, 'utf8')
 if (existsSync('tests/package/consumer/outbox.ts') && !text.includes("'outbox'")) {
   const previous = "['codec', 'postgres', 'execution', 'controls', 'json-fidelity']"
   assert.equal(text.split(previous).length, 2)
-  writeFileSync(packages, text.replace(previous, "['codec', 'postgres', 'execution', 'controls', 'json-fidelity', 'outbox']"))
+  writeFileSync(
+    packages,
+    text.replace(
+      previous,
+      "['codec', 'postgres', 'execution', 'controls', 'json-fidelity', 'outbox']"
+    )
+  )
 }
 const transaction = 'src/integrations/postgres-outbox-transaction.ts'
 text = readFileSync(transaction, 'utf8')
-writeFileSync(transaction, text.replace('Promise.all([...this.pending])', 'Promise.all(this.pending)'))
+writeFileSync(
+  transaction,
+  text.replace('Promise.all([...this.pending])', 'Promise.all(this.pending)')
+)
 const consumer = 'tests/package/consumer/outbox.ts'
 text = readFileSync(consumer, 'utf8')
-text = text.replace('const values: JobJsonValue[]', 'const values: Array<z.input<ReturnType<typeof z.json>>>')
-text = text.replace("assert.equal(replay?.attemptsMade, 2)", "assert.ok(replay)\n      assert.equal(replay.attemptsMade, 2)")
+text = text.replace(
+  'const values: JobJsonValue[]',
+  'const values: Array<z.input<ReturnType<typeof z.json>>>'
+)
+text = text.replace(
+  'assert.equal(replay?.attemptsMade, 2)',
+  'assert.ok(replay)\n      assert.equal(replay.attemptsMade, 2)'
+)
 if (!text.includes('Object.keys(tx).sort()')) {
   const anchor = '        escaped = tx'
   assert.equal(text.split(anchor).length, 2)
-  text = text.replace(anchor, `${anchor}\n        assert.deepEqual(Object.keys(tx).sort(), ['append', 'query'])`)
+  text = text.replace(
+    anchor,
+    `${anchor}\n        assert.deepEqual(Object.keys(tx).sort(), ['append', 'query'])`
+  )
 }
 writeFileSync(consumer, text)

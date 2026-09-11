@@ -98,7 +98,7 @@ class TransactionScope implements PostgresOutboxTransaction {
 
   async finish(): Promise<void> {
     this.accepting = false
-    await Promise.all([...this.pending])
+    await Promise.all(this.pending)
     if (this.failure !== undefined) throw this.failure
   }
 }
