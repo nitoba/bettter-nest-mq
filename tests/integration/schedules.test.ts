@@ -171,20 +171,6 @@ test('upstream sweeps enqueue real jobs, and a second sweep cannot fire the same
       key: 'regular'
     })
     if (Result.isError(removed)) throw removed.error
-    // An unchanged upsert intentionally preserves the cursor. Seed a fresh overdue record
-    // in this isolated reference fixture instead of expecting upsert to reset runtime state.
-    const removed = await fixture.schedules.removeSchedule({
-      group: 'nestjs/schedules',
-      key: 'regular'
-    })
-    if (Result.isError(removed)) throw removed.error
-    // An unchanged upsert intentionally preserves the cursor. Seed a fresh overdue record
-    // in this isolated reference fixture instead of expecting upsert to reset runtime state.
-    const removed = await fixture.schedules.removeSchedule({
-      group: 'nestjs/schedules',
-      key: 'regular'
-    })
-    if (Result.isError(removed)) throw removed.error
     const set = await fixture.schedules.upsertSchedule({
       ...record.value,
       nextRunAtMs: Date.now() - 1
