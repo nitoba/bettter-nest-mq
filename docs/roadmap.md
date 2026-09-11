@@ -2,9 +2,9 @@
 
 ## Current delivery
 
-The foundation, typed producers/workers, PostgreSQL lifecycle and JSON fidelity, distributed controls, native PostgreSQL transactional outbox and **persistent schedules** are implemented. The library still lacks full better-effect-mq feature parity and remains unreleased at version 0.0.0.
+The foundation, typed producers/workers, PostgreSQL lifecycle and JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules and **durable flows** are implemented. The library still lacks full better-effect-mq feature parity and remains unreleased at version 0.0.0.
 
-Current guides: README.md, docs/dependencies.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/controls.md, docs/outbox.md and docs/schedules.md. Remaining APIs below are not exported as placeholders.
+Current guides: README.md, docs/dependencies.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/controls.md, docs/outbox.md, docs/schedules.md and docs/flows.md. Remaining APIs below are not exported as placeholders.
 
 ## M0 — Foundation — implemented
 
@@ -18,7 +18,7 @@ QueueService/JobDefinition, Queue/Job/Retry/JobTimeout metadata, immutable polic
 
 One private application runtime, named stores, capability/protocol checks, safe probes, owned/borrowed resource boundaries and rollback. PostgreSQL delegates to the upstream adapter, validates schema without automatic migration and exposes explicit deployment helpers. Raw connection identities remain stable.
 
-Issue #5 is corrected through the private adapter JSON boundary, preserving scalar/JSON-looking strings, null versus SQL NULL, native application parsers and pool ownership. Actual PostgreSQL and installed consumers cover regular/controlled jobs, retries, domain failures, batches and post-restart reads. Native outbox and schedules reuse that boundary without changing stored job envelopes. See docs/postgres-json.md.
+Issue #5 is corrected through the private adapter JSON boundary, preserving scalar/JSON-looking strings, null versus SQL NULL, native application parsers and pool ownership. Actual PostgreSQL and installed consumers cover regular/controlled jobs, retries, domain failures, batches and post-restart reads. Native outbox, schedules and flows reuse that boundary without changing stored job envelopes. See docs/postgres-json.md.
 
 ## M3 — Core execution — implemented
 
@@ -30,7 +30,7 @@ Worker/Process/JobData/JobContext use actual Nest class providers and fresh atte
 
 QueueControls declares storage-backed global/per-key concurrency and fixed-window admissions. Dispatch keys derive from decoded payloads; required keys and conflicting overrides are checked before writes. Default replica startup validates policies read-only; coordinated deployment reconciles with group checks, unchanged revisions and omission safety. Writes across connections are not a distributed transaction.
 
-An operation-store view routes claims, settlement, release, cancellation and recovery to the upstream controlled protocol without changing raw tokens or opening another pool/runtime. Independent Node processes against PostgreSQL qualify shared limits, rate-window identities, heartbeat clock races and permit release. The internal shared memory fixture is test-only, not a production distributed store.
+An operation-store view routes claims, settlement, release, cancellation and stalled recovery to the upstream controlled protocol without changing raw tokens or opening another pool/runtime. Independent Node processes against PostgreSQL qualify shared limits, rate-window identities, heartbeat clock races and permit release. The internal shared memory fixture is test-only, not a production distributed store.
 
 ## M3.1b — Further execution integration — pending
 
@@ -38,7 +38,7 @@ Add named/versioned custom retry providers through DI without serializing functi
 
 ## M4 — Additional adapters and resource bundles — pending
 
-Add MySQL, Redis/Valkey, MongoDB and Node SQLite wrappers with optional drivers and tested topology/transaction semantics. Reuse upstream conformance/failure tests. PostgreSQL currently shares its pool among JobStore, schedules and native outbox; additional flow/event stores and equivalent resources for other adapters remain pending.
+Add MySQL, Redis/Valkey, MongoDB and Node SQLite wrappers with optional drivers and tested topology/transaction semantics. Reuse upstream conformance/failure tests. PostgreSQL currently shares its pool among JobStore, schedules, native outbox and flows; equivalent resources for other adapters remain pending.
 
 ## M5a — Persistent schedules — implemented
 
@@ -50,9 +50,15 @@ Actual installed-package tests run two independent scheduler processes against P
 
 Explicit limits: the pinned schedule record has no dispatchKey, so keyed scheduled jobs/per-key-limited destinations reject rather than lose their grouping. Use an unkeyed coordinator to publish keyed work. Catch-up is capped at 256 per tick, not across replicas; skip drops every observed due slot without a lateness grace threshold. See docs/schedules.md before selecting policies or changing live configuration.
 
-## M5b — Durable flows — next major feature
+## M5b — Durable flows — implemented
 
-Bind Flow/FanOut/Collect to the persisted parent/children model: stable manifests, bounded fan-out/depth, paginated collection and explicit failure/cancellation policies. Waiting parents must not occupy worker slots. Add the shared PostgreSQL flow resource first; do not replace durable coordination with Promise.all or claim arbitrary replay/saga compensation.
+Flow/FanOut/Collect now bind Nest providers to the persisted parent/children model. Stable child keys, bounded fan-out, typed paged collection, explicit continue/fail policies and cooperative cancellation use the upstream FlowStore rather than process-local Promise coordination.
+
+The PostgreSQL flow resource is opt-in through `postgres({ flows: true })` and shares the existing runtime, native pool, stable JobStore namespace and private JSON parser boundary. FanOut persists the manifest and relinquishes the original parent lease; Collect runs only after a fresh claim. Waiting parents do not hold ordinary execution capacity.
+
+The facade keeps the native v1/v2 boundary explicit: v1 JobStore inspection is not widened to expose `waiting-children`. FlowStore/v2 supplies suspended-parent state for administration/recovery. JSON `null`, scalar strings and explicit codecs retain the same persistence rules as ordinary jobs.
+
+Qualification uses released `better-effect-mq@0.1.3` and `better-effect-mq-postgres@0.1.4`. Installed-package PostgreSQL scenarios cover manifest persistence followed by SIGKILL, two independent replacement workers, stable child IDs, scalar/null/Date codecs, bounded pages, typed failure continuation, empty and nested flows, fail-fast and cascade cancellation. See docs/flows.md for exact guarantees and limits.
 
 ## M6a — Native PostgreSQL transactional outbox — implemented
 
@@ -74,7 +80,7 @@ Extend diagnostics to authenticated opt-in administration, durable cursors, obse
 M0 → M1 → M2 → M3 → M3.1a
                   ├──→ M3.1b custom retry / MQ enhancers / durable events
                   ├──→ M4 additional adapters and resources
-                  ├──→ M5a schedules implemented; M5b flows next
+                  ├──→ M5a schedules + M5b durable flows implemented
                   └──→ M6a native outbox implemented; M6b ORM bridges pending
        remaining integrations → M7 full parity and release qualification
 ```
