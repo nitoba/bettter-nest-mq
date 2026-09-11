@@ -12,6 +12,7 @@ import type { MqCapability, MqConnection } from '../connections/connection.ts'
 import { MqConnectionException } from '../connections/errors.ts'
 import { requireInteger } from '../contracts/policies.ts'
 import { defineConnection } from '../engine/connection-definition.ts'
+import { postgresJsonPool } from './postgres-json-pool.ts'
 
 interface PostgresCommonOptions {
   readonly schema?: string
@@ -63,7 +64,7 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
       { adapter: 'postgres', ownership: 'borrowed', boundary: pool, scope, requirements },
       (token) => ({
         layer: PostgresJobStore.layerFor(token, {
-          pool,
+          pool: postgresJsonPool(pool),
           schema,
           namespace,
           validateSchema: validate
@@ -93,8 +94,7 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
       })
       const logger = new Logger('BetterNestMqPostgres')
       const onIdleError = (): void => {
-        // pg removes the failed idle client itself. Never log the raw error's attached client,
-        // because it can contain connection credentials and backend session secrets.
+        // Raw pg error/client objects may contain credentials and session secrets.
         logger.warn('An idle PostgreSQL client disconnected; the pool will replace it on demand')
       }
       pool.on('error', onIdleError)
@@ -105,7 +105,7 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
       try {
         return {
           layer: PostgresJobStore.layerFor(token, {
-            pool,
+            pool: postgresJsonPool(pool),
             schema,
             namespace,
             validateSchema: validate
@@ -130,13 +130,11 @@ export interface PostgresMigrationOptions {
   readonly pool: Pool
   readonly schema?: string
 }
-
 export interface PostgresMigrationReport {
   readonly schema: string
   readonly version: number
   readonly applied: ReadonlyArray<number>
 }
-
 export interface PostgresSchemaReport {
   readonly schema: string
   readonly version: number

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### PostgreSQL JSON fidelity — issue #5
+
+- Preserve scalar string payloads/results without reinterpreting JSON-looking text as another type.
+- Distinguish valid JSON null results from missing SQL NULL, including persisted attempt results.
+- Add private per-query JSON/JSONB parser normalization without mutating native/global parsers, stored JSON, pool ownership or consumer dependencies.
+- Preserve native client disposal on query failure and handle active connection errors without an unhandled process error.
+- Qualify 18 JSON values across ordinary/controlled queues, owned/borrowed/custom-parser pools, batches, preparation, retries, typed failures and application restarts through installed tarballs.
+- Retain direct native transaction/rollback/notification/disconnect regressions in read-only PostgreSQL CI. No migration or automatic replay/data repair is performed.
+
 ### M3.1a — Distributed controls
 
 - Add QueueControls declarations for global concurrency, per-dispatch-key concurrency and fixed-window admission rates.

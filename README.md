@@ -12,7 +12,11 @@ Queue Services declare typed jobs using Standard Schema or optional Zod codecs. 
 
 Producers support enqueue, decoded enqueue, batches, preparation without publication, polling, result waiting, publish-and-wait execution, attempt history, promotion, retry and cancellation. Workers support known failures, configurable retries, execution timeout, local worker/handler concurrency, cooperative cancellation and attempt-local scoped dependencies. PostgreSQL resource ownership, explicit migrations and live connection probes remain available.
 
-See [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+See [PostgreSQL JSON fidelity](docs/postgres-json.md), [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+
+## PostgreSQL JSON correction
+
+Issue #5 is addressed by adapter-only JSON result normalization. Scalar strings keep their type, including strings that resemble JSON, and a valid JSON null result is no longer confused with missing SQL NULL. No job schema, stored envelope, pool ownership, internal dependency requirement or migration changes are needed. The regression matrix covers ordinary and controlled queues, retries, typed failures, batches, preparation and reads after application restart. See [the compatibility and existing-record notes](docs/postgres-json.md).
 
 ## Distributed controls
 

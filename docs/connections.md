@@ -79,6 +79,8 @@ Tests use explicit internal upstream memory fixtures and a real PostgreSQL servi
 
 Other storage wrappers, flow/schedule/event/outbox resource bundles and true ORM transaction bridges remain planned. New resource bundles should share native connections and preserve these ownership/lifecycle guarantees rather than opening redundant pools.
 
-## Known adapter qualification item
+## JSON fidelity and native parser isolation
 
-Issue #5 tracks a separately observed scalar-string JSON payload failure in the pinned PostgreSQL adapter. Current PostgreSQL end-to-end examples and controlled-claim tests use object payloads; they do not establish universal scalar JSON persistence. Do not treat this unreleased version as fully production-qualified or silently change persisted payload envelopes to conceal that issue.
+Issue #5 is corrected by a private, non-owning adapter pool/client view. JSON and JSONB fields reach the pinned adapter as encoded text, so its decoder parses exactly once and preserves strings, JSON null and other valid JSON values. Native application queries, custom parsers, global pg configuration and pool ownership remain unchanged. The format on disk is unchanged and needs no migration.
+
+The real database/package matrix covers 18 JSON values in ordinary and controlled queues, including single/decoded/batch publication, preparation, results, typed failures, retries and post-restart reads. Native driver regressions also check transaction identity, rollback, LISTEN notifications, SQL query failures and active connection termination. Correctly stored data remains readable; previously misinterpreted business results are not automatically repaired or replayed. See [PostgreSQL JSON fidelity](postgres-json.md) for the pinned compatibility boundary and operational precautions.

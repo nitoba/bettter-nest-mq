@@ -6,6 +6,10 @@ M0 foundation, M1 contracts, M2 engine/PostgreSQL lifecycle, M3 core producer/wo
 
 Current guides: README.md, docs/contracts.md, docs/connections.md, docs/execution.md and docs/controls.md. Remaining APIs below are not exported as placeholders.
 
+## PostgreSQL JSON fidelity — corrected
+
+Issue #5 now has public and installed-package regressions for scalar strings, JSON-looking strings, numbers, booleans, null, arrays and objects. The adapter-only parser boundary preserves SQL NULL distinction, native application parsing and pool ownership without changing persisted envelopes. Ordinary/controlled queues, retries, typed failures, batches, preparation and post-restart reads are covered. See docs/postgres-json.md; this correction does not implement the pending flow/schedule/outbox features below.
+
 ## M0 — Foundation — implemented
 
 Bun-generated lockfile/scripts, strict TypeScript with independent 6.x and primary compiler checks, unchanged upstream Oxlint/Oxfmt/plugin with 20-file integrity verification, ESM/declarations, publint, real tarball consumers and read-only CI.

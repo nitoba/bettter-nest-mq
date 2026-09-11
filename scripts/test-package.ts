@@ -87,8 +87,7 @@ try {
       )
     await writeFile(join(directory, 'package.json'), JSON.stringify(manifest))
     await run(['bun', 'install', '--ignore-scripts'], directory)
-    // Internal adapters install automatically; the root must still work without loading a
-    // chosen native driver or schema integration. Do not remove required internal packages.
+    // Internal adapters install automatically. A root-only user need not install pg or Zod.
     for (const name of optionalIntegrations)
       await rm(join(directory, 'node_modules', name), { recursive: true, force: true })
     await run(
@@ -121,7 +120,7 @@ try {
       )
     await writeFile(join(directory, 'package.json'), JSON.stringify(integratedManifest))
     await run(['bun', 'install', '--ignore-scripts'], directory)
-    for (const fixture of ['codec', 'postgres', 'execution', 'controls']) {
+    for (const fixture of ['codec', 'postgres', 'execution', 'controls', 'json-fidelity']) {
       await run(
         ['node', 'node_modules/typescript/bin/tsc', '-p', `tsconfig.${fixture}.json`],
         directory

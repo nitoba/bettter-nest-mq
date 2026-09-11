@@ -76,6 +76,13 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Verify real database ownership, rollback and persistence
         run: bun run test:postgres
+      - name: Verify JSON fidelity and native client failure boundaries
+        run: |
+          bun tests/postgres/json-driver.ts
+          bun tests/postgres/json-fidelity.ts
+          bun build tests/postgres/json-disconnect.ts --target=node --packages=external --outfile node_modules/.cache/json-disconnect.mjs
+          node node_modules/.cache/json-disconnect.mjs
+          bun tests/postgres/json-disconnect.ts
       - name: Exercise public packed integrations under Node and Bun
         run: |
           bun run build
