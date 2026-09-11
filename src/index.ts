@@ -143,3 +143,21 @@ export type {
   FlowResultsReader,
   FlowSnapshot
 } from './flows/types.ts'
+
+export { RetryPolicy } from './retries/policy.ts'
+export type {
+  RetryPolicyOptions,
+  RetryPolicyContext,
+  RetryPolicyDecision,
+  MqRetryPolicy
+} from './retries/policy.ts'
+export { UseMqGuards, UseMqPipes, UseMqInterceptors, UseMqFilters } from './enhancers/decorators.ts'
+export { MqGuardRejectedException } from './enhancers/types.ts'
+export type {
+  MqExecutionContext,
+  MqGuard,
+  MqPipe,
+  MqNext,
+  MqInterceptor,
+  MqExceptionFilter
+} from './enhancers/types.ts'

@@ -1,3 +1,4 @@
+import { assertRetryReference } from './retry-reference.ts'
 import { createHash } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import { validatePreparedEnqueue } from 'better-effect-mq'
@@ -40,6 +41,15 @@ export async function compileOutboxRecord(
       'prepare',
       'The outbox destination job must be registered in this application'
     )
+  try {
+    assertRetryReference(job, request.metadata)
+  } catch (cause) {
+    throw new MqOutboxException(
+      'prepare',
+      'Prepared retry policy differs from the registered contract',
+      { cause }
+    )
+  }
   const payload = await validateSchema(job.contract.schemas.payload, request.payload)
   const encoded = JSON.parse(await encodeSchema(job.contract.schemas.payload, payload))
   if (!isDeepStrictEqual(encoded, request.payload))

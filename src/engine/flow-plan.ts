@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from 'node:util'
+import { publicationRetry, publicationMetadata } from './retry-reference.ts'
 import { CurrentAbortSignal, Effect, Layer } from 'better-effect'
 import { Flow as EngineFlow, FlowStore, JobContext } from 'better-effect-mq'
 import type {
@@ -73,20 +75,25 @@ export async function compileFlowChildren(
           'definition',
           'Flow child identity belongs to its manifest; global child idempotency keys are not supported'
         )
-      let options: EngineChildOptions = {}
       const requested = item.options
+      const retry = publicationRetry(entry.registered, requested?.retry)
+      let options: EngineChildOptions = {
+        attempts: retry.attempts,
+        metadata: publicationMetadata(entry.registered, requested?.metadata)
+      }
       if (requested?.priority !== undefined) options = { ...options, priority: requested.priority }
       if (requested?.timeoutMs !== undefined)
         options = { ...options, timeoutMs: requested.timeoutMs }
-      if (requested?.metadata !== undefined) options = { ...options, metadata: requested.metadata }
-      if (requested?.retry !== undefined) {
-        const backoff = compileBackoff(requested.retry)
-        options = {
-          ...options,
-          attempts: requested.retry.attempts,
-          backoff: { type: backoff.type === 'constant' ? 'fixed' : backoff.type, backoff }
-        }
-      }
+      // Flow.children normalizes a policy, but the pinned supervisor forwards it to
+      // Job.prepare's persisted-backoff boundary. Inherit defaults; never silently lose an override.
+      if (
+        requested?.retry !== undefined &&
+        !isDeepStrictEqual(compileBackoff(retry), entry.compiled.defaults.backoff)
+      )
+        throw new MqFlowException(
+          'definition',
+          'The pinned engine cannot override a flow child backoff; retain the declared policy and change only attempts'
+        )
       // Job.prepare consumes codec input, not the already decoded domain value.
       items.push({ key: item.key, payload: input, options })
     }

@@ -1,3 +1,4 @@
+import { publicationRetry, publicationMetadata } from './retry-reference.ts'
 import { JobSchedules } from 'better-effect-mq'
 import type { JobSchedule, JobScheduleDraft, JobScheduleOptions } from 'better-effect-mq'
 import { MqScheduleException } from '../schedules/errors.ts'
@@ -38,18 +39,19 @@ export async function compileSchedule<Input>(
       'definition',
       'A scheduled job cannot inherit a relative enqueue delay; its cadence defines occurrence time'
     )
-  const retry = options.retry ?? registered.policy.retry
+  const retry = publicationRetry(registered, options.retry)
   const job = compileJob(registered)
-  const common: Omit<JobScheduleOptions<CompiledJob>, 'cron' | 'everyMs'> = {
+  let common: Omit<JobScheduleOptions<CompiledJob>, 'cron' | 'everyMs'> = {
     payload,
-    metadata: options.metadata ?? {},
+    metadata: publicationMetadata(registered, options.metadata),
     attempts: retry.attempts,
-    backoff: compileBackoff(retry),
     priority: options.priority ?? registered.policy.priority,
     misfire: options.misfire ?? { strategy: 'run-once' },
     overlap: options.overlap ?? 'allow',
     timeZone: options.timeZone ?? 'UTC'
   }
+  const backoff = compileBackoff(retry)
+  if (backoff !== undefined) common = { ...common, backoff }
   const timeoutMs = options.timeoutMs ?? registered.policy.timeoutMs
   let cadence: JobScheduleOptions<CompiledJob> =
     options.cron === undefined

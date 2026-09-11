@@ -1,4 +1,8 @@
-import { Scope } from '@nestjs/common'
+import { methodDescriptor } from './provider-method.ts'
+import { MqPipeline } from './mq-enhancers.ts'
+import type { RetryPolicies } from './retry-policies.ts'
+import { assertRetryReference } from './retry-reference.ts'
+import { Scope, type Type } from '@nestjs/common'
 import {
   EXCEPTION_FILTERS_METADATA,
   GUARDS_METADATA,
@@ -26,19 +30,6 @@ interface CompiledEntry {
   readonly compiled: CompiledJob
 }
 
-function methodDescriptor<Target extends object>(
-  target: Target,
-  method: string
-): PropertyDescriptor | undefined {
-  let current = target
-  while (current !== null) {
-    const descriptor = Object.getOwnPropertyDescriptor(current, method)
-    if (descriptor !== undefined) return descriptor
-    current = Object.getPrototypeOf(current)
-  }
-  return undefined
-}
-
 function rejectEnhancers<Target extends object>(target: Target): void {
   for (const key of [
     EXCEPTION_FILTERS_METADATA,
@@ -48,7 +39,7 @@ function rejectEnhancers<Target extends object>(target: Target): void {
   ]) {
     if (Reflect.hasMetadata(key, target))
       throw new ContractDefinitionException(
-        'MQ handlers do not yet support Nest HTTP enhancer metadata; it cannot be silently ignored'
+        'MQ handlers require explicit MQ decorators; Nest HTTP enhancer metadata cannot be silently ignored'
       )
   }
 }
@@ -58,6 +49,7 @@ function invocationFor(
   method: string,
   entry: CompiledEntry,
   moduleRef: ModuleRef,
+  discovery: DiscoveryService,
   phase?: 'fanOut' | 'collect'
 ): FlowInvocation {
   const target = wrapper.metatype
@@ -85,21 +77,43 @@ function invocationFor(
       throw new MqFlowException('definition', '@FlowChildren is only valid in Collect methods')
     return kind
   })
+  // SAFETY: discovery has a class provider and the validated prototype owns the handler method.
+  const workerType = target as Type
+  const pipeline = new MqPipeline(
+    discovery,
+    moduleRef,
+    workerType,
+    handler,
+    method,
+    entry.registered,
+    phase ?? 'process'
+  )
   const scoped =
     wrapper.scope === Scope.REQUEST ||
     wrapper.scope === Scope.TRANSIENT ||
     !wrapper.isDependencyTreeStatic()
   return async (payload, context, results) => {
+    assertRetryReference(entry.registered, context.metadata)
+    const contextId = ContextIdFactory.create()
     const instance = scoped
-      ? await moduleRef.resolve(wrapper.token, ContextIdFactory.create(), { strict: false })
+      ? await moduleRef.resolve(wrapper.token, contextId, { strict: false })
       : wrapper.instance
     if (instance === undefined || instance === null)
       throw new ContractDefinitionException(
         `Worker for ${entry.registered.identity.key} was not resolved`
       )
-    return await handler.apply(
-      instance,
-      kinds.map((kind) => (kind === 'payload' ? payload : kind === 'context' ? context : results))
+    return await pipeline.run(
+      payload,
+      context,
+      results,
+      contextId,
+      async (transformed) =>
+        await handler.apply(
+          instance,
+          kinds.map((kind) =>
+            kind === 'payload' ? transformed : kind === 'context' ? context : results
+          )
+        )
     )
   }
 }
@@ -109,7 +123,8 @@ export function discoverWorkers(
   moduleRef: ModuleRef,
   entries: ReadonlyMap<JobContract, CompiledEntry>,
   shutdown: MqShutdownOptions,
-  flows: readonly CompiledFlow[] = []
+  flows: readonly CompiledFlow[] = [],
+  retries?: RetryPolicies
 ): readonly WorkerPlan[] {
   const names = new Set<string>()
   const processed = new Set<string>()
@@ -160,20 +175,23 @@ export function discoverWorkers(
         throw new ContractDefinitionException(
           `Duplicate processor for ${entry.registered.identity.key}`
         )
+      retries?.require(entry.registered)
       processed.add(entry.registered.identity.key)
       invocations.push({
         ...entry,
         options: metadata.options,
-        invoke: invocationFor(wrapper, method, entry, moduleRef)
+        invoke: invocationFor(wrapper, method, entry, moduleRef, discovery)
       })
     }
+    for (const flow of flows)
+      if (flow.owner === options.name) retries?.require(flow.parent.registered)
     const registrations = flows.map((flow) =>
       flow.owner !== options.name
         ? flow.definition
         : compileFlowHandler(
             flow,
-            invocationFor(wrapper, flow.fanOutMethod, flow.parent, moduleRef, 'fanOut'),
-            invocationFor(wrapper, flow.collectMethod, flow.parent, moduleRef, 'collect')
+            invocationFor(wrapper, flow.fanOutMethod, flow.parent, moduleRef, discovery, 'fanOut'),
+            invocationFor(wrapper, flow.collectMethod, flow.parent, moduleRef, discovery, 'collect')
           )
     )
     plans.push(compileWorker(options, invocations, shutdown, registrations))

@@ -1,3 +1,4 @@
+import { publicationRetry, publicationMetadata } from './retry-reference.ts'
 import type {
   JobAttemptView,
   JobEnqueueOptions as EngineEnqueueOptions,
@@ -40,21 +41,24 @@ function enqueueOptions(
       'A per-key-limited queue requires a dispatchKey on every new job'
     )
   const { policy } = registered
-  const retry = options.retry ?? policy.retry
+  const retry = publicationRetry(registered, options.retry)
   const fields = {
     priority: options.priority ?? policy.priority,
-    attempts: retry.attempts,
-    backoff: compileBackoff(retry)
+    attempts: retry.attempts
   }
   const timeoutMs = options.timeoutMs ?? policy.timeoutMs
   if (timeoutMs !== undefined) requireInteger(timeoutMs, 'timeoutMs', 1)
-  let result: EngineEnqueueOptions = { ...fields }
+  let result: EngineEnqueueOptions = {
+    ...fields,
+    metadata: publicationMetadata(registered, options.metadata)
+  }
+  const backoff = compileBackoff(retry)
+  if (backoff !== undefined) result = { ...result, backoff }
   if (timeoutMs !== undefined) result = { ...result, timeoutMs }
   if (options.jobId !== undefined) result = { ...result, jobId: options.jobId }
   if (options.idempotencyKey !== undefined)
     result = { ...result, idempotencyKey: options.idempotencyKey }
   if (options.dispatchKey !== undefined) result = { ...result, dispatchKey: options.dispatchKey }
-  if (options.metadata !== undefined) result = { ...result, metadata: options.metadata }
   if (options.at !== undefined) {
     if (options.delayMs !== undefined)
       throw new MqJobException('enqueue', 'delayMs and at cannot be combined')

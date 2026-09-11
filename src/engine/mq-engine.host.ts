@@ -1,3 +1,4 @@
+import { RetryPolicies } from './retry-policies.ts'
 import { FlowsCoordinator } from './flows.ts'
 import {
   Inject,
@@ -66,6 +67,7 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
 
   async onApplicationBootstrap(): Promise<void> {
     this.registry.initialize()
+    const retries = new RetryPolicies(this.discovery, this.moduleRef)
     const entries = new Map<JobContract, { registered: RegisteredJob; compiled: CompiledJob }>()
     if (this.configuration.options.connections !== undefined) {
       for (const registered of this.registry.jobs()) {
@@ -73,7 +75,7 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
           throw new ContractDefinitionException(
             'A JobDefinition instance cannot represent multiple durable identities'
           )
-        entries.set(registered.contract, { registered, compiled: compileJob(registered) })
+        entries.set(registered.contract, { registered, compiled: compileJob(registered, retries) })
       }
     }
     const flows =
@@ -88,7 +90,8 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
             this.moduleRef,
             entries,
             this.configuration.options.shutdown,
-            flows
+            flows,
+            retries
           )
         : []
     const schedules = await this.schedules.prepare()
