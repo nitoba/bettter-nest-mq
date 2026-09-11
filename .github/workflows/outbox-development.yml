@@ -16,6 +16,17 @@ jobs:
     if: github.ref == 'refs/heads/feat/transactional-outbox'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mq
+          POSTGRES_PASSWORD: mq_test_only
+          POSTGRES_DB: mq_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U mq -d mq_test" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MQ_TEST_DATABASE_URL: postgresql://mq:mq_test_only@localhost:5432/mq_test
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,5 +51,9 @@ jobs:
             git commit -m 'feat: qualify outbox transaction and publisher integration'
             git push origin HEAD:feat/transactional-outbox
           fi
-      - name: Verify the complete quality gate
+      - name: Run focused PostgreSQL transaction and publisher scenarios
+        run: |
+          bun run build
+          bun tests/package/consumer/outbox.ts
+      - name: Verify the complete quality gate and installed consumers
         run: bun run check
