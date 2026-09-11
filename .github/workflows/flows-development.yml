@@ -37,13 +37,12 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
-      - name: Apply reviewed refinement and retire its transport
+      - name: Integrate the read companion and retire its one-shot transport
         id: prepare
         run: |
-          if test -f .github/flow-refinement.patch; then
-            git apply --check .github/flow-refinement.patch
-            git apply --index .github/flow-refinement.patch
-            git rm .github/flow-refinement.patch
+          if test -f .github/flow-reads.mjs; then
+            node .github/flow-reads.mjs
+            git rm .github/flow-reads.mjs
           fi
           bun install --frozen-lockfile
           bun run format
@@ -52,14 +51,14 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -u
           if ! git diff --cached --quiet; then
-            git commit -m 'fix: harden flow identities and phase-owned result cursors'
+            git commit -m 'fix: integrate v2 flow reads and restore persisted parent discovery'
             git push origin HEAD:feat/durable-flows
           fi
       - name: Verify types, Nest regressions and lint
         run: |
           bun run typecheck
           bun run typecheck:minimum
-          bun test > /tmp/flow-unit.log 2>&1 || { cat /tmp/flow-unit.log; exit 1; }
+          bun test > /tmp/flow-unit.log 2>&1 || { tail -180 /tmp/flow-unit.log; exit 1; }
           tail -6 /tmp/flow-unit.log
           bun run format:check
           bun run build
@@ -69,7 +68,8 @@ jobs:
         if: always() && steps.prepare.outcome == 'success'
         run: |
           bun run build
-          node .github/verify-flows.mjs
+          node .github/verify-flows.mjs > /tmp/flow-target.log 2>&1 || { tail -180 /tmp/flow-target.log; exit 1; }
+          grep '^PASS\|FLOW CHECKPOINT' /tmp/flow-target.log
       - name: Retain full PostgreSQL package regression matrix
         run: |
           bun run test:package > /tmp/flow-packages.log 2>&1 || { tail -180 /tmp/flow-packages.log; exit 1; }
