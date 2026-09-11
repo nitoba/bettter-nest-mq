@@ -182,7 +182,8 @@ async function verify(connectionString: string): Promise<void> {
     imports: [
       MqModule.forRoot({
         connections: { primary: connection },
-        execution: { workers: false, scheduler: true, outboxPublisher: false }
+        execution: { workers: false, scheduler: true, outboxPublisher: false },
+        schedules: { mode: 'reconcile' }
       }),
       MqModule.forFeature([Tasks])
     ]

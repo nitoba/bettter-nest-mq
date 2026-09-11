@@ -2,7 +2,7 @@
 
 NestJS-native producers and decorated workers backed by the better-effect-mq engine.
 
-**Status: Core execution, distributed controls, native PostgreSQL transactional outbox, persistent schedules and durable PostgreSQL flows are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can be published, processed, retried, cancelled, scheduled and coordinated as durable fan-out/collect flows through the Nest facade. ORM transaction bridges and additional integrations remain on the roadmap.
+**Status: Core execution, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable PostgreSQL flows, named retry providers and explicit MQ enhancers are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can be published, processed, retried, cancelled, scheduled and coordinated as durable fan-out/collect flows through the Nest facade. ORM transaction bridges and additional integrations remain on the roadmap.
 
 Repository: `nitoba/bettter-nest-mq` (three `t` characters). Package name: `better-nest-mq`.
 
@@ -12,7 +12,13 @@ Queue Services declare typed jobs using Standard Schema or optional Zod codecs. 
 
 Producers support enqueue, decoded enqueue, batches, preparation without publication, polling, result waiting, publish-and-wait execution, attempt history, promotion, retry and cancellation. Workers support known failures, configurable retries, execution timeout, local worker/handler concurrency, cooperative cancellation and attempt-local scoped dependencies. PostgreSQL resource ownership, explicit migrations and live connection probes remain available.
 
-See [durable flows](docs/flows.md), [persistent schedules](docs/schedules.md), [transactional outbox](docs/outbox.md), [PostgreSQL JSON fidelity](docs/postgres-json.md), [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+See [retry providers and MQ enhancers](docs/execution-extensions.md), [durable flows](docs/flows.md), [persistent schedules](docs/schedules.md), [transactional outbox](docs/outbox.md), [PostgreSQL JSON fidelity](docs/postgres-json.md), [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+
+## Retry providers and MQ enhancers
+
+Register synchronous singleton `@RetryPolicy({ name, version })` providers through normal Nest DI. Custom retry references persist without serializing callbacks, and workers reject mismatched references before business code. Producer-only contexts do not need the decision implementation; declared failure schemas, retryable predicates and native attempt budgets remain mandatory.
+
+`@UseMqGuards`, `@UseMqPipes`, `@UseMqInterceptors` and `@UseMqFilters` provide an explicit pipeline for Process, FanOut and Collect. Worker/enhancer dependencies share a fresh attempt/phase context. Transformed payloads and final results remain schema-validated; single-use continuations close and drain before settlement. HTTP enhancers remain separate and are not enabled implicitly. See [execution extensions](docs/execution-extensions.md) for order, scopes, cancellation and deployment rules.
 
 ## Durable flows
 
@@ -190,7 +196,7 @@ Input and decoded types remain distinct through `InputOf`, `PayloadOf`, `ResultO
 
 `MqConnectionsService` exposes safe connection snapshots/live probes. `MqWorkersService` exposes local state and awaitIdle; idle does not mean every delayed job in the database has completed. Shutdown detaches producers, stops admission and drains/cooperatively aborts workers before releasing stores and owned pools.
 
-Current boundaries: polling result waits only; class-based Worker providers; explicit JobData/JobContext parameters; no HTTP enhancer execution. Method/class HTTP guards, pipes, interceptors and filters are rejected instead of silently ignored. Global HTTP enhancers do not apply. Named custom retry providers, durable events, other adapters, flows and ORM outbox bridges are still pending. Native PostgreSQL outbox transactions and a managed publisher are available.
+Current boundaries: polling result waits only; class-based Worker providers; explicit JobData/JobContext parameters; no HTTP enhancer execution. Method/class HTTP guards, pipes, interceptors and filters are rejected instead of silently ignored. Global HTTP enhancers do not apply. Named custom retry providers and explicit MQ enhancers are implemented; durable events, other adapters and ORM outbox bridges remain pending. Native PostgreSQL outbox transactions and a managed publisher are available.
 
 ## Development and tests
 
