@@ -8,7 +8,7 @@ bun run hooks:install
 bun run check
 ```
 
-The package now implements typed contracts, private engine/PostgreSQL lifecycle and core public producers/workers. Read docs/execution.md and the roadmap before adding APIs. Future flow, schedule, outbox and distributed-control APIs must be real integrations, never simulated methods.
+The package now implements typed contracts, private engine/PostgreSQL lifecycle and core public producers/workers. Read docs/execution.md and the roadmap before adding APIs. Distributed QueueControls are implemented and documented in docs/controls.md. Future flow, schedule and outbox APIs must be real integrations, never simulated methods. Keep normal policy validation read-only and qualify shared limits with actual independent PostgreSQL worker processes.
 
 Retain the exact upstream Oxlint/Oxfmt/plugin baseline and generated Bun lockfile. Source and packed declarations must work with TypeScript 6 and the primary TypeScript 7 compiler. Keep strictness and Nest decorator metadata; do not disable a rule to accommodate a fixture or broad internal type.
 

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### M3.1a — Distributed controls
+
+- Add QueueControls declarations for global concurrency, per-dispatch-key concurrency and fixed-window admission rates.
+- Add typed dispatchKey callbacks on decoded payloads, conflict/reserved-key checks and required-key validation before publication, preparation or batch writes.
+- Add default read-only policy validation and explicit coordinated reconciliation with group checks, unchanged revisions and omission safety.
+- Add MqQueueControlsService with facade-only snapshots and deployment reports.
+- Route claims, settlement, release, cancellation and stalled recovery through existing controlled-store operations without changing raw persistence tokens or opening another pool/runtime.
+- Add real PostgreSQL package qualification with independent Node worker processes, audited claims, fixed-window identities and cancellation permit reuse; parent consumers compile with TS6/7 and run Node/Bun.
+- Preserve optional dependencies, the 20 upstream tooling files and read-only retained CI.
+
 ### M3 — Core producers and decorated workers
 
 - Add typed enqueue/enqueueDecoded/enqueueMany, prepare, poll, awaitResult, execute, attempts, cancel, retry and promote through the real queue engine.
@@ -32,4 +42,4 @@
 
 - Configure Bun, TypeScript 6 compatibility, unchanged upstream Oxlint/Oxfmt/plugin, tsdown, publint, Lefthook and CI.
 
-Still pending: flows, schedules, transactional outbox, additional drivers, distributed-control APIs, named custom retry providers and MQ enhancer/event integration. Version remains 0.0.0; no npm release has been published.
+Still pending: flows, schedules, transactional outbox, additional drivers, named custom retry providers and MQ enhancer/event integration. Version remains 0.0.0; no npm release has been published.

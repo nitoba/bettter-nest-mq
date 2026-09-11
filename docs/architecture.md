@@ -48,7 +48,7 @@ Connection readiness reports sanitized lifecycle/protocol information; explicit 
 
 ## Remaining durable features
 
-Distributed controls must use storage-backed coordination and multiple-replica tests, not local semaphores. Named/versioned custom retry providers must resolve through DI without persisting executable functions. Durable-event waits/subscriptions need defined cursor and recovery semantics.
+Distributed controls are implemented through QueueControls metadata and an internal protocol-dispatch view over the existing raw store. Global/per-key concurrency and fixed-window admission call the upstream controlled operations; no local semaphore or new lease algorithm is substituted. The raw persistence token stays stable. Replica startup validates persisted policy read-only; explicit coordinated deployment reconciles without disabling omissions. See controls.md for group checks, partial multi-store deployments, typed dispatch keys and separate-process PostgreSQL qualification. Named/versioned custom retry providers must resolve through DI without persisting executable functions. Durable-event waits/subscriptions need defined cursor and recovery semantics.
 
 Flows will retain the engine's persisted parent/children fan-out and collection model: stable manifests, bounded/paginated results and defined failure policies, with no worker slot held by waiting parents. This is not arbitrary function replay or automatic saga compensation.
 

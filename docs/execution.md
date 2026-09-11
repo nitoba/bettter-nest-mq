@@ -172,7 +172,7 @@ Use explicit class providers for workers. Factory/value-provider workers and arb
 
 ## Concurrency, cancellation and shutdown
 
-Worker concurrency limits the local supervisor. Process concurrency limits that particular handler within the worker. These are not cluster-wide controls. Global/per-key concurrency, rate-limit decorators and runtime policy providers remain the next extension; no local semaphore is advertised as distributed coordination.
+Worker concurrency limits the local supervisor. Process concurrency limits that particular handler within the worker. These are not cluster-wide controls. Global/per-key concurrency and rate-limit declarations are implemented through storage-backed QueueControls; see controls.md for explicit policy deployment and validation. Runtime custom retry providers remain a separate extension. Local limits are never presented as distributed coordination.
 
 JobContext includes jobId, queue/name/version, connection, attempt budget, delivery, workerId, metadata and the cooperative signal. The engine owns the lease and heartbeat. Active cancellation first validates the job identity and records a cancellation request; the supervisor observes it and performs a fenced terminal settlement. cancel() returning means the request was accepted, not necessarily that an active handler has stopped. A job finishing concurrently may make cancellation fail explicitly. A non-cooperative side effect is not undone.
 
@@ -186,4 +186,4 @@ Set `execution: { workers: false }` and import only shared queue modules for API
 
 The packed consumer tests install an actual tarball outside the repository with TypeScript 6/7 and execute under Node/Bun. The PostgreSQL job verifies producer shutdown, worker startup in a new context, idempotency, decoded codecs, retries, terminal failures and persisted results after both contexts close. Unit/integration tests additionally cover concurrency, active cancellation, scope isolation, identity guards, metadata edge cases and draining before store release.
 
-The repository remains version 0.0.0 and is not published to npm. Flows, persistent schedules, transactional outbox/ORM transaction bridges, other storage wrappers, distributed control APIs and durable event subscriptions remain separate milestones.
+The repository remains version 0.0.0 and is not published to npm. Flows, persistent schedules, transactional outbox/ORM transaction bridges, other storage wrappers and durable event subscriptions remain separate milestones. Distributed QueueControls are available as documented in controls.md.

@@ -61,7 +61,7 @@ MqConnectionsService exposes state, connections() and probe(name). The state is 
 
 Snapshots contain connection name, adapter/version, protocol/layout version, declared capabilities and ownership; no credentials, pool or runtime references. State ready is not continuous connectivity monitoring. Probes currently use the store counts query, whose cost depends on job volume; avoid high-frequency polling. No health HTTP endpoint or timer is installed.
 
-Unsupported required capabilities fail before readiness. An advertised capability does not imply its public facade operation is already available: distributed-control APIs remain a planned extension. MqWorkersService independently exposes local worker status and awaitIdle; local idle is not a statement that every queued/delayed job has completed.
+Unsupported required capabilities fail before readiness. An advertised capability does not imply its public facade operation is already available: QueueControls now exposes global/per-key concurrency and rate-limit declarations through the controlled-store protocol; see controls.md for qualification and deployment rules. MqWorkersService independently exposes local worker status and awaitIdle; local idle is not a statement that every queued/delayed job has completed.
 
 Failures use MqConnectionException with connection/phase/cause or MqEngineStateException for invalid lifecycle operations. Public job methods add their own operation errors. Causes are trusted diagnostics and may contain infrastructure details; do not serialize them directly to untrusted HTTP clients. Multiple cleanup failures are aggregated instead of silently hiding the startup cause.
 
