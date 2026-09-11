@@ -13,7 +13,7 @@ import { requireInteger } from '../contracts/policies.ts'
 import { defineConnection } from '../engine/connection-definition.ts'
 import type { AcquiredConnection } from '../engine/connection-definition.ts'
 import { postgresJsonPool } from './postgres-json-pool.ts'
-import { postgresOutboxLayer } from './postgres-outbox.ts'
+import { postgresOutboxLayer } from './postgres-outbox-resource.ts'
 
 interface PostgresCommonOptions {
   readonly schema?: string
@@ -200,4 +200,4 @@ export type {
   PostgresOutboxTransaction,
   PostgresOutboxCallback,
   PostgresOutboxParameter
-} from './postgres-outbox.ts'
+} from './postgres-outbox.types.ts'
