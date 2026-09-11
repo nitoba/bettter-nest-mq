@@ -1,58 +1,52 @@
-# Durable Flows Implementation Plan
+# Durable Flows Implementation Plan — blocked checkpoint
 
-> **For agentic workers:** Use superpowers:executing-plans task-by-task, then verification-before-completion.
+**Goal:** Deliver Nest Flow/FanOut/Collect through the existing durable engine and PostgreSQL adapter.
 
-**Goal:** Deliver durable Nest Flow/FanOut/Collect using the upstream PostgreSQL protocol.
+**Branch:** feat/durable-flows, PR #9, based on main b35f4208b8f55db97d21296a86dacaec21412615.
 
-**Architecture:** Immutable typed job references and class/method metadata compile into upstream Flow definitions and lazy phase handlers. Enabled flow stores share the existing connection resources and runtime; every worker that participates receives definitions for durable report/relay/reconciliation.
+**Status:** Candidate implementation exists, but PostgreSQL qualification failed. Do not merge. The stable main branch remains unchanged. Blocker: [better-effect #387](https://github.com/nitoba/better-effect/issues/387).
 
-**Tech Stack:** Bun 1.4.2, Nest 12, TypeScript >=6.0.0 (6.0.3/7.0.2), pinned better-effect 0.14.0, better-effect-mq 0.1.2, PostgreSQL adapter 0.1.3.
+**Spec:** docs/superpowers/specs/2026-09-11-durable-flows-design.md. Candidate API and exact limitations: docs/flows.md.
 
-**Spec:** docs/superpowers/specs/2026-09-11-durable-flows-design.md
+## Preserved constraints
 
-## Global constraints
+Use the upstream manifest, report/relay, lease and collection protocol; no replacement state machine, fabricated Process handler, implicit memory fallback or extra Runtime/pool. Keep typed Nest/Promise APIs, internal dependency ownership, raw persistence identities, explicit migrations and the 20 original tooling hashes. No npm publication or production deployment is authorized by this checkpoint.
 
-- Branch feat/durable-flows from b35f4208b8f55db97d21296a86dacaec21412615; preserve 20 tooling hashes and strict type/lint rules.
-- Public Nest/Promise types only; no additional required consumer peers, no fabricated handlers, no automatic migration or production deployment.
-- Same physical pool/runtime and raw connection namespace; flow-specific decoded JSON must not affect ordinary job/outbox/schedule/native queries.
-- Existing supervisor owns leases, flow manifests, child IDs, report outbox, reconciliation and cancellation. No replacement state machine.
+## Completed implementation and observed reference checks
 
-## Task 1 — Protocol inspection and observed red baseline
+- [x] Observe the new public API regression fail against 242 passing baseline tests.
+- [x] Inspect exact published Flow/FlowStore/Worker APIs and PostgreSQL namespace/JSON boundaries.
+- [x] Add immutable typed job references, finite child plans, Flow/FanOut/Collect metadata and schema/codec validation.
+- [x] Integrate actual Nest phase providers and scoped dependencies, rejecting ambiguous identities, invalid parameters and unsupported enhancer metadata.
+- [x] Add bounded phase-owned result reads, issued-cursor checks and draining of admitted reads on close.
+- [x] Add the opt-in flow resource to the existing connection/runtime with separate non-owning decoded-JSON parsing and stable raw namespaces.
+- [x] Implement administration and attach definitions/phases to upstream workers without fabricated handlers.
+- [x] Verify reference-store flow execution at concurrency 1, empty manifests, dates/scoped phases, invalid manifests, missing resources and reader/identity safety.
+- [x] Verify both source compiler checks, 261 unit/Nest tests, formatting, build, type-aware lint and publint at 89c66e8 in run 34616650927.
 
-Files: tests/unit/flows-public-api.test.ts, temporary .github/workflows/flows-development.yml.
+These checks do not establish PostgreSQL flow correctness. The same run failed the installed database scenario.
 
-- [ ] Run `bun install --frozen-lockfile && bun test`; assert the new public export test fails while 242 existing tests pass.
-- [ ] Inspect installed exports, exact FlowStore/token/Worker contracts, raw namespaces and PostgreSQL flow JSON parsing before implementation.
+## Confirmed database blocker
 
-## Task 2 — Typed contracts and phase compilation
+- [x] Add tests/postgres/flow-protocol.ts without Nest or facade imports.
+- [x] Run native migrations and native JobStore/FlowStore fan-out against PostgreSQL using the exact published dependencies.
+- [x] Confirm waiting-children persistence succeeds while getJob, heartbeat and release return JobDefinitionError for unsupported state.
+- [x] Preserve the failing run 34616650978 and the executable reproduction in upstream issue #387.
+- [x] Keep failures visible instead of coercing states, skipping assertions or claiming completion.
 
-Files: src/flows/types.ts, references.ts, decorators.ts, errors.ts; src/engine/flow-discovery.ts, flow-plan.ts, flow-results.ts; tests/unit and tests/types/flows.types.ts.
+The facade's materialized-flow reads use FlowStore directly, but this does not repair upstream heartbeat/release. A coherent v2 adapter/Worker path is required; silently widening the frozen v1 contract is not an approved fix. The changed dependency/release path must be decided explicitly once the upstream correction is tested.
 
-- [ ] Add metadata tests with `@Flow({ name: 'summary', parent: flowJob(Queues, 'summary'), children: [flowJob(Queues, 'item')], onChildFailure: 'continue' })`, and fail unregistered/non-job references before acquiring resources.
-- [ ] Add negative types: `flowChildren(flowJob(Queues, 'item'), [{key:'x',payload:'wrong'}])` must reject incompatible input; result pages preserve referenced job and outcome discrimination.
-- [ ] Resolve each actual class method through Nest, preserve scoped DI, validate phase parameter metadata and reject incompatible HTTP enhancers/accessors.
-- [ ] Compile children through existing schema boundaries; reject missing dispatch-key support, unrepresentable delay and duplicate keys before fan-out writes.
+## Remaining verification and integration
 
-## Task 3 — Resource integration and durable lifecycle
+- [ ] Resolve upstream #387 and verify compatible published or otherwise explicitly approved dependency artifacts.
+- [ ] Make the pure protocol reproduction pass, including lost-lease classification and protection against reclaiming suspended parents.
+- [ ] Pass actual worker hand-off and graceful shutdown with concurrency 1 against PostgreSQL.
+- [ ] Pass the written installed-consumer scenarios: crash after manifest persistence, two-process restart, stable child IDs, JSON/date collection, nesting, continue/fail and cooperative cancellation.
+- [ ] Complete the full existing PostgreSQL controls, outbox, schedules, parser/ownership and package regression matrix on the same final head.
+- [ ] Perform final code review and exact-head read-only Node22/24 and PostgreSQL CI before merge; verify main after any eventual integration.
 
-Files: src/integrations/postgres-flow-resource.ts, postgres-json-pool.ts; src/engine/connection-definition.ts, engine-session.ts, worker-discovery.ts, worker-plan.ts, mq-engine.host.ts.
+## Handoff cleanup
 
-- [ ] Add opt-in tests and a decoded per-query flow JSON parser regression preserving native overrides and existing encoded JobStore behavior.
-- [ ] Add raw and operation flow tokens to the existing Runtime, acquire/probe complete resources before activation and pass flow definitions/handlers to actual Worker layers.
-- [ ] Test waiting-children frees capacity, parent phases are not normal duplicate handlers, and scoped invocations/readers finish before shutdown releases storage.
+Temporary write-enabled development/formatter workflows and the isolated debug package runner are removed at this checkpoint. The dedicated published-protocol regression remains read-only and failing for the known defect. Normal repository CI remains enabled; no failure is marked as expected success or hidden with continue-on-error.
 
-## Task 4 — Administration and PostgreSQL package qualification
-
-Files: src/flows/service.ts; src/engine/flows.ts; tests/integration/flows.test.ts; tests/package/consumer/flows.ts, flow-child.ts, flow-contracts.ts, tsconfig.flows.json; scripts/test-package.ts.
-
-- [ ] Expose contract-scoped status and cascade cancellation with facade errors; existing parent producers publish and await durable results.
-- [ ] Qualify multi-process restart between fan-out and collection, continue/fail, cancellation, nesting, empty manifests and schema/codec/JSON outcome pages using actual installed tarballs.
-- [ ] Re-run the existing PostgreSQL controls/outbox/schedules/parser matrix; document unsupported combinations rather than masking them.
-
-## Task 5 — Review and exact-head integration
-
-Files: docs/flows.md, README.md, docs/roadmap.md, docs/architecture.md, AGENTS.md, CHANGELOG.md.
-
-- [ ] Inspect the final diff and review every spec requirement, public declaration boundary and lifecycle failure path.
-- [ ] Run `bun run check`, actual PostgreSQL scripts and all installed TS6/7 Node/Bun consumers.
-- [ ] Remove branch-only development helpers; require retained read-only CI on the exact final head, then integrate PR and verify main.
+Candidate source code and tests are preserved in PR #9. No main-branch merge, package release, production deployment or claim of full flow parity has been made. Documentation must keep the work-in-progress warning until database qualification succeeds.

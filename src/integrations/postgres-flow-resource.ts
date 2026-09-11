@@ -7,7 +7,8 @@ import { postgresFlowJsonPool } from './postgres-json-pool.ts'
 
 /** Pinned adapter compatibility: PostgresJobStore.layerFor hashes its raw token, but
  * PostgresFlowStore.layerFor does not. Match the existing namespace; never rename stored jobs.
- * Qualified against store.ts namespaceForToken and actual installed PostgreSQL consumers. */
+ * Matches the pinned store.ts namespaceForToken; full flow qualification is blocked by
+ * upstream issue #387. See docs/flows.md before using this candidate integration. */
 export function postgresFlowNamespace(name: string, namespace: string): string {
   const hash = createHash('sha256')
     .update(namedStoreToken(name).serviceTag)
