@@ -8,8 +8,11 @@ let text = readFileSync(safety, 'utf8')
 if (!text.includes('record.attemptsMade, record.attemptsMax')) {
   const anchor = 'assert.equal(record.attemptsMade, 1)'
   assert.equal(text.split(anchor).length, 2)
-  text = text.replace(anchor, `assert.equal(record.attemptsMade, record.attemptsMax)
-        assert.equal(record.failure?.retryable, true)`)
+  text = text.replace(
+    anchor,
+    `assert.equal(record.attemptsMade, record.attemptsMax)
+        assert.equal(record.failure?.retryable, true)`
+  )
   writeFileSync(safety, text)
 }
 const docs = 'docs/outbox.md'

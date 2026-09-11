@@ -177,3 +177,11 @@ Inject `MqOutboxService` and call `get(source, id)`, `list(source, { state, targ
 The installed-package fixture covers domain rollback, uncommitted invisibility, native custom parsers, completed-handle rejection, conflicting destinations/keys, caught SQL failures, multiple/dynamic appends, scalar JSON/null payloads, competing publishers, independent process roles, replay of an abandoned post-enqueue record and persisted job outcomes after recreated application contexts. It compiles with TypeScript 6/7 and runs with Node and Bun against PostgreSQL. Existing dependency isolation, JSON fidelity and distributed-control tests remain enabled.
 
 The native PostgreSQL transaction boundary is the first outbox implementation. ORM transaction bridges, additional drivers, richer administrative recovery controls, flows and persistent schedules remain separate work. No npm publication, production environment provisioning or automatic migration is included.
+
+## Identity scope and operational qualifications
+
+A missing destination route is classified as retryable by the pinned upstream publisher. It can recover when a later deployment supplies that route; without recovery, the record becomes failed after exhausting its publication attempt budget. The final failure can retain retryable=true even though no budget remains. This differs from an invalid prepared request, which is not made valid by retrying. The installed-package test verifies the missing-route budget independently of job execution attempts.
+
+Automatic proposed job IDs use the logical source name, outbox ID and logical destination name. Distinct source databases/namespaces with the same logical aliases are not globally distinguished by that derivation. Use globally unique outbox IDs, such as UUIDs, or explicit globally scoped job IDs when multiple independent source deployments converge on one destination. Duplicate append within one source does not deduplicate business callbacks across sources.
+
+The pinned Worker supervisor requires queue/name/version uniqueness inside each Worker Service even across connections. When source and destination expose the same queue/job/version, register separate Worker Services for them. This is checked before resources open; the integration does not silently split a worker and change its local concurrency budget.

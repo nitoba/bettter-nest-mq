@@ -210,7 +210,8 @@ export async function verifyOutboxSafety(connectionString: string): Promise<void
         const record = await service.get('source', id)
         assert.ok(record)
         assert.equal(record.failure?.kind, 'target-missing')
-        assert.equal(record.attemptsMade, 1)
+        assert.equal(record.attemptsMade, record.attemptsMax)
+        assert.equal(record.failure?.retryable, true)
         assert.equal(record.attemptsMax, 3)
       }
       assert.equal(
