@@ -19,7 +19,8 @@ export async function withFreshControlledClock<Value>(
       !(error instanceof JobDefinitionError) ||
       error.field !== 'now' ||
       error.message !== 'must not be earlier than updatedAt'
-    ) return result
+    )
+      return result
 
     const current = await store.getJob({ jobId })
     if (Result.isError(current)) return Result.err(current.error)
