@@ -1,36 +1,56 @@
-import {
-  Inject,
-  Injectable,
-  type OnApplicationBootstrap,
-  type OnModuleDestroy
-} from '@nestjs/common'
+import { Inject, Injectable, type OnApplicationBootstrap, type OnModuleDestroy } from '@nestjs/common'
+import { DiscoveryService, ModuleRef } from '@nestjs/core'
 
+import { JobContract } from '../contracts/job-definition.ts'
+import { bindJobClient, unbindJobClient } from '../jobs/binding.ts'
 import { MqConfiguration } from '../module/mq.configuration.ts'
 import { MqRegistry } from '../module/mq.registry.ts'
 import { EngineSession } from './engine-session.ts'
+import { compileJob } from './job-compiler.ts'
+import { createJobClient } from './job-client.ts'
+import { discoverWorkers } from './worker-discovery.ts'
 
-/** Private Nest lifecycle owner. Never exported by the package entry point. */
 @Injectable()
 export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
   readonly session: EngineSession
+  private readonly bound: JobContract[] = []
 
   constructor(
-    @Inject(MqConfiguration) configuration: MqConfiguration,
-    @Inject(MqRegistry) private readonly registry: MqRegistry
-  ) {
-    this.session = new EngineSession(
-      configuration.options.connections,
-      configuration.options.shutdown
-    )
-  }
+    @Inject(MqConfiguration) private readonly configuration: MqConfiguration,
+    @Inject(MqRegistry) private readonly registry: MqRegistry,
+    @Inject(DiscoveryService) private readonly discovery: DiscoveryService,
+    @Inject(ModuleRef) private readonly moduleRef: ModuleRef
+  ) { this.session = new EngineSession(configuration.options.connections, configuration.options.shutdown) }
 
   async onApplicationBootstrap(): Promise<void> {
-    // Nest may run provider hooks concurrently. Do not rely on their incidental ordering.
     this.registry.initialize()
-    await this.session.start(this.registry.queues())
+    const entries = new Map(this.configuration.options.connections === undefined ? [] : this.registry.jobs().map((registered) => [registered.contract, { registered, compiled: compileJob(registered) }]))
+    const plans = this.configuration.options.execution.workers && this.configuration.options.connections !== undefined
+      ? discoverWorkers(this.discovery, this.moduleRef, entries, this.configuration.options.shutdown) : []
+    try {
+      await this.session.start(this.registry.queues(), plans)
+      if (this.session.state === 'ready') {
+        for (const [contract, { registered, compiled }] of entries) {
+          bindJobClient(contract, this, createJobClient(this.session, registered, compiled))
+          this.bound.push(contract)
+        }
+        await this.session.activateWorkers()
+      }
+    } catch (cause) {
+      this.detach()
+      try { await this.session.close() }
+      catch (cleanupCause) { throw new AggregateError([cause, cleanupCause], 'MQ activation and cleanup failed', { cause }) }
+      throw cause
+    }
   }
 
-  onModuleDestroy(): Promise<void> {
-    return this.session.close()
+  private detach(): void {
+    for (const contract of this.bound) unbindJobClient(contract, this)
+    this.bound.length = 0
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    this.detach()
+    await this.session.close()
   }
 }
