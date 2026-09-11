@@ -10,7 +10,8 @@ import type {
   JobRecord,
   JobRecordV2,
   JobStoreContract,
-  JobStoreFailure
+  JobStoreFailure,
+  JobTransition
 } from 'better-effect-mq'
 import { JobStoreFailure as StoreFailure } from 'better-effect-mq'
 import { Result } from 'better-result'
@@ -70,16 +71,22 @@ export function flowReadStore(
       }
       const cancelled = await target.cancel({ flowId: request.jobId, now: request.now })
       if (Result.isError(cancelled)) {
-        // SAFETY: FlowStore errors are the same validated protocol error family used by jobs.
-        return cancelled as Effect<never, FlowReadError>
+        const error = new StoreFailure({
+          operation: 'cancelFlow',
+          message: 'The flow cancellation operation failed',
+          retryable: false
+        })
+        Object.defineProperty(error, 'cause', { value: cancelled.error })
+        // SAFETY: a completed error Result has no runtime Service requirements.
+        return Result.err(error) as Effect<never, JobStoreFailure>
       }
       const updated = await reads.getJob(request.jobId)
-      if (
-        Result.isError(updated) ||
-        updated.value === undefined ||
-        updated.value.state === 'waiting-children'
-      ) {
-        // SAFETY: successful cancellation must be observable as a terminal parent record.
+      if (Result.isError(updated)) {
+        // SAFETY: preserve the validated read error, not a successful cancellation response.
+        return updated as Effect<never, FlowReadError>
+      }
+      if (updated.value === undefined || updated.value.state !== 'cancelled') {
+        // SAFETY: successful cancellation must be observable as a cancelled parent record.
         return Result.err(
           new StoreFailure({
             operation: 'cancelFlow',
@@ -88,8 +95,12 @@ export function flowReadStore(
           })
         ) as Effect<never, JobStoreFailure>
       }
-      // SAFETY: this record was validated as v2 and is no longer in its additional suspended state.
-      return Result.ok(updated.value) as Effect<JobRecord, never>
+      const terminal: JobRecord = { ...updated.value, state: updated.value.state }
+      // A suspended parent has no active attempt to settle here. The existing fan-out
+      // ledger entry is retained in storage; cancellation is not a fabricated execution.
+      const transition: JobTransition = { record: terminal, attempt: undefined }
+      // SAFETY: the complete transition is type-checked; Effect adds declaration-only metadata.
+      return Result.ok(transition) as Effect<JobTransition, never>
     }
   }
   return new Proxy(store, {
