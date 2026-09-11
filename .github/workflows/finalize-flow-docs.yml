@@ -1,0 +1,140 @@
+name: Finalize durable flow documentation
+
+on:
+  push:
+    branches: [feat/durable-flows]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: finalize-flow-docs
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    if: github.ref == 'refs/heads/feat/durable-flows'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Update current-status documentation
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFileSync, writeFileSync } from 'node:fs'
+
+          function update(path, edits) {
+            let text = readFileSync(path, 'utf8')
+            for (const [before, after] of edits) {
+              assert.equal(text.split(before).length - 1, 1, `Expected one anchor in ${path}: ${before.slice(0, 80)}`)
+              text = text.replace(before, after)
+            }
+            writeFileSync(path, text)
+          }
+
+          update('README.md', [
+            [
+              '**Status: Core execution, distributed controls, native PostgreSQL transactional outbox and persistent schedules are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can now be published, processed, retried, cancelled and queried through the Nest facade. Flows, ORM transaction bridges and additional integrations remain on the roadmap.',
+              '**Status: Core execution, distributed controls, native PostgreSQL transactional outbox, persistent schedules and durable PostgreSQL flows are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can be published, processed, retried, cancelled, scheduled and coordinated as durable fan-out/collect flows through the Nest facade. ORM transaction bridges and additional integrations remain on the roadmap.'
+            ],
+            [
+              'See [persistent schedules](docs/schedules.md),',
+              'See [durable flows](docs/flows.md), [persistent schedules](docs/schedules.md),'
+            ],
+            [
+              '## Persistent schedules',
+              `## Durable flows
+
+Declare a persisted fan-out/collect workflow with \`@Flow\`, \`@FanOut\` and \`@Collect\`, while queue jobs remain ordinary typed \`QueueService\` descriptors. \`flowJob()\` and \`flowChildren()\` keep parent/child references typed and inert; \`FlowResultsReader\` exposes bounded decoded outcomes. Enable \`flows: true\` on the PostgreSQL connection.
+
+PostgreSQL fan-out persists the child manifest and relinquishes the original parent lease. Collect runs only after a fresh claim owns the parent. Waiting parents do not hold ordinary worker execution capacity. Recovery is durable across process death and uses stable child keys; installed-package qualification includes SIGKILL followed by two independent replacement workers, typed child failures, JSON/null/Date codecs, nesting, fail-fast and cooperative cascading cancellation.
+
+The engine remains internal to this package. Applications do not install \`better-effect-mq\` or its adapter manually. The qualified internal versions are \`better-effect-mq@0.1.3\` and \`better-effect-mq-postgres@0.1.4\`. See [docs/flows.md](docs/flows.md) for the v1/v2 inspection boundary, bounded collection semantics and non-guarantees.
+
+## Persistent schedules`
+            ]
+          ])
+
+          update('docs/architecture.md', [
+            [
+              'M0 foundation, M1 contracts/Nest registration, M2 runtime/PostgreSQL lifecycle and M3 core producer/worker execution are implemented. The API now publishes and processes actual jobs. It is not full better-effect-mq feature parity: custom retry providers, MQ enhancers/events, other adapters, flows and ORM transaction bridges are still planned. Native PostgreSQL outbox transactions and a managed publisher are implemented.',
+              'M0 foundation, M1 contracts/Nest registration, M2 runtime/PostgreSQL lifecycle, M3 core execution, distributed controls, native PostgreSQL outbox, persistent schedules and durable PostgreSQL flows are implemented. The API now publishes and processes actual jobs and persisted fan-out/collect workflows. It is not full better-effect-mq feature parity: custom retry providers, MQ enhancers/events, other adapters and ORM transaction bridges are still planned.'
+            ],
+            [
+              'Read schedules.md, outbox.md, contracts.md, connections.md and execution.md for the exported behavior.',
+              'Read flows.md, schedules.md, outbox.md, contracts.md, connections.md and execution.md for the exported behavior.'
+            ],
+            [
+              'Flows will retain the engine\'s persisted parent/children fan-out and collection model: stable manifests, bounded/paginated results and defined failure policies, with no worker slot held by waiting parents. This is not arbitrary function replay or automatic saga compensation.',
+              `Durable flows retain the engine's persisted parent/children model. FanOut persists a stable manifest and relinquishes the PostgreSQL parent lease; Collect runs only after a fresh claim. Waiting parents do not occupy ordinary execution capacity. Typed result readers are bounded and phase-owned, while recovery rotates across persisted parents/children instead of relying solely on fast terminal reports. The v1 JobStore inspection contract is not widened for \`waiting-children\`; FlowStore/v2 is the suspended-parent inspection boundary. This is not arbitrary function replay or automatic saga compensation. See flows.md.`
+            ],
+            [
+              '## Remaining flow and transaction integration',
+              '## Remaining transaction integration'
+            ],
+            [
+              'Full parity still needs further distributed/crash/flow/ORM transaction coverage before a production release;',
+              'Full parity still needs further distributed/crash/ORM transaction coverage before a production release;'
+            ]
+          ])
+
+          update('CHANGELOG.md', [
+            [
+              '## Unreleased\n\n### Persistent schedules',
+              `## Unreleased
+
+### Durable flows
+
+- Add typed \`flowJob\`/\`flowChildren\` references and \`@Flow\`/\`@FanOut\`/\`@Collect\` Nest phases with normal DI and attempt-local context.
+- Add bounded \`FlowResultsReader\` pages/all collection with decoded completed, typed-failed and cancelled outcomes.
+- Add opt-in PostgreSQL flow resources that reuse the existing runtime, pool, namespace and private JSON parser boundary.
+- Preserve the native v1/v2 inspection boundary while supporting suspended-parent administration/recovery through a validated v2 projection.
+- Qualify fresh-lease Collect execution, stable child identities, process-death recovery, scalar/null/Date codecs, nested flows, fail-fast and cascade cancellation.
+- Pin the released internal flow engine pair \`better-effect-mq@0.1.3\` and \`better-effect-mq-postgres@0.1.4\`; consumers still declare no engine packages.
+
+### Persistent schedules`
+            ],
+            [
+              'Still pending: flows, external ORM transaction bridges, additional drivers, named custom retry providers and MQ enhancer/event integration.',
+              'Still pending: external ORM transaction bridges, additional drivers, named custom retry providers and MQ enhancer/event integration.'
+            ]
+          ])
+
+          update('AGENTS.md', [
+            [
+              'Read docs/schedules.md, README.md, docs/dependencies.md, docs/postgres-json.md, docs/controls.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/outbox.md, docs/architecture.md and docs/roadmap.md before changing APIs. Foundations, typed producers/workers, PostgreSQL lifecycle/JSON fidelity, distributed controls and native PostgreSQL transactional outbox are implemented. Flows, ORM transaction bridges, other drivers and further execution integration remain planned.',
+              'Read docs/flows.md, docs/schedules.md, README.md, docs/dependencies.md, docs/postgres-json.md, docs/controls.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/outbox.md, docs/architecture.md and docs/roadmap.md before changing APIs. Foundations, typed producers/workers, PostgreSQL lifecycle/JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules and durable PostgreSQL flows are implemented. ORM transaction bridges, other drivers and further execution integration remain planned.'
+            ],
+            [
+              'One private runtime per configured application, sharing Clock, stores, workers and opt-in outbox publisher.',
+              'One private runtime per configured application, sharing Clock, job/flow/schedule/outbox stores, workers and opt-in publishers.'
+            ],
+            [
+              '## Verification and delivery',
+              `## Durable flow rules
+
+- Keep FanOut and Collect as separate durable phases. PostgreSQL handoff relinquishes the original parent lease; Collect must execute only after a fresh native claim.
+- Suspended-parent inspection belongs to FlowStore/v2. Do not widen the frozen v1 JobStore state union or coerce \`waiting-children\` into an ordinary job state.
+- Preserve stable child keys, bounded manifests/readers, explicit continue/fail policies and the same schema/codec boundaries used by normal jobs. JSON null must remain distinct from SQL NULL.
+- Waiting parents must not hold ordinary worker execution capacity. Keep child-report delivery and bounded recovery as independent paths; recovery must not starve later parents or child keys.
+- Parent controls and per-key child dispatch combinations that cannot preserve flow ownership/routing must fail explicitly. Do not fabricate handlers, local flow engines or serialized executable functions.
+- Qualify changes through real PostgreSQL and installed-package process-death tests, including two replacement workers, typed failures, empty/nested flows, fail-fast and cascade cancellation.
+
+## Verification and delivery`
+            ]
+          ])
+          NODE
+          bunx --no-install oxfmt --write README.md docs/architecture.md CHANGELOG.md AGENTS.md
+          git rm .github/workflows/finalize-flow-docs.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md docs/architecture.md CHANGELOG.md AGENTS.md
+          git diff --cached --check
+          git commit -m 'docs: mark durable flows qualified with released engine versions'
+          git push origin HEAD:feat/durable-flows
