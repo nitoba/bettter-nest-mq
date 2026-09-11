@@ -71,7 +71,7 @@ async function until(check: () => Promise<boolean>, label: string): Promise<void
   }
 }
 
-async function verifyDistributed(connectionString: string): Promise<void> {
+async function verifyDistributed(connectionString: string, holdForRenewal = false): Promise<void> {
   const schema = `mq_distributed_${randomUUID().replaceAll('-', '')}`
   const admin = new Pool({ connectionString, max: 5 })
   const children: WorkerProcess[] = []
@@ -164,11 +164,13 @@ async function verifyDistributed(connectionString: string): Promise<void> {
       const global = producer.get(GlobalQueue)
       const gLeft = await global.left.enqueue({ key: 'left', gate: 'global' })
       await until(() => entered(gLeft), 'left global worker entered')
-      // Prove renewal while the job is held beyond its initial lease, not just fast completion.
-      await sleep(2_200)
-      const renewed = await global.left.poll(gLeft)
-      assert.equal(renewed?.state, 'active')
-      assert.equal(renewed.deliveryCount, 1)
+      if (holdForRenewal) {
+        // One cycle holds beyond the initial lease; the other cycles preserve the original fast path.
+        await sleep(2_200)
+        const renewed = await global.left.poll(gLeft)
+        assert.equal(renewed?.state, 'active')
+        assert.equal(renewed.deliveryCount, 1)
+      }
       const gRight = await global.right.enqueueMany(
         Array.from({ length: 5 }, (_, index) => ({
           payload: { key: `right-${index}`, gate: 'global' }
@@ -317,7 +319,7 @@ async function verifyDistributed(connectionString: string): Promise<void> {
 
 const connectionString = process.env.MQ_TEST_DATABASE_URL
 if (connectionString !== undefined) {
-  for (let cycle = 0; cycle < 3; cycle += 1) await verifyDistributed(connectionString)
+  for (let cycle = 0; cycle < 3; cycle += 1) await verifyDistributed(connectionString, cycle === 1)
 } else
   console.log(
     'Packed controls declarations/types passed; independent-process execution runs in PostgreSQL CI'

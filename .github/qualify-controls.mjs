@@ -7,7 +7,10 @@ let text = readFileSync(parent, 'utf8')
 if (!text.includes('holdForRenewal = false')) {
   const signature = 'async function verifyDistributed(connectionString: string): Promise<void> {'
   assert.equal(text.split(signature).length, 2)
-  text = text.replace(signature, 'async function verifyDistributed(connectionString: string, holdForRenewal = false): Promise<void> {')
+  text = text.replace(
+    signature,
+    'async function verifyDistributed(connectionString: string, holdForRenewal = false): Promise<void> {'
+  )
   const start = text.indexOf('      // Prove renewal while')
   const end = text.indexOf('      const gRight =', start)
   assert.ok(start > 0 && end > start)
@@ -19,7 +22,10 @@ if (!text.includes('holdForRenewal = false')) {
         assert.equal(renewed.deliveryCount, 1)
       }
 ${text.slice(end)}`
-  text = text.replace('await verifyDistributed(connectionString)', 'await verifyDistributed(connectionString, cycle === 1)')
+  text = text.replace(
+    'await verifyDistributed(connectionString)',
+    'await verifyDistributed(connectionString, cycle === 1)'
+  )
   writeFileSync(parent, text)
 }
 const script = 'scripts/test-package.ts'
@@ -28,9 +34,12 @@ if (!text.includes('verifyOrdinaryRecovery')) {
   text = `import { verifyOrdinaryRecovery } from '../tests/postgres/dispatch-recovery.ts'\n${text}`
   const anchor = "const temporary = await mkdtemp(join(tmpdir(), 'better-nest-mq-consumer-'))"
   assert.equal(text.split(anchor).length, 2)
-  text = text.replace(anchor, `const recoveryDatabase = process.env.MQ_TEST_DATABASE_URL
+  text = text.replace(
+    anchor,
+    `const recoveryDatabase = process.env.MQ_TEST_DATABASE_URL
 if (recoveryDatabase !== undefined) await verifyOrdinaryRecovery(recoveryDatabase)
 
-${anchor}`)
+${anchor}`
+  )
   writeFileSync(script, text)
 }

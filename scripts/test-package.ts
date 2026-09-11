@@ -1,3 +1,4 @@
+import { verifyOrdinaryRecovery } from '../tests/postgres/dispatch-recovery.ts'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { cp, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
@@ -19,6 +20,9 @@ async function run(command: string[], cwd: string): Promise<void> {
   const child = Bun.spawn(command, { cwd, stdout: 'inherit', stderr: 'inherit' })
   assert.equal(await child.exited, 0, `Command failed: ${command.join(' ')}`)
 }
+
+const recoveryDatabase = process.env.MQ_TEST_DATABASE_URL
+if (recoveryDatabase !== undefined) await verifyOrdinaryRecovery(recoveryDatabase)
 
 const temporary = await mkdtemp(join(tmpdir(), 'better-nest-mq-consumer-'))
 try {
