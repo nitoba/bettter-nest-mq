@@ -1,6 +1,6 @@
 # Contributing
 
-Install Bun 1.4.2 and a supported Node version, then run:
+Use Bun 1.4.2 and a supported Node version:
 
 ```sh
 bun install --frozen-lockfile
@@ -8,14 +8,24 @@ bun run hooks:install
 bun run check
 ```
 
-The root package exposes the M1 contracts and M2 connection lifecycle described in docs/contracts.md and docs/connections.md. Read the roadmap before implementing new APIs. Do not simulate planned queue execution.
+The package now implements typed contracts, private engine/PostgreSQL lifecycle and core public producers/workers. Read docs/execution.md and the roadmap before adding APIs. Future flow, schedule, outbox and distributed-control APIs must be real integrations, never simulated methods.
 
-Use the unchanged upstream Oxlint/Oxfmt/plugin configuration and generated Bun lockfile. See docs/tooling.md for provenance. Keep TypeScript 6 compatibility and the primary compiler check; do not relax strictness to make a test pass.
+Retain the exact upstream Oxlint/Oxfmt/plugin baseline and generated Bun lockfile. Source and packed declarations must work with TypeScript 6 and the primary TypeScript 7 compiler. Keep strictness and Nest decorator metadata; do not disable a rule to accommodate a fixture or broad internal type.
 
-Tests cover pure contracts, real Nest contexts, the real upstream engine lifecycle, compile-time regressions and external tarball consumers. Packed tests first remove optional Zod/database modules, then exercise the optional subpaths under Node and Bun. Run build before publint/test:package when invoking them individually; the complete check builds automatically.
+Tests use actual Nest contexts and the upstream queue supervisor. Add failing regressions before fixes. Preserve coverage for input/decoded codecs, typed errors versus defects, retry delays, caller wait cancellation, idempotency, inherited processors, request-scoped dependencies, local concurrency and graceful shutdown.
 
-For database work, provide MQ_TEST_DATABASE_URL for a dedicated PostgreSQL database and run `bun run test:postgres`. Tests create/drop random schemas, inspect pg_stat_activity and deliberately terminate tagged clients. Never use a production database. With the same environment, `bun run test:package` also runs the public PostgreSQL integration against that server. CI provides an isolated PostgreSQL 16 service.
+Packed-consumer tests install an actual tarball outside the repository, first without optional Zod/pg/adapter peers, then with optional subpaths. They compile with both TypeScript versions and execute under Node and Bun. Build before individually invoking publint/test:package; the full check builds automatically.
 
-Preserve owned/borrowed resource boundaries, stable connection identity and explicit migrations. Do not expose engine types or import optional drivers from the root. Keep source and package-consumer regressions for startup/shutdown failures; workspace-only tests can hide module/chunk identity problems.
+For PostgreSQL changes, use a dedicated database:
 
-The repository has no automatic npm publication. Releases require explicit authorization and successful complete checks.
+```sh
+MQ_TEST_DATABASE_URL='postgresql://user:password@localhost:5432/test_db' bun run test:postgres
+bun run build
+MQ_TEST_DATABASE_URL='postgresql://user:password@localhost:5432/test_db' bun run test:package
+```
+
+Tests create/drop random schemas and deliberately disconnect tagged clients. Never point them at production. The package execution fixture verifies producer-only shutdown, worker execution in a new application context, retry history and durable result reads afterward. CI supplies PostgreSQL 16 and runs the same scenarios.
+
+Preserve borrowed/owned resource boundaries, stable connection identities, explicit migrations and one runtime shared by stores and workers. Application schemas and Services use the Nest facade; engine types must not escape in declaration chunks. Keep cancellation cooperative and settlement fenced by the owning lease.
+
+No automatic npm publishing is configured. Releases require explicit authorization and successful complete verification.

@@ -1,12 +1,12 @@
-# Typed contracts and Nest registration
+# Typed contracts, schemas and registration
 
-## Boundary
+## Current boundary
 
-These M1 contracts remain available with the M2 runtime integration. Declaration, validation and JSON encoding do not themselves publish jobs. Configuring connections enables the real storage lifecycle described in docs/connections.md, but public enqueue/worker methods are still not implemented.
+The M1 contract layer is now connected to the M3 producers and workers. Declaration, parsing and encoding remain usable without storage; enqueue and execution require a ready configured application. See execution.md for public job operations and connections.md for PostgreSQL/lifecycle setup.
 
-The root is independent of Zod. Standard Schema validators may be synchronous or asynchronous. The optional better-nest-mq/zod subpath uses Zod's supported reverse-validation/encoding API, including nested codecs.
+The root uses Standard Schema interfaces and does not require Zod. Validators may be asynchronous. The optional better-nest-mq/zod entry point uses Zod's supported reverse encoding, including nested codecs.
 
-## Queue and job declarations
+## Queue definitions
 
 ```ts
 import { Injectable } from '@nestjs/common'
@@ -29,31 +29,23 @@ export class ReportsQueue extends QueueService {
 }
 ```
 
-Enable experimentalDecorators and emitDecoratorMetadata in the consuming Nest application. Ordinary constructor injection works; packed consumers verify it without requiring explicit Inject on their application Services.
+Enable experimentalDecorators and emitDecoratorMetadata in the consuming Nest application. Constructor injection is ordinary Nest DI. Queue constructors and decorators remain inert.
 
-Every descriptor needs Job metadata. Every concrete QueueService, including subclasses, declares its own Queue identity. Names must be non-empty without surrounding whitespace; versions are positive safe integers. Two properties may expose different versions of the same job. Duplicate decorators, empty queues, missing metadata and accessors instead of initialized job fields are rejected without invoking getters.
+Every descriptor needs Job metadata and every concrete QueueService, including subclasses, declares its own Queue identity. Names are non-empty without surrounding whitespace; versions are positive safe integers. Two fields may expose different versions of one job. Duplicate decorators, empty queues, missing metadata and accessors instead of initialized job fields are rejected without invoking getters. One descriptor instance cannot be bound to multiple durable identities.
 
-Inherited job metadata can be specialized with a subclass retry/timeout decorator. Copy-on-write metadata prevents changes to the base class. Supplied policies are copied/frozen; caller-owned schemas are not cloned or deep-frozen.
+Inherited job metadata can be specialized without modifying its base class. Policies are copied/frozen; caller-owned schemas are not deep-frozen or cloned. Worker metadata inheritance has its own rules described in execution.md.
 
 ## Identity and policies
 
-Identity is the tuple of connection, queue, job name and version. Its key is JSON.stringify of that tuple, avoiding delimiter collisions. Class/property names are excluded. Connection defaults to `default`. With configured M2 connections, each queue must reference an existing name; with no connection map, contract-only registration remains available.
+A job identity contains connection, queue, name and version; its key is a JSON tuple to avoid delimiter collisions. Class and property names are excluded. Connection defaults to `default` and, in configured applications, must refer to a declared connection. Omitting the entire connection map retains contract-only registration.
 
-Connection names now participate in actual storage addressing through the upstream named-store protocol. Renaming a connection must not be treated as a harmless code refactor; see docs/connections.md.
+Connection names now contribute to the actual PostgreSQL storage address through the stable named-store token. Keep the same name/schema/namespace between deployments and producers/workers; renaming a connection does not reopen its old jobs.
 
-Policies resolve in order: library, module, queue, job, property decorators. A later retry policy replaces the complete previous one rather than mixing backoff variants. Explicit zero values are preserved.
+Policy precedence is library, module, queue, job, property decorators, then permitted enqueue overrides. A later retry policy replaces the complete earlier one, rather than combining incompatible backoff variants. Defaults are one total attempt, no explicit execution timeout, priority zero and delay zero.
 
-| Setting        | Default | Declaration validation         |
-| -------------- | ------- | ------------------------------ |
-| retry.attempts | 1       | Positive safe integer          |
-| retry.backoff  | Unset   | Supported discriminated policy |
-| timeoutMs      | Unset   | Non-negative safe integer      |
-| priority       | 0       | Non-negative safe integer      |
-| delayMs        | 0       | Non-negative safe integer      |
+Fixed backoff has delayMs; linear has initialDelayMs/incrementMs; exponential has initialDelayMs and factor >=1. Built-ins support optional maxDelayMs and jitter in [0,1]. These policies now execute through the upstream supervisor. Custom named/versioned retry providers are still metadata-only and are rejected when compiling executable jobs. Zero timeout is likewise representable as metadata but rejected for execution; it is not silently treated as unlimited.
 
-Fixed backoff has delayMs; linear has initialDelayMs/incrementMs; exponential has initialDelayMs and finite factor >=1. Built-ins accept optional maxDelayMs and finite jitter in [0,1]. Custom declarations identify a policy name/version. `resolveJobPolicy(...layers)` exposes the same immutable resolution independently of Nest.
-
-These job policies are not yet executed: M3 will bind them to the engine and specify/test runtime semantics such as a zero timeout. M2 shutdown grace settings, by contrast, already govern runtime disposal. No per-enqueue override exists until publication is implemented.
+resolveJobPolicy exposes immutable metadata resolution separately. The worker's retryDefects default is false, independent of the upstream default. Typed retry predicates receive validated decoded failure values. Runtime attempt budgets and persisted overrides are described in execution.md.
 
 ## Types and JSON boundaries
 
@@ -66,22 +58,22 @@ type Result = ResultOf<ReportsQueue['generate']>
 type Failure = FailureOf<ReportsQueue['generate']>
 ```
 
-InputOf is the payload schema input; PayloadOf/ResultOf/FailureOf are decoded outputs. Without a failure schema, FailureOf is never. A retryable predicate without a declared failure schema is rejected.
+InputOf is the payload schema input. PayloadOf, ResultOf and FailureOf are decoded outputs. FailureOf is never when no failure schema exists. A retryable predicate without a failure schema is invalid.
 
-| Method        | Input                    | Promise output               |
-| ------------- | ------------------------ | ---------------------------- |
-| parsePayload  | Payload schema input     | Decoded payload              |
-| encodePayload | Decoded payload          | JSON string                  |
-| decodePayload | JSON string              | Revalidated decoded payload  |
-| parseResult   | Result schema input      | Decoded result               |
-| encodeResult  | Decoded result           | JSON string                  |
-| decodeResult  | JSON string              | Revalidated result           |
-| encodeFailure | Decoded declared failure | JSON string                  |
-| decodeFailure | JSON string              | Revalidated declared failure |
+| Contract method | Input | Promise output |
+| --- | --- | --- |
+| parsePayload | Payload schema input | Decoded payload |
+| encodePayload | Decoded payload | JSON string |
+| decodePayload | JSON string | Revalidated decoded payload |
+| parseResult | Result schema input | Decoded result |
+| encodeResult | Decoded result | JSON string |
+| decodeResult | JSON string | Revalidated result |
+| encodeFailure | Decoded declared failure | JSON string |
+| decodeFailure | JSON string | Revalidated declared failure |
 
-Standalone validateSchema, encodeSchema and decodeSchema implement the same boundaries. Runtime validation does not trust an input merely because TypeScript typed it.
+Standalone validateSchema, encodeSchema and decodeSchema expose the same boundaries. TypeScript annotations do not replace runtime checks. Enqueue parses an input and encodes its decoded value; enqueueDecoded encodes the supplied decoded type directly. Workers revalidate persisted payloads and results/failures are checked before storage and on reads.
 
-Encoding checks JSON fidelity: undefined, non-finite numbers, negative zero, cycles, BigInt and plain Date values cannot silently disappear/change. An explicit codec must decode back to a deeply equal domain value. Plain schemas act as identity encoders only when the decoded value remains unchanged and JSON-compatible. One-way transformations have no assumed inverse.
+JSON fidelity checks reject data that would disappear or change: undefined, non-finite numbers, negative zero, cycles, BigInt and plain Date values require another representation or an explicit codec. A codec must decode back to a deeply equal value. Plain schemas are identity encoders only when the decoded value remains unchanged and JSON-compatible; a one-way transform has no implied inverse.
 
 ```ts
 import { z } from 'zod'
@@ -90,20 +82,20 @@ import { defineCodec, decodeSchema, encodeSchema } from 'better-nest-mq'
 const plusOne = z.number().transform((input) => input + 1)
 const reversible = defineCodec(plusOne, (decoded) => decoded - 1)
 const restored = await decodeSchema(reversible, await encodeSchema(reversible, 4))
-// restored === 4; the JSON wire value is 3.
+// restored is 4, while its JSON wire representation is 3.
 ```
 
-For Zod codec objects use zodCodec from better-nest-mq/zod rather than reproducing reverse traversal. defineCodec supports other vendors and asynchronous encoders. Validators/encoders must be deterministic and side-effect-free because boundary checks can invoke them repeatedly; executable schemas are trusted application code, not sandboxed user input.
+For Zod codec objects, use zodCodec from better-nest-mq/zod instead of manually traversing nested schemas. defineCodec accepts other vendors and asynchronous encoders. Validators/encoders are trusted application code and must be deterministic/side-effect-free, since persistence-boundary checks may invoke them repeatedly.
 
-## Failure categories and predicates
+## Failures and predicates
 
-SchemaValidationException contains validator issues; SchemaEncodingException identifies corrupt/lossy JSON or failed round trips; SchemaDefectException preserves validator/encoder exceptions and phase. ContractDefinitionException represents invalid declarations.
+SchemaValidationException contains validator issues. SchemaEncodingException identifies corrupt/lossy JSON or failed round trips. SchemaDefectException retains a throwing validator/encoder and phase. ContractDefinitionException represents invalid declarations. The engine bridge translates schema problems into its persisted encode/decode categories without leaking engine exception types publicly.
 
-JobFailureException<T> is an ordinary Error containing typed failure data and optional cause. Its constructor cannot validate against a particular job; validation happens through that job's failure contract. TypeScript does not gain checked exceptions. Worker-side domain-failure/defect normalization remains M3 work.
+JobFailureException<T> carries a typed failure and optional cause. Its constructor has no implicit job schema; the worker bridge validates the declared failure contract before returning a typed failure to the supervisor. Unexpected exceptions remain defects. Invalid failure data cannot masquerade as a valid domain failure. Promise-returning TypeScript methods do not acquire checked exceptions.
 
-getIdempotencyKey(decodedPayload) runs the declared key factory and rejects empty/padded keys. canRetry(decodedFailure) runs the declared predicate and defaults to false. Neither performs persistent deduplication or retry execution by itself.
+getIdempotencyKey and canRetry remain independently callable predicates; they do not write data themselves. Bound enqueue now passes idempotency to the actual engine, and the worker consults retryability while applying the persisted attempt policy.
 
-## Nest registration
+## Nest registration and lifetime
 
 ```ts
 @Module({
@@ -113,12 +105,12 @@ getIdempotencyKey(decodedPayload) runs the declared key factory and rejects empt
 export class ReportsMessagingModule {}
 ```
 
-Use one root registration per application context and one shared feature module per queue. forFeature registers/exports its classes, deduplicating repeated classes in that invocation. Ordinary providers and useExisting aliases are discovered; aliases to the same instance are deduplicated. Distinct instances claiming the same durable queue identity are rejected.
+Use one root registration per application context and a shared feature module per queue. forFeature registers/exports classes and deduplicates repeated entries. Ordinary providers and aliases are discovered; aliases to the same instance are deduplicated, while distinct instances claiming one durable queue are rejected.
 
-MqRegistry uses DiscoveryService over actual providers. Contracts require singleton scope/static dependency trees. queues()/jobs()/get(identityKey) expose a frozen complete snapshot after successful validation. Invalid later definitions never leave a partially populated registry. The engine invokes registry.initialize() idempotently before acquiring stores, so concurrent Nest lifecycle hooks do not race discovery.
+MqRegistry uses actual DiscoveryService providers and builds its complete immutable snapshot before publishing it. Contracts require singleton scope/static dependencies. The host invokes initialize idempotently before acquisition and executable compilation. Missing or duplicate worker references fail before stores are opened. Request-scoped worker dependencies are separate from singleton contracts.
 
-Normal destruction clears the registry. A failed Nest initialization may be rethrown by close() before shutdown hooks; the M2 host therefore rolls back acquired resources in its own startup failure path. Feature-only applications can inspect contracts without a root and without storage.
+Contract-only apps and manually constructed queues can parse/encode, but producer methods reject until bound to a ready application. Normal shutdown detaches producer bindings and clears registry state. Failed activation detaches clients and rolls back resources locally, rather than relying on Nest destruction hooks after failed bootstrap.
 
-## Tests and next step
+## Verification
 
-Regression tests cover metadata inheritance, versions, policies, codec fidelity, vendor failures, Nest aliases/scopes/context isolation, public module re-exports and wrong TypeScript input/output/failure types. Actual tarballs verify public imports and optional integration isolation outside the workspace. The next milestone binds these contracts to real producer/worker behavior using the current named store host.
+Regression coverage includes schema transformations/fidelity, vendor errors, policies, identity/versioning, inherited metadata, Nest scopes/aliases/module exports and compile-time invalid types. Packed consumers use the actual installed package with optional peers absent or present. Public execution and persistence tests are detailed in execution.md; flows, schedules and outbox remain separate planned features.

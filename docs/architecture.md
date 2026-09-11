@@ -1,55 +1,61 @@
-# Approved architecture
+# Approved architecture and implemented boundaries
 
-## Implementation status
+## Status
 
-M0 foundations, M1 typed contracts/Nest registration and M2 engine lifecycle are implemented. The public surface includes modules, contracts/decorators, schema helpers, the registry, opaque connections and connection readiness. Optional subpaths provide Zod codecs and PostgreSQL configuration/migration helpers.
+M0 foundation, M1 contracts/Nest registration, M2 runtime/PostgreSQL lifecycle and M3 core producer/worker execution are implemented. The API now publishes and processes actual jobs. It is not full better-effect-mq feature parity: distributed-control APIs, custom retry providers, MQ enhancers/events, other adapters, flows, schedules and transactional outbox are still planned.
 
-The private host now owns a real runtime and named JobStores. Public producer/worker APIs, executable job-policy compilation, other adapter wrappers, flows, schedules, transactional outbox and administration remain planned. See docs/contracts.md and docs/connections.md for implemented behavior; do not treat the targets below as available APIs.
+Read contracts.md, connections.md and execution.md for the exported behavior. The package remains unreleased at 0.0.0; no simulated methods stand in for missing features.
 
-## Composition and ownership
+## Composition
 
-The public API is Nest 12 ESM: Modules, Services, decorators and Promises. The core engine remains better-effect-mq; its Effect/Result/Layer/Runtime types are private. Native database types are isolated behind optional integration subpaths. The root works without Zod, pg or the PostgreSQL adapter installed.
+Application code uses Nest Modules, Services, decorators, schemas and Promises. Engine-specific Effect, Result, Layer and Runtime types are private. Optional Zod and native PostgreSQL dependencies are isolated behind integration subpaths and tested as genuinely absent from root-only consumers.
 
-Nest owns business services. Each configured application context owns one private runtime covering its named stores. Contract-only applications allocate none. Descriptor definitions are inert; they never hold a shared runtime or pool acquired on behalf of another context. Owned pools are created during startup; borrowed pools are never closed by the facade.
+Nest owns application Services. Queue properties are inert typed descriptors with stable identity and immutable policies; worker classes implement annotated methods. The root host validates the full registry and worker configuration, acquires named stores in one runtime with Clock, binds producers, then activates lazy upstream Worker layers. No runtime is created per queue, job, request or worker provider.
 
-Startup validates queue references, resolves named tokens, checks protocol/capabilities and probes real stores before publishing connection readiness. The host explicitly invokes idempotent contract registration rather than relying on concurrent provider-hook ordering. Acquisition failure rolls back locally: Nest can rethrow failed initialization from close() before running destruction hooks.
+Per-application binding ownership uses unique symbols and concrete queue instances. Closed/unbound instances cannot access stores; producers are detached on shutdown/failure. Registries and resources are not process-global singletons. Omitting connections keeps contract-only mode without a runtime or implicit memory store.
 
-Shutdown closes admission, drains/cooperatively aborts runtime operations, releases scoped adapter resources, then closes facade-owned resources. Cleanup is memoized, continues through individual failures, and aggregates errors. It does not forcibly interrupt arbitrary JavaScript or guarantee cancellation of every non-cooperative database query.
+## Contracts and persistence
 
-## Contracts and validation
+Queue, Job, Retry and JobTimeout declarations preserve schema inference and distinguish metadata from runtime policy execution. Persisted identity includes connection/queue/name/version, not class/property names. The named connection token `nestjs/<name>` also contributes to PostgreSQL's namespace, so connection renaming changes the durable address.
 
-Queue Services declare inert, versioned jobs through typed properties. Queue selects connection/queue identity; Job supplies the durable job name/version. Shared producer declarations own retry/timeout policies. The typed this.job helper preserves schema inference without pretending decorators can infer TypeScript generics.
+Standard Schema describes validation; explicit codecs describe reverse encoding. Input, decoded value and JSON are different boundaries. Publication, worker reads, results and typed failures all validate against their declared contracts. JSON fidelity/round-trip checks prevent silent loss or double transforms. Application validators must be deterministic and side-effect-free.
 
-Discovery uses actual registered Nest singleton providers, validates complete snapshots and rejects duplicate identities, missing metadata, accessors and scoped dependency trees. Aliases of the same provider instance are deduplicated. Each concrete QueueService declares its own queue identity. Feature module re-exports use the public MqModule class without root-only providers leaking into feature imports.
+Fixed/linear/exponential policies compile into the engine's serializable backoff representation. Total attempt budgets include the first run. Known JobFailureException content is validated before entering the typed failure channel. Unexpected exceptions remain defects and do not retry by default in this facade; explicit worker configuration can enable them. Invalid outputs are not successful jobs. Custom policy providers and zero executable timeout are rejected rather than guessed.
 
-Standard Schema defines validation. Zod is optional. Input, decoded value and persisted JSON remain separate types; non-JSON values/non-idempotent transformations need explicit inverse encoding. JSON fidelity and codec round trips are checked. Validators and encoders must be deterministic and side-effect-free. HTTP validation never substitutes for queue boundary validation.
+## Real producer operations
 
-Known domain failures have typed content validated by the job contract before persistence. Schema issues, encoding errors, throwing vendors and invalid declarations have distinct facade errors. Promise methods do not acquire checked exceptions. Custom retry declarations identify named/versioned policies rather than serializing executable functions.
+Job descriptors now expose enqueue/enqueueDecoded/enqueueMany, prepare, poll, awaitResult, execute, attempts, cancel, retry and promote. They use existing Job operations inside the host runtime. Batch payload validation precedes publication, while true atomicity remains adapter-specific. Prepared data is serializable with explicit routing and causes no write; it is not itself an outbox transaction.
 
-## Persistence compatibility
+Wait timeout/abort ends only the wait, not the durable job. execute is publish-and-wait, not a local handler call. Current waits use polling. Job lookups and mutations preserve queue/name/version guards, but those guards are not application tenant authorization. Delivery remains at-least-once and external effects need idempotency.
 
-PostgreSQL delegates to the upstream adapter/migrator, not copied queue SQL. Startup validates the existing schema and never applies migrations automatically. Deployment helpers are explicit. pg idle-client failures are handled for owned pools without logging raw client/credential objects; borrowed-pool error handling belongs to its owner.
+## Workers and DI
 
-The connection name is part of durable identity. The facade's stable `nestjs/<name>` token is hashed into the upstream PostgreSQL namespace. Changing a connection name does not reopen the same stored jobs, even with the same URL/schema/configured namespace. Keep this token scheme stable and require an explicit migration design before changing it.
+Worker/Process/JobData/JobContext map actual registered class providers onto the existing supervisor. The handler computation is lazy so the supervisor supplies its attempt scope, abort signal and job context. Nest constructor injection remains ordinary application DI. Request/transient-scoped dependencies get a fresh ContextId per attempt without a fabricated HTTP request.
 
-The configuration boundary checks exact duplicate descriptors/pool-or-string identities; it does not discover arbitrary physical-database aliases. Capabilities are validated using the real upstream protocol. Advertised readiness capabilities do not imply every corresponding public facade operation has already been implemented.
+Discovery rejects conflicting processors, missing contracts, invalid metadata, getters and ambiguous reuse of one JobDefinition for two identities before acquiring resources. Base processors are merged with subclass additions; an overridden method must carry its own parameter annotations to avoid inheriting a wrong positional map. Factory/value workers are not currently supported.
 
-## Producer and worker targets
+The invocation is not the Nest HTTP pipeline. Method/class guards, pipes, interceptors and filters are rejected explicitly; global HTTP enhancers do not apply. A future MQ enhancer pipeline must define and test its own execution context. Local Worker and Process concurrency limits are implemented; they are not distributed queue limits.
 
-Job compilation, enqueue/bulk, query/wait, prepare, retry/cancel/promote and attempts will use the current lifecycle-managed stores. execute means publish-and-wait, not calling a local handler. A wait timeout does not imply cancelling the durable job. Named connections must match across producer and worker deployments.
+The engine owns claims, leases, heartbeat, retries, stalled recovery and settlement. Pending cancellation uses its atomic job operation. Active cancellation revalidates identity, writes a cancellation request and leaves the owning supervisor to settle with its lease. The facade never steals a lease or promises to undo an external effect.
 
-Worker Services will implement decorated Process methods with local concurrency, heartbeat, leases and stalled recovery delegated to the engine. Global/per-key concurrency and rate limits must remain storage-backed. The execution context explicitly supports appropriate Nest enhancers; invoking a method directly is not equivalent to an HTTP pipeline. Attempt-scoped handler dependencies use a job context, not a fabricated HTTP request. Producer-only modules do not import workers or start consumers.
+## Resource ownership and lifecycle
 
-## Durable feature targets
+PostgreSQL delegates to its existing adapter/migrator rather than copying queue SQL. Startup validates schemas and does not apply migrations. Borrowed pools stay caller-owned; owned pools are created lazily and closed after worker/store finalizers. Idle-client errors on owned pg pools are handled without leaking client credentials into logs.
 
-Flows retain the engine's persisted parent/child fan-out and collection model: inert child plans, stable keys/manifests, bounded/paginated results and defined failure policies. Waiting parents do not occupy a worker slot. This is not arbitrary function replay or automatic saga compensation.
+Failed acquisition/activation rolls back locally because Nest may rethrow bootstrap failure from close before destruction hooks. Shutdown detaches producers, stops admission, drains/cooperatively aborts workers, releases stores and closes owned resources. Repeated closes are memoized and cleanup errors aggregate. No automatic process signals or hard interruption of arbitrary JavaScript/driver calls are promised.
 
-Schedules persist cron/interval, timezone, misfire and overlap decisions. Reconciliation must be safe during rolling deployments and competing replicas. Dynamic work belongs in a coordinator job, not a serialized function or per-replica timer.
+Connection readiness reports sanitized lifecycle/protocol information; explicit probes check live connectivity. Local worker status/idle does not establish global queue completion. No administrative HTTP surface is installed automatically.
 
-Application outbox records share the actual domain transaction. Preparation, append, post-commit publication and settlement remain separate, with independent publication/job retries. Stable IDs detect conflicting duplicates. SQL, MongoDB and Redis transaction guarantees are not interchangeable; each ORM bridge must prove resource identity. The internal flow coordination outbox is distinct from the application's transactional outbox. The currently installed upstream outbox peer does not implement these Nest APIs.
+## Remaining durable features
 
-## Operations and non-goals
+Distributed controls must use storage-backed coordination and multiple-replica tests, not local semaphores. Named/versioned custom retry providers must resolve through DI without persisting executable functions. Durable-event waits/subscriptions need defined cursor and recovery semantics.
 
-Administration, local callbacks, durable events, metrics and health probes have distinct contracts. Local callbacks are not durable subscriptions. Persisted job state remains authoritative even when events wake consumers. Do not advertise consumer groups/checkpoints without implementing their persistence.
+Flows will retain the engine's persisted parent/children fan-out and collection model: stable manifests, bounded/paginated results and defined failure policies, with no worker slot held by waiting parents. This is not arbitrary function replay or automatic saga compensation.
 
-No automatic HTTP management endpoints, production migrations, process signal handlers, cross-database atomicity or exactly-once external-side-effect promise. Cancellation is cooperative; lease fencing protects persisted settlement, not effects already executed in external systems.
+Schedules will persist cron/interval/timezone/misfire/overlap decisions and reconcile safely during rolling deployments. Dynamic work belongs in coordinator jobs, not serialized functions or per-replica timers.
+
+Application outbox must share the actual domain transaction. Preparation, append, post-commit publication and settlement remain separate, with independent publication and execution retries. SQL/MongoDB/Redis semantics are not interchangeable; each ORM bridge must establish transaction-resource identity. Application outbox is distinct from internal flow coordination. The current upstream outbox peer does not implement a Nest outbox facade.
+
+## Verification and release
+
+Real Nest/engine tests cover contracts, scopes, retries, cancellation, concurrency and shutdown. Actual tarballs compile with TS6/7, run with Node/Bun and verify optional dependency isolation. PostgreSQL tests prove persisted jobs/results across recreated producer/worker contexts and exercise ownership/recovery failures. Full parity still needs further distributed/crash/flow/outbox coverage before a production release; no exactly-once external effects or cross-database atomicity is claimed.
