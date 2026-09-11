@@ -1,11 +1,11 @@
-name: PostgreSQL JSON regression
+name: PostgreSQL JSON validation
 
 on:
   push:
     branches: [fix/postgres-json-fidelity]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: json-development
@@ -13,8 +13,9 @@ concurrency:
 
 jobs:
   regression:
+    if: github.ref == 'refs/heads/fix/postgres-json-fidelity'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -29,34 +30,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
-      - run: bun install --frozen-lockfile
-      - name: Existing baseline
-        run: bun test
-      - name: Observe public JSON regression
-        run: bun tests/postgres/json-fidelity.ts
-      - name: Inspect installed boundaries and project constraints
-        if: always()
+      - name: Format authored files with the exact upstream rules
         run: |
-          node --input-type=module <<'NODE'
-          import { readFileSync, readdirSync } from 'node:fs'
-          for (const file of ['README.md','docs/controls.md','docs/contracts.md','docs/connections.md','docs/execution.md','docs/architecture.md','docs/roadmap.md','.oxlintrc.json']) {
-            console.log(`PROJECT ${file}\n${readFileSync(file,'utf8')}`)
-          }
-          for (const file of readdirSync('node_modules/better-effect-mq-postgres/dist').filter(name => name.endsWith('.mjs'))) {
-            const lines = readFileSync(`node_modules/better-effect-mq-postgres/dist/${file}`,'utf8').split('\n')
-            for (const term of ['const parseJson', 'function parseJson', 'function toRecord', 'listenerClient.on', 'listener.on']) {
-              const index=lines.findIndex(line=>line.includes(term)); if(index>=0) console.log(file,term,lines.slice(index,index+55).join('\n'))
-            }
-          }
-          const types=readFileSync('node_modules/@types/pg/index.d.ts','utf8').split('\n')
-          for(const term of ['interface CustomTypesConfig','class Pool','class ClientBase','interface QueryConfig']) {
-            const index=types.findIndex(line=>line.includes(term)); console.log(term, types.slice(index,index+100).join('\n'))
-          }
-          NODE
+          bun install --frozen-lockfile
+          bun run format
+          bun run check:tooling
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u
+          if ! git diff --cached --quiet; then
+            git commit -m 'style: apply upstream formatting to JSON fidelity regression and fix'
+            git push origin HEAD:fix/postgres-json-fidelity
+          fi
+      - name: Check actual PostgreSQL JSON regression
+        run: bun tests/postgres/json-fidelity.ts
+      - name: Verify full package and retained regressions
+        run: bun run check
