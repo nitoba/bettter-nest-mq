@@ -29,10 +29,21 @@ try {
   assert.ok(archiveName)
   const archive = join(temporary, archiveName)
   const entries = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n')
-  for (const entry of entries) assert.match(entry, /^package\/(?:dist(?:\/.*)?|LICENSE|README\.md|CHANGELOG\.md|package\.json)\/?$/)
+  for (const entry of entries)
+    assert.match(
+      entry,
+      /^package\/(?:dist(?:\/.*)?|LICENSE|README\.md|CHANGELOG\.md|package\.json)\/?$/
+    )
   const declarations = (await readdir(join(root, 'dist'))).filter((name) => name.endsWith('.d.mts'))
-  for (const file of declarations) assert.doesNotMatch(await readFile(join(root, 'dist', file), 'utf8'), /from\s+['"](?:better-effect|better-result)/)
-  assert.doesNotMatch(await readFile(join(root, 'dist', 'index.d.mts'), 'utf8'), /from\s+['"](?:zod|pg)['"]/)
+  for (const file of declarations)
+    assert.doesNotMatch(
+      await readFile(join(root, 'dist', file), 'utf8'),
+      /from\s+['"](?:better-effect|better-result)/
+    )
+  assert.doesNotMatch(
+    await readFile(join(root, 'dist', 'index.d.mts'), 'utf8'),
+    /from\s+['"](?:zod|pg)['"]/
+  )
 
   for (const compiler of ['typescript-minimum', 'typescript']) {
     const version = await installedVersion(compiler)
@@ -40,38 +51,63 @@ try {
     await mkdir(directory)
     await cp(join(root, 'tests', 'package', 'consumer'), directory, { recursive: true })
     const manifest = {
-      name: 'better-nest-mq-external-consumer', private: true, type: 'module',
+      name: 'better-nest-mq-external-consumer',
+      private: true,
+      type: 'module',
       dependencies: {
         'better-nest-mq': pathToFileURL(archive).href,
-        '@nestjs/common': await installedVersion('@nestjs/common'), '@nestjs/core': await installedVersion('@nestjs/core'),
+        '@nestjs/common': await installedVersion('@nestjs/common'),
+        '@nestjs/core': await installedVersion('@nestjs/core'),
         '@standard-schema/spec': await installedVersion('@standard-schema/spec'),
-        'reflect-metadata': await installedVersion('reflect-metadata'), rxjs: await installedVersion('rxjs')
+        'reflect-metadata': await installedVersion('reflect-metadata'),
+        rxjs: await installedVersion('rxjs')
       },
       devDependencies: { typescript: version, '@types/node': await installedVersion('@types/node') }
     }
     await writeFile(join(directory, 'package.json'), JSON.stringify(manifest))
     await run(['bun', 'install', '--ignore-scripts'], directory)
-    for (const name of optionalIntegrations) await rm(join(directory, 'node_modules', name), { recursive: true, force: true })
-    await run(['node', '--input-type=module', '-e', `import { createRequire } from 'node:module'; import assert from 'node:assert/strict'; const require = createRequire(import.meta.url); for (const name of ${JSON.stringify(optionalIntegrations)}) assert.throws(() => require.resolve(name), { code: 'MODULE_NOT_FOUND' });`], directory)
+    for (const name of optionalIntegrations)
+      await rm(join(directory, 'node_modules', name), { recursive: true, force: true })
+    await run(
+      [
+        'node',
+        '--input-type=module',
+        '-e',
+        `import { createRequire } from 'node:module'; import assert from 'node:assert/strict'; const require = createRequire(import.meta.url); for (const name of ${JSON.stringify(optionalIntegrations)}) assert.throws(() => require.resolve(name), { code: 'MODULE_NOT_FOUND' });`
+      ],
+      directory
+    )
     await run(['node', 'node_modules/typescript/bin/tsc', '-p', 'tsconfig.json'], directory)
     await run(['node', 'dist/main.js'], directory)
     await run(['bun', 'dist/main.js'], directory)
 
-    await writeFile(join(directory, 'package.json'), JSON.stringify({
-      ...manifest,
-      devDependencies: {
-        ...manifest.devDependencies,
-        zod: await installedVersion('zod'), pg: await installedVersion('pg'), '@types/pg': await installedVersion('@types/pg'),
-        'better-effect-mq-postgres': await installedVersion('better-effect-mq-postgres'),
-        'better-effect-mq-outbox': await installedVersion('better-effect-mq-outbox')
-      }
-    }))
+    await writeFile(
+      join(directory, 'package.json'),
+      JSON.stringify({
+        ...manifest,
+        devDependencies: {
+          ...manifest.devDependencies,
+          zod: await installedVersion('zod'),
+          pg: await installedVersion('pg'),
+          '@types/pg': await installedVersion('@types/pg'),
+          'better-effect-mq-postgres': await installedVersion('better-effect-mq-postgres'),
+          'better-effect-mq-outbox': await installedVersion('better-effect-mq-outbox')
+        }
+      })
+    )
     await run(['bun', 'install', '--ignore-scripts'], directory)
     for (const fixture of ['codec', 'postgres', 'execution']) {
-      await run(['node', 'node_modules/typescript/bin/tsc', '-p', `tsconfig.${fixture}.json`], directory)
+      await run(
+        ['node', 'node_modules/typescript/bin/tsc', '-p', `tsconfig.${fixture}.json`],
+        directory
+      )
       await run(['node', `dist/${fixture}.js`], directory)
       await run(['bun', `dist/${fixture}.js`], directory)
     }
-    console.log(`Packed package passed isolated root and optional integrations with TypeScript ${version}`)
+    console.log(
+      `Packed package passed isolated root and optional integrations with TypeScript ${version}`
+    )
   }
-} finally { await rm(temporary, { recursive: true, force: true }) }
+} finally {
+  await rm(temporary, { recursive: true, force: true })
+}
