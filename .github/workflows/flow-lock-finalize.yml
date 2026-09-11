@@ -1,0 +1,50 @@
+name: Finalize released flow dependency lock
+
+on:
+  push:
+    branches: [feat/durable-flows]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flow-lock-finalize
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    if: github.ref == 'refs/heads/feat/durable-flows'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Regenerate and verify released dependency lock
+        run: |
+          bun install
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFileSync } from 'node:fs'
+          const manifest = JSON.parse(readFileSync('package.json', 'utf8'))
+          const mq = JSON.parse(readFileSync('node_modules/better-effect-mq/package.json', 'utf8'))
+          const pg = JSON.parse(readFileSync('node_modules/better-effect-mq-postgres/package.json', 'utf8'))
+          assert.equal(manifest.dependencies['better-effect-mq'], '0.1.3')
+          assert.equal(manifest.dependencies['better-effect-mq-postgres'], '0.1.4')
+          assert.equal(mq.version, '0.1.3')
+          assert.equal(pg.version, '0.1.4')
+          NODE
+          bun install --frozen-lockfile
+          bun run check:tooling
+      - name: Commit only the lock and retire temporary write-enabled workflows
+        run: |
+          git rm .github/workflows/flow-release-integration.yml .github/workflows/flow-lock-finalize.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json bun.lock
+          git diff --cached --check
+          git commit -m 'chore: lock released MQ flow engine versions'
+          git push origin HEAD:feat/durable-flows
