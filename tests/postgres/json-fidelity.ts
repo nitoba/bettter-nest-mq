@@ -4,7 +4,16 @@ import { randomUUID } from 'node:crypto'
 import { Test } from '@nestjs/testing'
 import { Pool } from 'pg'
 import { z } from 'zod'
-import { Job, JobData, MqModule, Process, Queue, QueueService, Worker, type JobJsonValue } from '../../src/index.ts'
+import {
+  Job,
+  JobData,
+  MqModule,
+  Process,
+  Queue,
+  QueueService,
+  Worker,
+  type JobJsonValue
+} from '../../src/index.ts'
 import { migratePostgres, postgres } from '../../src/integrations/postgres.ts'
 
 @Queue({ name: 'json-fidelity', connection: 'primary' })
@@ -16,12 +25,29 @@ class JsonQueue extends QueueService {
 @Worker({ name: 'json-fidelity-worker', concurrency: 4, pollIntervalMs: 5 })
 class JsonWorker {
   @Process(JsonQueue, 'echo')
-  run(@JobData() value: JobJsonValue) { return value }
+  run(@JobData() value: JobJsonValue) {
+    return value
+  }
 }
 
 const cases = [
-  'retry me', '', 'null', 'true', '123', '"quoted"', '{"nested":1}', '[1,2]',
-  'ação 🌱\n"quoted"\\', 123, -4.5, 0, true, false, null, [], [1, 'x', null],
+  'retry me',
+  '',
+  'null',
+  'true',
+  '123',
+  '"quoted"',
+  '{"nested":1}',
+  '[1,2]',
+  'ação 🌱\n"quoted"\\',
+  123,
+  -4.5,
+  0,
+  true,
+  false,
+  null,
+  [],
+  [1, 'x', null],
   { nested: ['null', null, false, 0], text: 'retry me' }
 ] satisfies z.input<ReturnType<typeof z.json>>[]
 
@@ -30,12 +56,18 @@ export async function verifyJsonFidelity(connectionString: string): Promise<void
   const pool = new Pool({ connectionString, max: 8 })
   try {
     await migratePostgres({ pool, schema })
-    const observed = await pool.query<{ value: string; kind: string }>('SELECT $1::jsonb AS value,jsonb_typeof($1::jsonb) AS kind', [JSON.stringify('retry me')])
+    const observed = await pool.query<{ value: string; kind: string }>(
+      'SELECT $1::jsonb AS value,jsonb_typeof($1::jsonb) AS kind',
+      [JSON.stringify('retry me')]
+    )
     console.log('NATIVE PG OBSERVATION', JSON.stringify(observed.rows))
-    const app = await Test.createTestingModule({ imports: [
-      MqModule.forRoot({ connections: { primary: postgres({ pool, schema }) } }),
-      MqModule.forFeature([JsonQueue])
-    ], providers: [JsonWorker] }).compile()
+    const app = await Test.createTestingModule({
+      imports: [
+        MqModule.forRoot({ connections: { primary: postgres({ pool, schema }) } }),
+        MqModule.forFeature([JsonQueue])
+      ],
+      providers: [JsonWorker]
+    }).compile()
     const errors: Error[] = []
     try {
       await app.init()
@@ -52,20 +84,31 @@ export async function verifyJsonFidelity(connectionString: string): Promise<void
           assert.deepEqual((await queue.echo.poll(id))?.result, value)
           console.log('PASS JSON ROUND TRIP', JSON.stringify(value))
         } catch (cause) {
-          const error = new Error(`JSON value ${JSON.stringify(value)} failed during ${phase}`, { cause })
+          const error = new Error(`JSON value ${JSON.stringify(value)} failed during ${phase}`, {
+            cause
+          })
           errors.push(error)
           console.error(error)
         }
       }
-    } finally { await app.close() }
-    if (errors.length > 0) throw new AggregateError(errors, `${errors.length} JSON persistence regressions`)
+    } finally {
+      await app.close()
+    }
+    if (errors.length > 0)
+      throw new AggregateError(errors, `${errors.length} JSON persistence regressions`)
     console.log(`PASS ${cases.length} PostgreSQL public JSON round trips`)
   } finally {
-    try { await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`) }
-    finally { await pool.end() }
+    try {
+      await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
+    } finally {
+      await pool.end()
+    }
   }
 }
 
 const connectionString = process.env.MQ_TEST_DATABASE_URL
-assert.ok(connectionString, 'MQ_TEST_DATABASE_URL must point to a dedicated PostgreSQL test database')
+assert.ok(
+  connectionString,
+  'MQ_TEST_DATABASE_URL must point to a dedicated PostgreSQL test database'
+)
 await verifyJsonFidelity(connectionString)

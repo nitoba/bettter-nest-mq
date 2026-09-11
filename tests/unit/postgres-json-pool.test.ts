@@ -2,7 +2,19 @@ import { expect, test } from 'bun:test'
 import { Client, Pool, types } from 'pg'
 import { adapterJsonTypes, postgresJsonPool } from '../../src/integrations/postgres-json-pool.ts'
 
-const jsonTexts = ['"retry me"', '""', '"null"', '"true"', '"123"', '"{\\"nested\\":1}"', 'null', 'false', '0', '[]', '{"value":null}']
+const jsonTexts = [
+  '"retry me"',
+  '""',
+  '"null"',
+  '"true"',
+  '"123"',
+  '"{\\"nested\\":1}"',
+  'null',
+  'false',
+  '0',
+  '[]',
+  '{"value":null}'
+]
 
 test.each(jsonTexts)('MQ JSON and JSONB parsers preserve exactly one encoded layer: %p', (text) => {
   const client = new Client()
@@ -40,7 +52,10 @@ test('application-specific JSON parsers remain active outside adapter queries', 
 })
 
 test('views are inert, non-owning, and stable per pool for shared listener reservations', async () => {
-  const pool = new Pool({ connectionString: 'postgresql://unused:unused@localhost:1/unused', max: 2 })
+  const pool = new Pool({
+    connectionString: 'postgresql://unused:unused@localhost:1/unused',
+    max: 2
+  })
   const connect = pool.connect
   const query = pool.query
   const end = pool.end
@@ -55,5 +70,7 @@ test('views are inert, non-owning, and stable per pool for shared listener reser
     expect(pool.query).toBe(query)
     expect(pool.end).toBe(end)
     expect(Object.isFrozen(pool)).toBe(false)
-  } finally { await pool.end() }
+  } finally {
+    await pool.end()
+  }
 })
