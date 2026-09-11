@@ -6,15 +6,15 @@ Issue #5 exposed more than a rejected string payload. The pinned PostgreSQL adap
 
 The original public Nest regression tested 18 values with a real PostgreSQL server. Ten failed before the correction: ordinary/empty/Unicode strings, strings resembling JSON values, and null-result cases. The corrected integration returns exactly the declared JSON value through the same QueueService and worker APIs.
 
-| Input value | Required stored/read value |
-| --- | --- |
-| `'123'` | A string, not the number 123 |
-| `'true'` | A string, not boolean true |
-| `'null'` | A string, not null or an absent result |
-| `'{"nested":1}'` | A string, not a nested object |
-| `''` | An empty string, not absence |
-| `0` and `false` | Their original primitive values |
-| `null` | A valid JSON null result, distinct from SQL NULL |
+| Input value        | Required stored/read value                               |
+| ------------------ | -------------------------------------------------------- |
+| `'123'`            | A string, not the number 123                             |
+| `'true'`           | A string, not boolean true                               |
+| `'null'`           | A string, not null or an absent result                   |
+| `'{"nested":1}'`   | A string, not a nested object                            |
+| `''`               | An empty string, not absence                             |
+| `0` and `false`    | Their original primitive values                          |
+| `null`             | A valid JSON null result, distinct from SQL NULL         |
 | Arrays and objects | Their original JSON structure, without an added envelope |
 
 ## No application changes or data migration
