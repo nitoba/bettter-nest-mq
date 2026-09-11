@@ -9,7 +9,7 @@ export async function withFreshControlledClock<Value>(
   store: JobStoreContract,
   jobId: JobId,
   sampledNow: number,
-  mutate: (now: number) => PromiseLike<Result<Value, JobStoreError>>
+  mutate: (now: number) => Result<Value, JobStoreError> | PromiseLike<Result<Value, JobStoreError>>
 ): Promise<Result<Value, JobStoreError>> {
   let now = sampledNow
   let result = await mutate(now)
