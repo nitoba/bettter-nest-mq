@@ -4,16 +4,25 @@ The user authorized continuing the open PR and clarified that Nest consumers mus
 
 ## Verified starting point
 
-PR #4 is open/draft on feat/distributed-controls. Main remains the merged M3 commit 2482d5e413e4aa6dd92fa2a0e700a2b8fe610450. The resumed regression at 5427dc14c359e671d91184a809952316471001bf passes TypeScript 6/7 and runs 164 tests: 161 pass and three fail specifically because a heartbeat advances updatedAt beyond the mutation's sampled now. The expired-lease rejection already passes. Earlier test-only API typos were corrected before interpreting these failures.
+PR #4 started this continuation as an open draft on feat/distributed-controls. Main remained the merged M3 commit 2482d5e413e4aa6dd92fa2a0e700a2b8fe610450. The resumed regression at 5427dc14c359e671d91184a809952316471001bf passed TypeScript 6/7 and ran 164 tests: 161 passed and three failed specifically because a heartbeat advanced updatedAt beyond the mutation's sampled now. The expired-lease rejection already passed. Test-only API mistakes were corrected before interpreting these failures.
 
-## Ordered implementation
+## Completed implementation
 
-1. Retry only the rejected controlled mutation when the upstream typed error explicitly identifies a stale now relative to updatedAt. Read current durable time, never move the requested time backward, preserve the original job ID/lease token/result, and retain retry delays. Bound refresh attempts; do not rerun a handler, retry arbitrary errors or suppress lease expiration.
-2. Add negative regression coverage for changed/expired leases, duplicate acknowledgments, invalid timestamps and bounded refresh. Qualify the real PostgreSQL race plus the independent-worker scenarios through installed packages.
-3. Move PostgreSQL/outbox engine packages from optional peers/development-only entries into normal dependencies, retaining lazy/isolated runtime imports. Keep Nest peers, optional Zod and optional native pg/types as consumer integrations. Verify a consumer manifest contains no better-effect-* or better-result dependencies except better-nest-mq itself.
-4. Update external tarball tests and docs to require only the selected native driver/schema library, not internal adapters. Generate bun.lock with Bun; do not edit resolved versions by hand. Test the root without optional pg/Zod installed and test PostgreSQL with the automatically resolved engine dependencies.
-5. Remove temporary branch-generation scripts/workflow, preserve exact upstream tooling and retained read-only CI, inspect final changes and merge only after the exact final head passes all quality and real-database gates.
+1. Controlled settlement, release and cancellation refresh only an explicitly rejected stale-clock mutation. The helper reads durable updatedAt and current wall time, never moves the requested time backward, preserves the original job ID/lease token/result, and retains retry delays. Refresh is bounded to three retries. It does not rerun handlers, replay ambiguous writes or suppress expired/replaced lease errors.
+2. Deterministic tests cover completion, active cancellation, release, delayed retries, replaced/expired leases, repeated acknowledgments, bounded refresh and unrelated errors. Real PostgreSQL tests reproduce the heartbeat race and verify durable results, one attempt, cancellation and permit cleanup.
+3. PostgreSQL/outbox adapters moved to normal dependencies alongside better-effect, better-result and better-effect-mq. None is a consumer peer obligation. Nest peers and optional Zod/native pg integrations remain application-facing. Bun generated the updated lockfile without changing pinned engine versions.
+4. External tarball consumers declare no internal engine/adapter dependencies. Root usage is tested without pg/Zod; selected PostgreSQL/Zod integrations then use automatically installed internal adapters. Documentation now asks consumers to select only the native driver/schema library.
+5. The existing immediate remote-backend teardown assertion was replaced with the same bounded server-observation check used by the ownership suite. It still fails on any remaining owned connection and does not terminate leaked clients to make the test pass.
+6. Temporary branch-only generation scripts and the write-enabled development workflow are removed in the final cleanup commit. The retained CI remains read-only.
 
-## Non-goals
+## Observed verification before the final cleanup gate
 
-No npm publication, server deployment, automatic migrations, new runtime, second queue engine or fabricated flow/outbox functionality. Existing unsupported scalar PostgreSQL payload behavior remains issue #5 unless independently reproduced and fixed. Package internalization does not claim that the Nest outbox API is implemented.
+Run 34553523760 observed all clock/fencing tests passing and the two expected dependency-policy failures: 174 pass, 2 fail. After moving adapters into dependencies, the suite passed all 176 tests, both TypeScript compilers, tooling integrity, formatting, type-aware lint, build and publint.
+
+Development run 34553967926 completed the full quality gate successfully, including real PostgreSQL and external package scenarios. The separate retained PostgreSQL job 103122600944 in run 34553970985 also passed: independent Node worker processes enforced global/per-key concurrency and fixed-window limits while parent consumers ran under Node and Bun with TypeScript 6/7. These scenarios include fast completion and a job held beyond its initial lease, cancellation permit reuse, unchanged policy revisions and recreated application contexts.
+
+The exact final cleanup commit must pass the retained Node 22, Node 24 and PostgreSQL CI jobs before merge. Earlier successful development checks are evidence for their tested tree, not a substitute for the final-head gate. Final merge and CI identifiers belong in the PR conversation after verification.
+
+## Deliberate boundaries
+
+No npm publication, server deployment, automatic migrations, new runtime, second queue engine or fabricated flow/outbox functionality. PostgreSQL scalar-string payload qualification remains issue #5 and is documented as an outstanding production-release concern. Package internalization does not mean the Nest transactional-outbox API exists. Distributed policy reconciliation still requires a coordinated deployment writer and is not a cross-store transaction or leader election.
