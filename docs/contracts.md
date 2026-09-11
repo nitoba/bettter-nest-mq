@@ -60,16 +60,16 @@ type Failure = FailureOf<ReportsQueue['generate']>
 
 InputOf is the payload schema input. PayloadOf, ResultOf and FailureOf are decoded outputs. FailureOf is never when no failure schema exists. A retryable predicate without a failure schema is invalid.
 
-| Contract method | Input | Promise output |
-| --- | --- | --- |
-| parsePayload | Payload schema input | Decoded payload |
-| encodePayload | Decoded payload | JSON string |
-| decodePayload | JSON string | Revalidated decoded payload |
-| parseResult | Result schema input | Decoded result |
-| encodeResult | Decoded result | JSON string |
-| decodeResult | JSON string | Revalidated result |
-| encodeFailure | Decoded declared failure | JSON string |
-| decodeFailure | JSON string | Revalidated declared failure |
+| Contract method | Input                    | Promise output               |
+| --------------- | ------------------------ | ---------------------------- |
+| parsePayload    | Payload schema input     | Decoded payload              |
+| encodePayload   | Decoded payload          | JSON string                  |
+| decodePayload   | JSON string              | Revalidated decoded payload  |
+| parseResult     | Result schema input      | Decoded result               |
+| encodeResult    | Decoded result           | JSON string                  |
+| decodeResult    | JSON string              | Revalidated result           |
+| encodeFailure   | Decoded declared failure | JSON string                  |
+| decodeFailure   | JSON string              | Revalidated declared failure |
 
 Standalone validateSchema, encodeSchema and decodeSchema expose the same boundaries. TypeScript annotations do not replace runtime checks. Enqueue parses an input and encodes its decoded value; enqueueDecoded encodes the supplied decoded type directly. Workers revalidate persisted payloads and results/failures are checked before storage and on reads.
 
