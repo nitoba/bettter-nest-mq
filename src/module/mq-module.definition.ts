@@ -10,6 +10,8 @@ import { bindOutboxService } from '../engine/outbox-coordinator.ts'
 import { MqEngineHost } from '../engine/mq-engine.host.ts'
 import { MqWorkersService, WORKER_MONITOR } from '../workers/mq-workers.service.ts'
 import type { WorkerMonitor } from '../workers/types.ts'
+import { MqSchedulesService, SCHEDULE_MONITOR } from '../schedules/service.ts'
+import type { SchedulesMonitor } from '../schedules/types.ts'
 import type { MqModuleOptions } from './mq-module.options.ts'
 import { MqConfiguration } from './mq.configuration.ts'
 import { MqRegistry } from './mq.registry.ts'
@@ -51,9 +53,15 @@ export const { ConfigurableModuleClass } = new ConfigurableModuleBuilder<MqModul
         inject: [MqEngineHost],
         useFactory: (host: MqEngineHost): QueueControlsMonitor => host.controls
       },
+      {
+        provide: SCHEDULE_MONITOR,
+        inject: [MqEngineHost],
+        useFactory: (host: MqEngineHost): SchedulesMonitor => host.schedules
+      },
       MqConnectionsService,
       MqWorkersService,
-      MqQueueControlsService
+      MqQueueControlsService,
+      MqSchedulesService
     ],
     exports: [
       ...(definition.exports ?? []),
@@ -62,7 +70,8 @@ export const { ConfigurableModuleClass } = new ConfigurableModuleBuilder<MqModul
       MqRegistry,
       MqConnectionsService,
       MqWorkersService,
-      MqQueueControlsService
+      MqQueueControlsService,
+      MqSchedulesService
     ]
   }))
   .build()

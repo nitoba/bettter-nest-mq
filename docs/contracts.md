@@ -113,4 +113,10 @@ Contract-only apps and manually constructed queues can parse/encode, but produce
 
 ## Verification
 
-Regression coverage includes schema transformations/fidelity, vendor errors, policies, identity/versioning, inherited metadata, Nest scopes/aliases/module exports and compile-time invalid types. Packed consumers use the actual installed package with optional peers absent or present. Public execution and persistence tests are detailed in execution.md; flows, schedules and outbox remain separate planned features.
+Regression coverage includes schema transformations/fidelity, vendor errors, policies, identity/versioning, inherited metadata, Nest scopes/aliases/module exports and compile-time invalid types. Packed consumers use the actual installed package with optional peers absent or present. Public execution and persistence tests are detailed in execution.md; flows and outbox remain separate planned features.
+
+## Persistent schedule integration
+
+Persistent Schedule declarations and MqSchedulesService are now implemented; see schedules.md for the supported API and exact recurrence semantics. Schedule stores opt in with postgres({ schedules: true }), sharing the existing pool, private JSON view and stable namespace. Definition deployment/validation and scheduler execution are independent from workers and the outbox publisher.
+
+This does not add flows or external ORM transactions. The pinned schedule protocol cannot carry dispatch keys, so keyed/per-key-limited schedules reject explicitly. Normal startup preserves operator pauses and validates deployed definitions; explicit reconciliation is a coordinated administrative operation, not a cross-store transaction.

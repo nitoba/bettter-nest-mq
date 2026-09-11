@@ -14,6 +14,7 @@ import { MqConfiguration } from '../module/mq.configuration.ts'
 import { MqRegistry } from '../module/mq.registry.ts'
 import { OutboxCoordinator } from './outbox-coordinator.ts'
 import { QueueControlsCoordinator } from './queue-controls.ts'
+import { SchedulesCoordinator } from './schedules.ts'
 import { EngineSession } from './engine-session.ts'
 import { compileJob, type CompiledJob } from './job-compiler.ts'
 import { createJobClient } from './job-client.ts'
@@ -22,6 +23,7 @@ import { discoverWorkers } from './worker-discovery.ts'
 @Injectable()
 export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
   readonly session: EngineSession
+  readonly schedules: SchedulesCoordinator
   readonly controls: QueueControlsCoordinator
   readonly outbox: OutboxCoordinator
   private readonly bindingOwner = Symbol('MqJobBindingOwner')
@@ -39,7 +41,17 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
       {
         enabled: configuration.options.execution.outboxPublisher,
         options: configuration.options.outbox
+      },
+      {
+        enabled: configuration.options.execution.scheduler,
+        options: configuration.options.schedules
       }
+    )
+    this.schedules = new SchedulesCoordinator(
+      this.session,
+      registry,
+      moduleRef,
+      configuration.options.schedules
     )
     this.outbox = new OutboxCoordinator(this.session, registry)
     this.controls = new QueueControlsCoordinator(
@@ -71,10 +83,12 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
             this.configuration.options.shutdown
           )
         : []
+    const schedules = await this.schedules.prepare()
     try {
-      await this.session.start(this.registry.queues(), plans)
+      await this.session.start(this.registry.queues(), plans, schedules)
       if (this.session.state === 'ready') {
         await this.controls.initialize()
+        await this.schedules.initialize()
         for (const [contract, { registered, compiled }] of entries) {
           bindJobClient(
             contract,
@@ -85,6 +99,7 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
         }
         await this.session.activateWorkers()
         await this.session.activateOutboxPublisher()
+        await this.session.activateScheduler()
       }
     } catch (cause) {
       this.detach()

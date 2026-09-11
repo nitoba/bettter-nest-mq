@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["schedules.ts", "schedule-child.ts", "schedule-contracts.ts"]
+}

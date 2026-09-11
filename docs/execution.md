@@ -187,3 +187,9 @@ Set `execution: { workers: false }` and import only shared queue modules for API
 The packed consumer tests install an actual tarball outside the repository with TypeScript 6/7 and execute under Node/Bun. The PostgreSQL job verifies producer shutdown, worker startup in a new context, idempotency, decoded codecs, retries, terminal failures and persisted results after both contexts close. Unit/integration tests additionally cover concurrency, active cancellation, scope isolation, identity guards, metadata edge cases and draining before store release.
 
 The repository remains version 0.0.0 and is not published to npm. Flows, persistent schedules, transactional outbox/ORM transaction bridges, other storage wrappers and durable event subscriptions remain separate milestones. Distributed QueueControls are available as documented in controls.md. Native PostgreSQL outbox transactions and managed publication are available as documented in outbox.md; publisher and worker enablement are independent.
+
+## Persistent schedule integration
+
+Persistent Schedule declarations and MqSchedulesService are now implemented; see schedules.md for the supported API and exact recurrence semantics. Schedule stores opt in with postgres({ schedules: true }), sharing the existing pool, private JSON view and stable namespace. Definition deployment/validation and scheduler execution are independent from workers and the outbox publisher.
+
+This does not add flows or external ORM transactions. The pinned schedule protocol cannot carry dispatch keys, so keyed/per-key-limited schedules reject explicitly. Normal startup preserves operator pauses and validates deployed definitions; explicit reconciliation is a coordinated administrative operation, not a cross-store transaction.

@@ -2,9 +2,9 @@
 
 ## Status
 
-M0 foundation, M1 contracts/Nest registration, M2 runtime/PostgreSQL lifecycle and M3 core producer/worker execution are implemented. The API now publishes and processes actual jobs. It is not full better-effect-mq feature parity: custom retry providers, MQ enhancers/events, other adapters, flows, schedules and ORM transaction bridges are still planned. Native PostgreSQL outbox transactions and a managed publisher are implemented.
+M0 foundation, M1 contracts/Nest registration, M2 runtime/PostgreSQL lifecycle and M3 core producer/worker execution are implemented. The API now publishes and processes actual jobs. It is not full better-effect-mq feature parity: custom retry providers, MQ enhancers/events, other adapters, flows and ORM transaction bridges are still planned. Native PostgreSQL outbox transactions and a managed publisher are implemented.
 
-Read outbox.md, contracts.md, connections.md and execution.md for the exported behavior. The package remains unreleased at 0.0.0; no simulated methods stand in for missing features.
+Read schedules.md, outbox.md, contracts.md, connections.md and execution.md for the exported behavior. The package remains unreleased at 0.0.0; no simulated methods stand in for missing features.
 
 ## Composition
 
@@ -52,7 +52,13 @@ Distributed controls are implemented through QueueControls metadata and an inter
 
 Flows will retain the engine's persisted parent/children fan-out and collection model: stable manifests, bounded/paginated results and defined failure policies, with no worker slot held by waiting parents. This is not arbitrary function replay or automatic saga compensation.
 
-Schedules will persist cron/interval/timezone/misfire/overlap decisions and reconcile safely during rolling deployments. Dynamic work belongs in coordinator jobs, not serialized functions or per-replica timers.
+## Implemented persistent scheduler
+
+Schedule decorators and MqSchedulesService now compile JSON/schema/codec-validated definitions, provide explicit deployment validation/reconciliation and use the existing JobScheduler in the same runtime. PostgreSQL schedule records share the raw namespace, native pool and private parser view. Dynamic work belongs in coordinator jobs, not serialized functions or timer-per-replica enqueue calls.
+
+Default replica startup validates definitions; a coordinated reconcile writer preserves pauses/cursors and never removes omissions. The scheduler role is independent of workers/publisher and drains admitted ticks before resource release. Independent-process PostgreSQL tests verify fenced occurrences, actual JSON results, timezone, catch-up and overlap behavior. The pinned record has no dispatchKey: derived-key/per-key destinations are rejected. Its skip policy discards due slots without a grace threshold. See schedules.md for those explicit limits and administration safety.
+
+## Remaining flow and transaction integration
 
 Application outbox must share the actual domain transaction. Preparation, append, post-commit publication and settlement remain separate, with independent publication and execution retries. SQL/MongoDB/Redis semantics are not interchangeable; each ORM bridge must establish transaction-resource identity. Application outbox is distinct from internal flow coordination. The native PostgreSQL facade now implements managed transactions using one actual PoolClient, separate native/adapter JSON views, tracked-operation draining and poison-on-failure. Its opt-in source stores and upstream publisher share the existing runtime and pool. Publisher enablement is independent of worker enablement. Duplicate validation includes destination and dispatch key; repeated callbacks remain an application idempotency concern. No arbitrary external transaction/ORM bridge or automatic callback replay is promised.
 
