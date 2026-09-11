@@ -1,3 +1,4 @@
+import { verifyOutboxSafety } from './outbox-safety.js'
 import 'reflect-metadata'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
@@ -450,8 +451,10 @@ export async function verifyOutbox(connectionString: string): Promise<void> {
 }
 
 const connectionString = process.env.MQ_TEST_DATABASE_URL
-if (connectionString !== undefined) await verifyOutbox(connectionString)
-else
+if (connectionString !== undefined) {
+  await verifyOutbox(connectionString)
+  await verifyOutboxSafety(connectionString)
+} else
   console.log(
     'Packed outbox API/types passed; transaction and publication cases run in PostgreSQL CI'
   )

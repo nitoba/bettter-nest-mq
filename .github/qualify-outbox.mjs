@@ -8,9 +8,12 @@ if (!text.includes('verifyOutboxSafety')) {
   text = `import { verifyOutboxSafety } from './outbox-safety.js'\n${text}`
   const anchor = 'if (connectionString !== undefined) await verifyOutbox(connectionString)'
   assert.equal(text.split(anchor).length, 2)
-  text = text.replace(anchor, `if (connectionString !== undefined) {
+  text = text.replace(
+    anchor,
+    `if (connectionString !== undefined) {
   await verifyOutbox(connectionString)
   await verifyOutboxSafety(connectionString)
-}`)
+}`
+  )
   writeFileSync(consumer, text)
 }
