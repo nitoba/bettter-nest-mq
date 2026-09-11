@@ -32,14 +32,29 @@ export async function verifyOrdinaryRecovery(connectionString: string): Promise<
       if (Result.isError(name)) throw name.error
       if (Result.isError(workerId)) throw workerId.error
       const now = Date.now()
-      const saved = await raw.enqueue({ job: { queue: queue.value, name: name.value, version: 1 }, payload: 'retry me', attemptsMax: 2, now, runAt: now })
+      const saved = await raw.enqueue({
+        job: { queue: queue.value, name: name.value, version: 1 },
+        payload: 'retry me',
+        attemptsMax: 2,
+        now,
+        runAt: now
+      })
       if (Result.isError(saved)) throw saved.error
-      const claimed = await raw.claim({ queue: queue.value, workerId: workerId.value, limit: 1, leaseDurationMs: 20, now })
+      const claimed = await raw.claim({
+        queue: queue.value,
+        workerId: workerId.value,
+        limit: 1,
+        leaseDurationMs: 20,
+        now
+      })
       if (Result.isError(claimed)) throw claimed.error
       assert.equal(claimed.value.jobs.length, 1)
       // Simulate an expired owner using the store's explicit clock boundary. No fake adapter
       // or local queue is substituted for PostgreSQL's actual persisted transition.
-      const recovered = await dispatchStore(raw, queues).recoverStalled({ maxStalledCount: 1, now: now + 30 })
+      const recovered = await dispatchStore(raw, queues).recoverStalled({
+        maxStalledCount: 1,
+        now: now + 30
+      })
       if (Result.isError(recovered)) throw recovered.error
       assert.equal(recovered.value.recovered, 1)
       assert.equal(recovered.value.transitions[0]?.attempt?.outcome, 'stalled')
@@ -48,9 +63,18 @@ export async function verifyOrdinaryRecovery(connectionString: string): Promise<
       assert.equal(record.value?.state, 'waiting')
       assert.equal(record.value?.deliveryCount, 1)
     })
-    console.log('PASS ordinary PostgreSQL stalled recovery remains operational through the controls dispatcher')
+    console.log(
+      'PASS ordinary PostgreSQL stalled recovery remains operational through the controls dispatcher'
+    )
   } finally {
-    try { await session.close() }
-    finally { try { await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`) } finally { await pool.end() } }
+    try {
+      await session.close()
+    } finally {
+      try {
+        await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
+      } finally {
+        await pool.end()
+      }
+    }
   }
 }
