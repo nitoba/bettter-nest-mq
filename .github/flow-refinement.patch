@@ -1,0 +1,282 @@
+diff --git a/src/engine/flow-results.ts b/src/engine/flow-results.ts
+index 248e983..be0d2da 100644
+--- a/src/engine/flow-results.ts
++++ b/src/engine/flow-results.ts
+@@ -18,6 +18,7 @@ import { flowChildEntry } from './flow-discovery.ts'
+ export class FlowResultReader implements FlowResultsReader {
+   readonly counts
+   private open = true
++  private readonly cursors = new Set<string>()
+   private readonly active = new Set<Promise<void>>()
+   constructor(
+     private readonly flow: CompiledFlow,
+@@ -65,9 +66,14 @@ export class FlowResultReader implements FlowResultsReader {
+       throw new MqFlowException('definition', 'Flow pages are limited to 1000 manifest entries')
+     if (
+       options.cursor !== undefined &&
+-      (options.cursor.length === 0 || options.cursor.length > 256)
++      (options.cursor.length === 0 ||
++        options.cursor.length > 256 ||
++        !this.cursors.has(options.cursor))
+     )
+-      throw new MqFlowException('definition', 'Invalid flow cursor')
++      throw new MqFlowException(
++        'definition',
++        'Flow cursors must come from this active Collect reader'
++      )
+     // The pinned page Program closes over the already-resolved store. Invoke it inside the
+     // supervisor-owned Collect scope, without constructing another runtime or executor.
+     const result = await this.results.page({ ...options, limit })()
+@@ -97,6 +103,7 @@ export class FlowResultReader implements FlowResultsReader {
+         )
+       } else items.push(Object.freeze({ ...base, outcome: 'cancelled' }))
+     }
++    if (result.value.nextCursor !== undefined) this.cursors.add(result.value.nextCursor)
+     return Object.freeze({ items: Object.freeze(items), nextCursor: result.value.nextCursor })
+   }
+   all<Job extends JobContract>(
+diff --git a/src/engine/worker-plan.ts b/src/engine/worker-plan.ts
+index 2518c25..4fee29f 100644
+--- a/src/engine/worker-plan.ts
++++ b/src/engine/worker-plan.ts
+@@ -50,6 +50,16 @@ export function compileWorker(
+     }
+     identities.add(key)
+   }
++  for (const registration of flows) {
++    if (!('fanOut' in registration)) continue
++    const identity = registration.flow.parent.identity
++    const key = JSON.stringify([identity.queue, identity.name, identity.version])
++    if (identities.has(key))
++      throw new ContractDefinitionException(
++        'A flow parent cannot share queue/name/version with another handler in this Worker, even across connections'
++      )
++    identities.add(key)
++  }
+   const tag: `nestjs.worker/${string}` = `nestjs.worker/${options.name}`
+   const token = Worker.service(tag)
+   const handlers = invocations.map((invocation) =>
+diff --git a/tests/integration/flow-boundaries.test.ts b/tests/integration/flow-boundaries.test.ts
+index 0ede8fa..099282e 100644
+--- a/tests/integration/flow-boundaries.test.ts
++++ b/tests/integration/flow-boundaries.test.ts
+@@ -170,3 +170,65 @@ test('a flow-only Worker is rejected before resource acquisition rather than sup
+   expect(fixture.trace.acquired).toBe(0)
+   await assert.rejects(app.close(), MqFlowException)
+ })
++
++test('flow parents and ordinary handlers cannot collide across connections in one Worker', async () => {
++  @Queue({ name: 'same', connection: 'primary' })
++  class Parents extends QueueService {
++    @Job({ name: 'task', version: 1 }) readonly task = this.job({
++      payload: z.string(),
++      result: z.string()
++    })
++  }
++  @Queue({ name: 'same', connection: 'secondary' })
++  class Children extends QueueService {
++    @Job({ name: 'task', version: 1 }) readonly task = this.job({
++      payload: z.string(),
++      result: z.string()
++    })
++  }
++  @Worker({ name: 'colliding-flow' })
++  @Flow({
++    name: 'collision',
++    parent: flowJob(Parents, 'task'),
++    children: [flowJob(Children, 'task')],
++    onChildFailure: 'continue'
++  })
++  class Collision {
++    @FanOut() split() {
++      return []
++    }
++    @Collect() finish() {
++      return 'done'
++    }
++    @Process(Children, 'task') child(@JobData() value: string) {
++      return value
++    }
++  }
++  const primary = flowConnection()
++  const secondary = flowConnection()
++  const app = await Test.createTestingModule({
++    imports: [
++      MqModule.forRoot({
++        connections: { primary: primary.connection, secondary: secondary.connection }
++      }),
++      MqModule.forFeature([Parents, Children])
++    ],
++    providers: [Collision]
++  }).compile()
++  await assert.rejects(app.init())
++  expect(primary.trace.acquired + secondary.trace.acquired).toBe(0)
++  await assert.rejects(app.close())
++})
++
++test('contract-only applications can import flow Services without starting stores or workers', async () => {
++  const app = await Test.createTestingModule({
++    imports: [MqModule.forRoot({}), MqModule.forFeature([BoundaryQueue])],
++    providers: [BoundaryWorker, AttemptDependency]
++  }).compile()
++  try {
++    await app.init()
++    await assert.rejects(app.get(BoundaryQueue).parent.enqueue('inert'))
++  } finally {
++    await app.close()
++  }
++})
+diff --git a/tests/package/consumer/flows.ts b/tests/package/consumer/flows.ts
+index 0ec2d45..6b4d7a0 100644
+--- a/tests/package/consumer/flows.ts
++++ b/tests/package/consumer/flows.ts
+@@ -125,17 +125,20 @@ async function verify(connectionString: string): Promise<void> {
+       const held = new FlowProcess(connectionString, schema, true)
+       processes.push(held)
+       await held.start()
++      console.log('FLOW CHECKPOINT first process ready')
+       const restartId = await queue.batch.enqueue({ values: ['persisted', 123, null] })
+       await until(
+         async () => (await service.get(batch, restartId))?.counts.pending === 3,
+         'Fan-out must persist before the crash'
+       )
++      console.log('FLOW CHECKPOINT manifest persisted')
+       const before = await pool.query(
+         `SELECT child_key,child_job_id FROM "${schema}".better_effect_mq_flow_children WHERE flow_id=$1 ORDER BY child_key`,
+         [restartId]
+       )
+       assert.equal(before.rows.length, 3)
+       await held.kill()
++      console.log('FLOW CHECKPOINT first process killed')
+       const left = new FlowProcess(connectionString, schema, false)
+       const right = new FlowProcess(connectionString, schema, false)
+       processes.push(left, right)
+@@ -228,7 +231,7 @@ async function verify(connectionString: string): Promise<void> {
+       await assert.rejects(queue.batch.awaitResult(cancelId, wait))
+       await until(async () => {
+         const rows = await pool.query<{ count: number }>(
+-          `SELECT count(*)::integer AS count FROM "${schema}".better_effect_mq_jobs WHERE metadata->>'__better_effect_flow_v2.flowId'=$1 AND state NOT IN ('cancelled','completed','failed')`,
++          `SELECT count(*)::integer AS count FROM "${schema}".better_effect_mq_flow_children AS c LEFT JOIN "${schema}".better_effect_mq_jobs AS j ON j.id=c.child_job_id AND j.namespace=c.namespace WHERE c.flow_id=$1 AND (j.id IS NULL OR j.state NOT IN ('cancelled','completed','failed'))`,
+           [cancelId]
+         )
+         return rows.rows[0]?.count === 0
+@@ -236,6 +239,17 @@ async function verify(connectionString: string): Promise<void> {
+       console.log(
+         'PASS fail-fast without Collect and cooperative cascade cancellation with contract isolation'
+       )
++    } catch (cause) {
++      console.error('FLOW SCENARIO FAILURE', cause)
++      console.error(
++        'FLOW DURABLE STATE',
++        (
++          await pool.query(
++            `SELECT id, name, state, delivery_count, flow, failure FROM "${schema}".better_effect_mq_jobs ORDER BY created_at_ms`
++          )
++        ).rows
++      )
++      throw cause
+     } finally {
+       await producer.close()
+     }
+diff --git a/tests/unit/flow-reader.test.ts b/tests/unit/flow-reader.test.ts
+new file mode 100644
+index 0000000..5e32e43
+--- /dev/null
++++ b/tests/unit/flow-reader.test.ts
+@@ -0,0 +1,96 @@
++import { expect, test } from 'bun:test'
++import assert from 'node:assert/strict'
++import { Effect } from 'better-effect'
++import { Flow as EngineFlow } from 'better-effect-mq'
++import { Result } from 'better-result'
++import { z } from 'zod'
++import {
++  Job,
++  Queue,
++  QueueService,
++  flowJob,
++  getQueueDefinition,
++  MqFlowException
++} from '../../src/index.ts'
++import { compileJob } from '../../src/engine/job-compiler.ts'
++import { FlowResultReader } from '../../src/engine/flow-results.ts'
++
++@Queue({ name: 'reader' })
++class ReaderQueue extends QueueService {
++  @Job({ name: 'parent', version: 1 }) readonly parent = this.job({
++    payload: z.string(),
++    result: z.string()
++  })
++  @Job({ name: 'child', version: 1 }) readonly child = this.job({
++    payload: z.string(),
++    result: z.string()
++  })
++}
++const parent = flowJob(ReaderQueue, 'parent')
++const child = flowJob(ReaderQueue, 'child')
++function compiled() {
++  const jobs = getQueueDefinition(new ReaderQueue()).jobs
++  const parentJob = jobs.find((job) => job.property === 'parent')
++  const childJob = jobs.find((job) => job.property === 'child')
++  assert.ok(parentJob && childJob)
++  const p = { registered: parentJob, compiled: compileJob(parentJob) }
++  const c = { registered: childJob, compiled: compileJob(childJob) }
++  return {
++    owner: 'reader',
++    options: { name: 'reader', parent, children: [child], onChildFailure: 'continue' as const },
++    parent: p,
++    children: new Map([[child, c]]),
++    definition: EngineFlow.define('reader', {
++      parent: p.compiled,
++      children: [c.compiled],
++      onChildFailure: 'continue'
++    }),
++    fanOutMethod: 'split',
++    collectMethod: 'finish'
++  }
++}
++function readerFixture() {
++  let reads = 0
++  const gate = Promise.withResolvers<void>()
++  const empty = Effect.fn(async function* () {
++    return Result.ok([])
++  })
++  const reader = new FlowResultReader(compiled(), {
++    counts: { pending: 0, completed: 0, failed: 0, cancelled: 0 },
++    page: () =>
++      Effect.fn(async function* () {
++        reads += 1
++        await gate.promise
++        return Result.ok({ items: [], nextCursor: undefined })
++      }),
++    all: () => empty,
++    forEach: () =>
++      Effect.fn(async function* () {
++        return Result.ok(undefined)
++      })
++  })
++  return { reader, gate, reads: () => reads }
++}
++
++test('unissued flow cursors reject before querying rather than restarting pagination', async () => {
++  const fixture = readerFixture()
++  fixture.gate.resolve()
++  await assert.rejects(fixture.reader.page(child, { cursor: 'invented' }), MqFlowException)
++  expect(fixture.reads()).toBe(0)
++  await fixture.reader.close()
++})
++
++test('closing a phase reader drains an already admitted read and rejects new reads', async () => {
++  const fixture = readerFixture()
++  const page = fixture.reader.page(child)
++  let closed = false
++  const closing = fixture.reader.close().then(() => {
++    closed = true
++  })
++  await assert.rejects(fixture.reader.page(child), MqFlowException)
++  expect(closed).toBe(false)
++  fixture.gate.resolve()
++  await page
++  await closing
++  expect(closed).toBe(true)
++})
