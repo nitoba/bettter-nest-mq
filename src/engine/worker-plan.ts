@@ -1,7 +1,12 @@
 import { CurrentAbortSignal, Effect } from 'better-effect'
 import type { Layer } from 'better-effect'
 import { JobContext, Worker } from 'better-effect-mq'
-import type { WorkerServiceInstance, WorkerServiceToken, FlowHandler, JobId } from 'better-effect-mq'
+import type {
+  WorkerServiceInstance,
+  WorkerServiceToken,
+  FlowHandler,
+  JobId
+} from 'better-effect-mq'
 import { Result } from 'better-result'
 
 import { ContractDefinitionException, JobFailureException } from '../contracts/errors.ts'
