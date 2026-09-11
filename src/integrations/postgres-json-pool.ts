@@ -62,10 +62,22 @@ export function postgresJsonPool(pool: Pool): JsonPool {
     },
     async query<Row>(text: string, values?: QueryValues): Promise<QueryResult<Row>> {
       const client = await pool.connect()
+      const disconnected = Promise.withResolvers<never>()
+      const onError = (error: Error): void => disconnected.reject(error)
+      let releaseError: Error | undefined
+      client.once('error', onError)
       try {
-        return await jsonClient(client).query<Row>(text, values)
+        return await Promise.race([
+          jsonClient(client).query<Row>(text, values),
+          disconnected.promise
+        ])
+      } catch (cause) {
+        // Match native pool.query disposal: an unsuccessful client is not returned as healthy.
+        releaseError = cause instanceof Error ? cause : new Error('PostgreSQL query failed', { cause })
+        throw cause
       } finally {
-        client.release()
+        client.removeListener('error', onError)
+        client.release(releaseError)
       }
     }
   }
