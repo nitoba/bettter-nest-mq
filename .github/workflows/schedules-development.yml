@@ -1,70 +1,43 @@
-name: Schedule contract inspection
+name: Schedule development validation
 
 on:
   push:
     branches: [feat/durable-schedules]
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: schedules-development
+  cancel-in-progress: false
 
 jobs:
-  inspect:
+  validate:
+    if: github.ref == 'refs/heads/feat/durable-schedules'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
-          path: project
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: nitoba/better-effect
-          ref: 42c28fb0af7882eb048ee5d4ab1c1db81142c9dd
-          path: upstream
-          persist-credentials: false
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
-      - name: Observe schedule API regression against baseline
-        working-directory: project
+      - name: Wire checked integration anchors and format authored sources
         run: |
+          node .github/wire-schedules.mjs
           bun install --frozen-lockfile
-          bun test
-      - name: Inspect current guides and exact integration contracts
-        if: always()
-        run: |
-          node --input-type=module <<'NODE'
-          import { readFileSync, readdirSync } from 'node:fs'
-          for (const path of ['README.md','docs/dependencies.md','docs/postgres-json.md','docs/controls.md','docs/contracts.md','docs/connections.md','docs/execution.md','docs/outbox.md','docs/architecture.md','docs/roadmap.md']) {
-            console.log(`GUIDE ${path}\n${readFileSync(`project/${path}`, 'utf8')}`)
-          }
-          for (const path of ['src/engine/connection-definition.ts','src/engine/mq-engine.host.ts','src/engine/job-compiler.ts','src/engine/outbox-plan.ts','src/integrations/postgres-outbox-resource.ts','src/module/mq-module.options.ts','src/module/mq.configuration.ts','src/module/mq-module.definition.ts','.oxlintrc.json']) {
-            console.log(`PROJECT ${path}\n${readFileSync(`project/${path}`, 'utf8')}`)
-          }
-          const sources = {
-            'packages/better-effect-mq/src/schedule/schedules.ts': ['export const JobSchedules','export const encodeSchedulePayload','const makeScheduleRecord','export const reconcileResolved','export const reconcileSchedules'],
-            'packages/better-effect-mq/src/schedule/scheduler.ts': ['private async sweep','tickSchedule(', 'registries:'],
-            'packages/better-effect-mq-postgres/src/schedule.ts': ['export const PostgresJobScheduleStore','const makeLayerFor','async tickSchedule','async upsertSchedule'],
-            'packages/better-effect-mq/src/schedule/memory.ts': ['export const MemoryJobScheduleStore'],
-            'packages/better-effect-mq/src/schedule/store.ts': ['export const JobScheduleStore']
-          }
-          for (const [path, needles] of Object.entries(sources)) {
-            const lines = readFileSync(`upstream/${path}`, 'utf8').split('\n')
-            for (const needle of needles) {
-              const at = lines.findIndex(line => line.includes(needle))
-              if (at >= 0) console.log(`UPSTREAM ${path}:${at+1} ${needle}\n${lines.slice(Math.max(0,at-5),at+130).join('\n')}`)
-            }
-          }
-          for (const pkg of ['better-effect-mq','better-effect-mq-postgres']) {
-            for (const file of readdirSync(`project/node_modules/${pkg}/dist`).filter(file => /\.d\.(mts|ts)$/.test(file))) {
-              const lines = readFileSync(`project/node_modules/${pkg}/dist/${file}`, 'utf8').split('\n')
-              for (const needle of ['declare const JobSchedules','declare const JobScheduler','declare const PostgresJobScheduleStore','interface JobScheduleStoreContract']) {
-                const at = lines.findIndex(line => line.includes(needle))
-                if (at >= 0) console.log(`PUBLISHED ${pkg}/${file}\n${lines.slice(at,at+70).join('\n')}`)
-              }
-            }
-          }
-          NODE
+          bun run format
+          bun run check:tooling
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat: integrate schedule resources and format the Nest implementation'
+            git push origin HEAD:feat/durable-schedules
+          fi
+      - name: Run complete quality gate
+        run: bun run check
