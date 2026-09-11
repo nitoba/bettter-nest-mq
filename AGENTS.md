@@ -2,7 +2,7 @@
 
 ## Scope and status
 
-Read docs/controls.md, README.md and docs/contracts.md, docs/connections.md, docs/execution.md, docs/architecture.md and docs/roadmap.md before changing APIs. M0/M1 foundations, M2 private engine/PostgreSQL lifecycle and M3 core producer/worker execution plus M3.1a distributed controls are implemented. Flows, schedules, transactional outbox, other driver wrappers and execution extensions remain planned. Never simulate planned APIs or silently fall back to memory.
+Read docs/postgres-json.md, docs/controls.md, README.md and docs/contracts.md, docs/connections.md, docs/execution.md, docs/architecture.md and docs/roadmap.md before changing APIs. M0/M1 foundations, M2 private engine/PostgreSQL lifecycle and M3 core producer/worker execution plus M3.1a distributed controls are implemented. Flows, schedules, transactional outbox, other driver wrappers and execution extensions remain planned. Never simulate planned APIs or silently fall back to memory.
 
 ## Toolchain
 
@@ -29,6 +29,7 @@ Read docs/controls.md, README.md and docs/contracts.md, docs/connections.md, doc
 - Custom retry providers and event-based waits remain pending. Test distributed guarantees with independent processes against PostgreSQL, not only the explicitly test-only shared memory reference fixture.
 - Keep Zod/pg and adapter runtime imports out of the root. better-effect, better-result, better-effect-mq and the internal PostgreSQL/outbox adapters are normal dependencies, never consumer peer obligations. Packed consumers must not explicitly declare those internal packages. Verify root usage without pg/Zod, then their selected integration subpaths.
 - Preserve stable named-store tokens: `nestjs/<name>` participates in PostgreSQL's durable namespace. A connection rename is not a harmless refactor.
+- The pinned PostgreSQL adapter expects encoded JSON text. Preserve its private per-query parser boundary; never mutate global/native pg parsers or introduce payload envelopes to conceal scalar/null bugs. Rerun JSON fidelity and native query-error/transaction/listener regressions before changing or upgrading this boundary.
 - Startup validates schema, never applies migrations. Borrowed resources remain caller-owned. Roll back acquisition/activation locally after failed bootstrap; Nest close may not reach destruction hooks.
 - Drain/quiesce workers before stores, then close owned pools. Owned pg error handlers must not log raw clients/credentials.
 - Prepared requests are not transactions. Outbox requires the real domain transaction and at-least-once/idempotency semantics.
