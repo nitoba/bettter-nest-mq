@@ -2,9 +2,9 @@
 
 ## Status
 
-M0 foundation, M1 contracts/Nest registration, M2 runtime/PostgreSQL lifecycle and M3 core producer/worker execution are implemented. The API now publishes and processes actual jobs. It is not full better-effect-mq feature parity: custom retry providers, MQ enhancers/events, other adapters, flows, schedules and transactional outbox are still planned.
+M0 foundation, M1 contracts/Nest registration, M2 runtime/PostgreSQL lifecycle and M3 core producer/worker execution are implemented. The API now publishes and processes actual jobs. It is not full better-effect-mq feature parity: custom retry providers, MQ enhancers/events, other adapters, flows, schedules and ORM transaction bridges are still planned. Native PostgreSQL outbox transactions and a managed publisher are implemented.
 
-Read contracts.md, connections.md and execution.md for the exported behavior. The package remains unreleased at 0.0.0; no simulated methods stand in for missing features.
+Read outbox.md, contracts.md, connections.md and execution.md for the exported behavior. The package remains unreleased at 0.0.0; no simulated methods stand in for missing features.
 
 ## Composition
 
@@ -32,7 +32,7 @@ Wait timeout/abort ends only the wait, not the durable job. execute is publish-a
 
 Worker/Process/JobData/JobContext map actual registered class providers onto the existing supervisor. The handler computation is lazy so the supervisor supplies its attempt scope, abort signal and job context. Nest constructor injection remains ordinary application DI. Request/transient-scoped dependencies get a fresh ContextId per attempt without a fabricated HTTP request.
 
-Discovery rejects conflicting processors, missing contracts, invalid metadata, getters and ambiguous reuse of one JobDefinition for two identities before acquiring resources. Base processors are merged with subclass additions; an overridden method must carry its own parameter annotations to avoid inheriting a wrong positional map. Factory/value workers are not currently supported.
+Discovery rejects conflicting processors, missing contracts, invalid metadata, getters and ambiguous reuse of one JobDefinition for two identities before acquiring resources. Base processors are merged with subclass additions; an overridden method must carry its own parameter annotations to avoid inheriting a wrong positional map. Factory/value workers are not currently supported. The pinned supervisor also requires queue/name/version uniqueness within one Worker even across different connections; use separate Worker Services for those identities. This limitation is validated before acquisition rather than leaking an engine startup failure.
 
 The invocation is not the Nest HTTP pipeline. Method/class guards, pipes, interceptors and filters are rejected explicitly; global HTTP enhancers do not apply. A future MQ enhancer pipeline must define and test its own execution context. Local Worker and Process concurrency limits are implemented; they are not distributed queue limits.
 
@@ -54,11 +54,11 @@ Flows will retain the engine's persisted parent/children fan-out and collection 
 
 Schedules will persist cron/interval/timezone/misfire/overlap decisions and reconcile safely during rolling deployments. Dynamic work belongs in coordinator jobs, not serialized functions or per-replica timers.
 
-Application outbox must share the actual domain transaction. Preparation, append, post-commit publication and settlement remain separate, with independent publication and execution retries. SQL/MongoDB/Redis semantics are not interchangeable; each ORM bridge must establish transaction-resource identity. Application outbox is distinct from internal flow coordination. The current internal outbox dependency does not implement a Nest outbox facade.
+Application outbox must share the actual domain transaction. Preparation, append, post-commit publication and settlement remain separate, with independent publication and execution retries. SQL/MongoDB/Redis semantics are not interchangeable; each ORM bridge must establish transaction-resource identity. Application outbox is distinct from internal flow coordination. The native PostgreSQL facade now implements managed transactions using one actual PoolClient, separate native/adapter JSON views, tracked-operation draining and poison-on-failure. Its opt-in source stores and upstream publisher share the existing runtime and pool. Publisher enablement is independent of worker enablement. Duplicate validation includes destination and dispatch key; repeated callbacks remain an application idempotency concern. No arbitrary external transaction/ORM bridge or automatic callback replay is promised.
 
 ## Verification and release
 
-Real Nest/engine tests cover contracts, scopes, retries, cancellation, concurrency and shutdown. Actual tarballs compile with TS6/7, run with Node/Bun and verify optional dependency isolation. PostgreSQL tests prove persisted jobs/results across recreated producer/worker contexts and exercise ownership/recovery failures. Full parity still needs further distributed/crash/flow/outbox coverage before a production release; no exactly-once external effects or cross-database atomicity is claimed.
+Real Nest/engine tests cover contracts, scopes, retries, cancellation, concurrency and shutdown. Actual tarballs compile with TS6/7, run with Node/Bun and verify optional dependency isolation. PostgreSQL tests prove persisted jobs/results across recreated producer/worker contexts and exercise ownership/recovery failures. Full parity still needs further distributed/crash/flow/ORM transaction coverage before a production release; no exactly-once external effects or cross-database atomicity is claimed.
 
 ## Internal dependency ownership
 

@@ -45,6 +45,11 @@ class EchoWorker {
   primary(@JobData() value: z.output<ReturnType<typeof z.json>>) {
     return value
   }
+}
+
+@Injectable()
+@Worker({ name: 'outbox-target-consumer', concurrency: 4, pollIntervalMs: 10 })
+class TargetEchoWorker {
   @Process(TargetQueue, 'echo')
   target(@JobData() value: z.output<ReturnType<typeof z.json>>) {
     return value
@@ -412,7 +417,7 @@ export async function verifyOutbox(connectionString: string): Promise<void> {
         MqModule.forRoot({ connections: ownRoutes, execution: { outboxPublisher: false } }),
         MqModule.forFeature([PrimaryQueue, TargetQueue])
       ],
-      providers: [EchoWorker]
+      providers: [EchoWorker, TargetEchoWorker]
     })
     class ConsumerModule {}
     const consumer = await NestFactory.createApplicationContext(ConsumerModule, {

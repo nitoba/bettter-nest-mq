@@ -14,7 +14,7 @@ The following are normal dependencies of better-nest-mq, not consumer peer depen
 
 Their compatible versions are pinned and maintained by this package. They appear in the installed dependency tree because their code is reused; they are not copied out or removed. The consumer does not need to list or import them, create a Runtime/Layer, or return a Result from a worker. Native driver objects, such as a borrowed pg Pool, remain part of the selected integration rather than exposing engine objects.
 
-The outbox package is currently an internal dependency required by the upstream PostgreSQL integration. It does not mean the Nest transactional-outbox API has already been implemented. Current features and remaining work are documented in roadmap.md.
+The native PostgreSQL outbox now reuses this internal package through MqOutboxService and the postgresOutbox factory. Consumers still install no additional better-effect packages. Outbox resources are explicitly enabled on their connection; ORM transaction bridges remain separate work. See outbox.md and roadmap.md.
 
 ## Application-facing peers
 
@@ -40,7 +40,7 @@ The package root does not load the PostgreSQL adapter or native driver merely be
 
 ## Verification and version responsibility
 
-Regression tests inspect the package manifest so none of the internal engine/adapter packages can accidentally become consumer peer dependencies. Actual tarball-consumer manifests declare only better-nest-mq, Nest/support peers and the selected pg/Zod integrations. They do not list engine packages, even during PostgreSQL worker and distributed-control tests.
+Regression tests inspect the package manifest so none of the internal engine/adapter packages can accidentally become consumer peer dependencies. Actual tarball-consumer manifests declare only better-nest-mq, Nest/support peers and the selected pg/Zod integrations. They do not list engine packages, even during PostgreSQL worker, distributed-control and transactional-outbox tests.
 
 Library code and public declarations are compiled with TypeScript 6 and the primary compiler. The CI Node 22 and Node 24 jobs are separate compatibility environments, not two Node versions running inside the same application. Bun remains the package manager and test runner; applications select a supported execution runtime.
 

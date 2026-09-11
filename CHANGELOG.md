@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Native PostgreSQL transactional outbox
+
+- Add opt-in outbox stores sharing existing native pools and the private application runtime.
+- Add MqOutboxService diagnostics and a typed postgresOutbox transaction client with query/append, multi-record and generated-ID workflows.
+- Commit domain SQL and outbox rows atomically, poison commit after caught operation failures, drain admitted work and reject escaped transaction handles.
+- Preserve native custom parsers while using the existing corrected JSON view for adapter SQL.
+- Add managed publisher roles, stable request IDs, independent publication retries and full destination/dispatch-key duplicate checks.
+- Qualify uncommitted invisibility, rollback, scalar/null payloads, competing publishers and replay after enqueue-before-ack using installed Node/Bun PostgreSQL consumers.
+- Separate public transaction types from engine/resource implementations; internal dependencies and tooling remain unchanged.
+- Validate unsupported identical cross-connection handler identities before worker resource acquisition.
+
 ### PostgreSQL JSON fidelity — issue #5
 
 - Preserve scalar string payloads/results without reinterpreting JSON-looking text as another type.
