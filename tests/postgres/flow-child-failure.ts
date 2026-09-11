@@ -152,7 +152,9 @@ export async function verifyTypedFlowFailure(connectionString: string): Promise<
         failed: 1,
         cancelled: 0
       })
-      console.log('PASS published PostgreSQL typed-failure outbox and child reports release the parent')
+      console.log(
+        'PASS published PostgreSQL typed-failure outbox and child reports release the parent'
+      )
     } finally {
       await flows.dispose()
     }
