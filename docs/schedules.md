@@ -72,11 +72,11 @@ The scheduler serves the module's default group (`nestjs/schedules` when omitted
 
 The pinned upstream protocol has precise semantics:
 
-| Policy | Behavior on a due record |
-| --- | --- |
-| `run-once` (default) | Emit one job for the pending occurrence and advance beyond the current sweep time. |
-| `catch-up` | Emit up to maxOccurrences overdue slots during this tick. Remaining backlog may be handled by later ticks, including another replica. |
-| `skip` | Emit no job for due slots; advance to a future slot. |
+| Policy               | Behavior on a due record                                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `run-once` (default) | Emit one job for the pending occurrence and advance beyond the current sweep time.                                                    |
+| `catch-up`           | Emit up to maxOccurrences overdue slots during this tick. Remaining backlog may be handled by later ticks, including another replica. |
+| `skip`               | Emit no job for due slots; advance to a future slot.                                                                                  |
 
 Catch-up is bounded to 256 occurrences per tick, the pinned store limit. It is not a global catch-up budget across multiple sweeps or replicas. **The current upstream skip policy has no lateness grace threshold:** every observed due slot is discarded. Do not choose it expecting ordinary periodic jobs to run while only sufficiently old ones are ignored. Use run-once for ordinary recurring work. This facade preserves the protocol rather than silently inventing a new timing algorithm.
 
