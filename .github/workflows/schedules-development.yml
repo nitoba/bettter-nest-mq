@@ -37,8 +37,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
-      - name: Format authored sources without replaying development patches
+      - name: Update status documentation and format authored sources
         run: |
+          node .github/schedule-docs.mjs
           bun install --frozen-lockfile
           bun run format
           bun run check:tooling
@@ -46,7 +47,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -u
           if ! git diff --cached --quiet; then
-            git commit -m 'style: apply upstream formatting to schedule hardening'
+            git commit -m 'docs: update schedule status and apply upstream formatting'
             git push origin HEAD:feat/durable-schedules
           fi
       - name: Verify full quality gate with installed PostgreSQL consumers
