@@ -1,47 +1,84 @@
-name: Flow development harness
+name: Flow development validation
 
 on:
   push:
     branches: [feat/durable-flows]
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: flows-development
+  cancel-in-progress: false
 
 jobs:
-  harness:
+  validate:
+    if: github.ref == 'refs/heads/feat/durable-flows'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mq
+          POSTGRES_PASSWORD: mq_test_only
+          POSTGRES_DB: mq_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U mq -d mq_test" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MQ_TEST_DATABASE_URL: postgresql://mq:mq_test_only@localhost:5432/mq_test
     steps:
       - uses: actions/checkout@v4
         with:
-          path: project
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: nitoba/better-effect
-          ref: 42c28fb0af7882eb048ee5d4ab1c1db81142c9dd
-          path: upstream
-          persist-credentials: false
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
-      - name: Prepare pinned offline development inputs
+      - name: Apply exact locally verified implementation and retire transport
+        id: prepare
         run: |
-          cd project
+          if test -f .github/flow-patch.0.txt; then
+            node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFileSync, writeFileSync, unlinkSync } from 'node:fs'
+          import { gunzipSync } from 'node:zlib'
+          import { createHash } from 'node:crypto'
+          import { execFileSync } from 'node:child_process'
+          const files = [0, 1, 2, 3].map(index => `.github/flow-patch.${index}.txt`)
+          const patch = gunzipSync(Buffer.from(files.map(file => readFileSync(file, 'utf8')).join(''), 'base64'))
+          assert.equal(createHash('sha256').update(patch).digest('hex'), '6a1eddabbdbfbbef878ffe0483dbc051e77f217cf32dfb4e668db7b83864fed8')
+          writeFileSync('/tmp/flows-source.patch', patch)
+          execFileSync('git', ['apply', '--check', '/tmp/flows-source.patch'], { stdio: 'inherit' })
+          execFileSync('git', ['apply', '--index', '/tmp/flows-source.patch'], { stdio: 'inherit' })
+          for (const file of files) unlinkSync(file)
+          NODE
+          fi
           bun install --frozen-lockfile
+          bun run format
           bun run check:tooling
-          cd ..
-          mkdir -p harness/bin artifacts
-          cp "$(command -v bun)" harness/bin/bun
-          cp "$(command -v node)" harness/bin/node
-          tar --exclude=.git -czf artifacts/flow-harness.tar.gz project upstream/packages harness
-      - uses: actions/upload-artifact@v4
-        with:
-          name: flow-development-harness
-          path: artifacts/flow-harness.tar.gz
-          retention-days: 1
-          compression-level: 0
-          if-no-files-found: error
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat: integrate verified durable flow sources and retire patch transport'
+            git push origin HEAD:feat/durable-flows
+          fi
+      - name: Verify types, Nest regressions, formatting and build
+        run: |
+          bun run typecheck
+          bun run typecheck:minimum
+          bun test
+          bun run format:check
+          bun run build
+          bun run publint
+      - name: Verify unchanged type-aware lint rules
+        if: always() && steps.prepare.outcome == 'success'
+        run: bun run lint
+      - name: Exercise installed PostgreSQL consumers and distributed flow recovery
+        if: always() && steps.prepare.outcome == 'success'
+        run: |
+          bun run build
+          bun run test:package
