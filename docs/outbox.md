@@ -53,13 +53,7 @@ Run the existing explicit PostgreSQL migration helper before startup. The shippe
 ```ts
 import { Injectable } from '@nestjs/common'
 import { z } from 'zod'
-import {
-  Job,
-  MqOutboxService,
-  Queue,
-  QueueService,
-  type InputOf
-} from 'better-nest-mq'
+import { Job, MqOutboxService, Queue, QueueService, type InputOf } from 'better-nest-mq'
 import { postgresOutbox } from 'better-nest-mq/postgres'
 
 @Injectable()
