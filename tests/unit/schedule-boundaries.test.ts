@@ -11,7 +11,8 @@ test('a persistent interval is not itself a timer and can span longer periods', 
 test('unknown schedule and misfire options are not silently discarded for JavaScript callers', () => {
   expect(() => Schedule(JSON.parse('{"key":"k","everyMs":1000,"payload":null,"everySecond":true}'))).toThrow(MqScheduleException)
   expect(() => Schedule(JSON.parse('{"key":"k","everyMs":1000,"payload":null,"misfire":{"strategy":"skip","maxOccurrences":5}}'))).toThrow(MqScheduleException)
-  expect(() => new MqConfiguration(JSON.parse('{"schedules":{"group":"g","mode":"validate","autoMigrate":true}}')))).toThrow(MqScheduleException)
+  const configuration = JSON.parse('{"schedules":{"group":"g","mode":"validate","autoMigrate":true}}')
+  expect(() => new MqConfiguration(configuration)).toThrow(MqScheduleException)
 })
 test('schedule option accessors are rejected before any getter is evaluated', () => {
   let invoked = false
