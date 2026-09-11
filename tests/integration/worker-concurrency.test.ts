@@ -3,7 +3,19 @@ import assert from 'node:assert/strict'
 import { Inject, Injectable } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { z } from 'zod'
-import { Job, JobCancelledException, JobContext, JobData, MqModule, MqWorkersService, Process, Queue, QueueService, Worker, type JobExecutionContext } from '../../src/index.ts'
+import {
+  Job,
+  JobCancelledException,
+  JobContext,
+  JobData,
+  MqModule,
+  MqWorkersService,
+  Process,
+  Queue,
+  QueueService,
+  Worker,
+  type JobExecutionContext
+} from '../../src/index.ts'
 import { memoryConnection } from '../fixtures/memory-connection.ts'
 
 @Queue({ name: 'concurrency', connection: 'primary' })
@@ -27,7 +39,13 @@ class Barriers {
 }
 
 @Injectable()
-@Worker({ name: 'concurrency-worker', concurrency: 4, pollIntervalMs: 5, leaseDurationMs: 300, heartbeatIntervalMs: 30 })
+@Worker({
+  name: 'concurrency-worker',
+  concurrency: 4,
+  pollIntervalMs: 5,
+  leaseDurationMs: 300,
+  heartbeatIntervalMs: 30
+})
 class ConcurrentWorker {
   constructor(@Inject(Barriers) private readonly barriers: Barriers) {}
 
@@ -37,8 +55,13 @@ class ConcurrentWorker {
     this.barriers.maximum = Math.max(this.barriers.maximum, this.barriers.active)
     this.barriers.admitted.resolve()
     if (this.barriers.active === 2) this.barriers.twoAdmitted.resolve()
-    try { await this.barriers.release.promise; return value }
-    finally { this.barriers.active -= 1; this.barriers.finished += 1 }
+    try {
+      await this.barriers.release.promise
+      return value
+    } finally {
+      this.barriers.active -= 1
+      this.barriers.finished += 1
+    }
   }
 
   @Process(ConcurrentQueue, 'cancellable')
@@ -56,7 +79,13 @@ class ConcurrentWorker {
 async function createApplication() {
   const fixture = memoryConnection()
   const app = await Test.createTestingModule({
-    imports: [MqModule.forRoot({ connections: { primary: fixture.connection }, shutdown: { gracePeriodMs: 1_000 } }), MqModule.forFeature([ConcurrentQueue])],
+    imports: [
+      MqModule.forRoot({
+        connections: { primary: fixture.connection },
+        shutdown: { gracePeriodMs: 1_000 }
+      }),
+      MqModule.forFeature([ConcurrentQueue])
+    ],
     providers: [Barriers, ConcurrentWorker]
   }).compile()
   await app.init()
@@ -66,16 +95,23 @@ async function createApplication() {
 test('per-handler concurrency is enforced below the worker-wide concurrency', async () => {
   const { app, barriers, queue } = await createApplication()
   try {
-    const ids = await queue.task.enqueueMany(Array.from({ length: 6 }, (_, index) => ({ payload: index })))
+    const ids = await queue.task.enqueueMany(
+      Array.from({ length: 6 }, (_, index) => ({ payload: index }))
+    )
     await barriers.twoAdmitted.promise
     expect(barriers.active).toBe(2)
     barriers.release.resolve()
-    const results = await Promise.all(ids.map((id) => queue.task.awaitResult(id, { timeoutMs: 3_000, pollIntervalMs: 5 })))
+    const results = await Promise.all(
+      ids.map((id) => queue.task.awaitResult(id, { timeoutMs: 3_000, pollIntervalMs: 5 }))
+    )
     expect(results).toEqual([0, 1, 2, 3, 4, 5])
     await app.get(MqWorkersService).awaitIdle({ timeoutMs: 1_000 })
     expect(barriers.maximum).toBe(2)
     expect(barriers.finished).toBe(6)
-  } finally { barriers.release.resolve(); await app.close() }
+  } finally {
+    barriers.release.resolve()
+    await app.close()
+  }
 })
 
 test('cancelling an active job aborts the handler signal and persists cancellation', async () => {
@@ -85,10 +121,15 @@ test('cancelling an active job aborts the handler signal and persists cancellati
     await barriers.cancelStarted.promise
     expect((await queue.cancellable.poll(id))?.state).toBe('active')
     await queue.cancellable.cancel(id)
-    await assert.rejects(queue.cancellable.awaitResult(id, { timeoutMs: 3_000, pollIntervalMs: 5 }), JobCancelledException)
+    await assert.rejects(
+      queue.cancellable.awaitResult(id, { timeoutMs: 3_000, pollIntervalMs: 5 }),
+      JobCancelledException
+    )
     expect(barriers.cancelledSignal?.aborted).toBe(true)
     expect((await queue.cancellable.attempts(id))[0]?.outcome).toBe('cancelled')
-  } finally { await app.close() }
+  } finally {
+    await app.close()
+  }
 })
 
 test('application shutdown drains an admitted handler before releasing its store', async () => {
