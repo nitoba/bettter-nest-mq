@@ -1,5 +1,5 @@
 import { JobSchedules } from 'better-effect-mq'
-import type { JobSchedule, JobScheduleOptions } from 'better-effect-mq'
+import type { JobSchedule, JobScheduleDraft, JobScheduleOptions } from 'better-effect-mq'
 import { MqScheduleException } from '../schedules/errors.ts'
 import { copySchedule, resolveScheduleOptions } from '../schedules/decorator.ts'
 import type { MqScheduleOptions, ScheduleOptions } from '../schedules/types.ts'
@@ -10,6 +10,7 @@ import { compileJob, compileBackoff, type CompiledJob } from './job-compiler.ts'
 
 export type CompiledScheduleRecord = JobSchedule<CompiledJob, string, string>
 export interface CompiledSchedule {
+  readonly draft: JobScheduleDraft<CompiledJob, string>
   readonly registered: RegisteredJob
   readonly schedule: CompiledScheduleRecord
   readonly encoded: JobJsonValue
@@ -61,7 +62,7 @@ export async function compileSchedule<Input>(
     const schedule = registry.schedules[0]
     if (schedule === undefined)
       throw new MqScheduleException('definition', 'Schedule registry contains no declaration')
-    return { registered, schedule, encoded }
+    return { registered, schedule, encoded, draft }
   } catch (cause) {
     if (cause instanceof MqScheduleException) throw cause
     throw new MqScheduleException('definition', 'Schedule compilation failed', { cause })

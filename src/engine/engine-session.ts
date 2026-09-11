@@ -14,7 +14,8 @@ import type {
   NamedSchedule,
   OperationSchedule,
   EngineScheduler,
-  ScheduleRegistry
+  ScheduleRegistry,
+  ScheduleDrafts
 } from './schedule-plan.ts'
 import type { CompiledSchedule } from './schedule-compiler.ts'
 import { Effect, Layer, Runtime } from 'better-effect'
@@ -403,7 +404,10 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
     const result = await runtime.run(() =>
       Effect.gen(async function* () {
         return Result.ok(
-          yield* JobSchedules.reconcile<ScheduleRegistry>(definition, { removal: 'warn' })
+          yield* JobSchedules.reconcile<string, ScheduleDrafts, readonly OperationStoreToken[]>(
+            definition,
+            { removal: 'warn' }
+          )
         )
       })
     )

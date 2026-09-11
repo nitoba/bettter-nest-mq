@@ -139,7 +139,7 @@ export function resolveScheduleOptions(
   scheduleName(resolved.group, 'schedules.group')
   requireInteger(resolved.sweepIntervalMs, 'schedules.sweepIntervalMs', 1)
   requireInteger(resolved.batchSize, 'schedules.batchSize', 1)
-  requireInteger(resolved.maxStoreRetries, 'schedules.maxStoreRetries')
+  requireInteger(resolved.maxStoreRetries, 'schedules.maxStoreRetries', 1)
   requireInteger(resolved.retryDelayMs, 'schedules.retryDelayMs')
   return Object.freeze(resolved)
 }
