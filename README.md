@@ -115,10 +115,10 @@ The examples describe the actual local/tarball API, not a published npm release.
 
 ## PostgreSQL setup
 
-Consumers of the optional PostgreSQL subpath install its peers alongside the local package tarball:
+Consumers of the PostgreSQL subpath install only the selected native driver alongside the local package tarball; internal engine adapters install automatically:
 
 ```sh
-bun add pg@^8.16.3 better-effect-mq-postgres@0.1.3 better-effect-mq-outbox@0.1.3
+bun add pg@^8.16.3
 bun add -d @types/pg
 ```
 

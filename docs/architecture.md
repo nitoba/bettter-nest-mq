@@ -2,7 +2,7 @@
 
 ## Status
 
-M0 foundation, M1 contracts/Nest registration, M2 runtime/PostgreSQL lifecycle and M3 core producer/worker execution are implemented. The API now publishes and processes actual jobs. It is not full better-effect-mq feature parity: distributed-control APIs, custom retry providers, MQ enhancers/events, other adapters, flows, schedules and transactional outbox are still planned.
+M0 foundation, M1 contracts/Nest registration, M2 runtime/PostgreSQL lifecycle and M3 core producer/worker execution are implemented. The API now publishes and processes actual jobs. It is not full better-effect-mq feature parity: custom retry providers, MQ enhancers/events, other adapters, flows, schedules and transactional outbox are still planned.
 
 Read contracts.md, connections.md and execution.md for the exported behavior. The package remains unreleased at 0.0.0; no simulated methods stand in for missing features.
 
