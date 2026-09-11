@@ -17,11 +17,23 @@ ${text.slice(end)}`
 }
 const tests = 'tests/unit/outbox-contracts.test.ts'
 text = readFileSync(tests, 'utf8')
-writeFileSync(tests, text.replace("expect(record.request.id).toBe('explicit-job')", "assert.equal(record.request.id, 'explicit-job')"))
+writeFileSync(
+  tests,
+  text.replace(
+    "expect(record.request.id).toBe('explicit-job')",
+    "assert.equal(record.request.id, 'explicit-job')"
+  )
+)
 const packages = 'scripts/test-package.ts'
 text = readFileSync(packages, 'utf8')
 if (existsSync('tests/package/consumer/outbox.ts') && !text.includes("'json-fidelity', 'outbox'")) {
   const previous = "['codec', 'postgres', 'execution', 'controls', 'json-fidelity']"
   assert.equal(text.split(previous).length, 2)
-  writeFileSync(packages, text.replace(previous, "['codec', 'postgres', 'execution', 'controls', 'json-fidelity', 'outbox']"))
+  writeFileSync(
+    packages,
+    text.replace(
+      previous,
+      "['codec', 'postgres', 'execution', 'controls', 'json-fidelity', 'outbox']"
+    )
+  )
 }
