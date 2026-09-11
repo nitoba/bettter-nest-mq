@@ -1,0 +1,62 @@
+name: Flow contract inspection
+
+on:
+  push:
+    branches: [feat/durable-flows]
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: project
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: nitoba/better-effect
+          ref: 42c28fb0af7882eb048ee5d4ab1c1db81142c9dd
+          path: upstream
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Observe missing flow API against the passing baseline
+        working-directory: project
+        run: |
+          bun install --frozen-lockfile
+          bun test
+      - name: Inspect guides and exact flow integration contracts
+        if: always()
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, readdirSync } from 'node:fs'
+          for (const file of ['docs/dependencies.md','docs/contracts.md','docs/connections.md','docs/execution.md','docs/controls.md','docs/outbox.md','docs/postgres-json.md','src/engine/job-compiler.ts','src/engine/job-client.ts','src/engine/connection-definition.ts','src/engine/operation-store.ts','src/integrations/postgres.ts','src/jobs/types.ts','src/workers/decorators.ts','src/workers/types.ts','src/engine/engine-session.ts']) console.log(`PROJECT ${file}\n${readFileSync(`project/${file}`, 'utf8')}`)
+          const sources = {
+            'packages/better-effect-mq-postgres/src/flow.ts': ['const makeLayerFor','export const PostgresFlowStore','const rowJson','registerParent(', 'registerChild('],
+            'packages/better-effect-mq/src/store/flow.ts': ['export interface','export const'],
+            'packages/better-effect-mq/src/store/flow-v2.ts': ['export interface','export type'],
+            'packages/better-effect-mq/src/worker/types.ts': ['WorkerFlowRegistration','flows?:'],
+            'packages/better-effect-mq/src/worker/supervisor.ts': ['private async runFlow', 'private async executeFlow','private makeFlowResults','private async fanOut','flowStore.fanOut','flowStores.get(', 'Flow.children'],
+          }
+          for (const [path, needles] of Object.entries(sources)) {
+            let text
+            try { text = readFileSync(`upstream/${path}`, 'utf8') } catch { console.log(`MISSING ${path}`); continue }
+            const lines = text.split('\n')
+            for (const needle of needles) for (let at = 0; at < lines.length; at++) if (lines[at].includes(needle)) console.log(`UPSTREAM ${path}:${at+1}\n${lines.slice(Math.max(0,at-4),at+55).join('\n')}`)
+          }
+          for (const pkg of ['better-effect-mq','better-effect-mq-postgres']) for (const file of readdirSync(`project/node_modules/${pkg}/dist`).filter(file => /\.d\.(mts|ts)$/.test(file))) {
+            const lines = readFileSync(`project/node_modules/${pkg}/dist/${file}`, 'utf8').split('\n')
+            for (const needle of ['declare const FlowStore','declare const PostgresFlowStore','interface FlowStoreV2','interface GetFlowRequest','type FlowSnapshot','type FlowParentRecord','WorkerFlowRegistration']) {
+              const at = lines.findIndex(line => line.includes(needle))
+              if (at >= 0) console.log(`PUBLISHED ${pkg}/${file}:${at+1}\n${lines.slice(Math.max(0,at-3),at+90).join('\n')}`)
+            }
+          }
+          NODE
