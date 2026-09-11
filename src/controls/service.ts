@@ -7,6 +7,10 @@ export const QUEUE_CONTROLS_MONITOR = Symbol('MqQueueControlsMonitor')
 @Injectable()
 export class MqQueueControlsService implements QueueControlsMonitor {
   constructor(@Inject(QUEUE_CONTROLS_MONITOR) private readonly monitor: QueueControlsMonitor) {}
-  get(queue: Type<QueueService>): Promise<QueueControlsSnapshot | undefined> { return this.monitor.get(queue) }
-  reconcile(): Promise<readonly QueueControlsReport[]> { return this.monitor.reconcile() }
+  get(queue: Type<QueueService>): Promise<QueueControlsSnapshot | undefined> {
+    return this.monitor.get(queue)
+  }
+  reconcile(): Promise<readonly QueueControlsReport[]> {
+    return this.monitor.reconcile()
+  }
 }

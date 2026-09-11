@@ -12,6 +12,7 @@ import type { RegisteredJob } from '../contracts/queue-definition.ts'
 import { bindJobClient, unbindJobClient } from '../jobs/binding.ts'
 import { MqConfiguration } from '../module/mq.configuration.ts'
 import { MqRegistry } from '../module/mq.registry.ts'
+import { QueueControlsCoordinator } from './queue-controls.ts'
 import { EngineSession } from './engine-session.ts'
 import { compileJob, type CompiledJob } from './job-compiler.ts'
 import { createJobClient } from './job-client.ts'
@@ -20,6 +21,7 @@ import { discoverWorkers } from './worker-discovery.ts'
 @Injectable()
 export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
   readonly session: EngineSession
+  readonly controls: QueueControlsCoordinator
   private readonly bindingOwner = Symbol('MqJobBindingOwner')
   private readonly bound: JobContract[] = []
 
@@ -32,6 +34,11 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
     this.session = new EngineSession(
       configuration.options.connections,
       configuration.options.shutdown
+    )
+    this.controls = new QueueControlsCoordinator(
+      this.session,
+      registry,
+      configuration.options.controls
     )
   }
 
@@ -60,6 +67,7 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
     try {
       await this.session.start(this.registry.queues(), plans)
       if (this.session.state === 'ready') {
+        await this.controls.initialize()
         for (const [contract, { registered, compiled }] of entries) {
           bindJobClient(
             contract,

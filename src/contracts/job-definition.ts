@@ -1,3 +1,4 @@
+import { validateDispatchKey } from '../controls/decorator.ts'
 import { jobClient } from '../jobs/binding.ts'
 import type {
   JobAttempt,
@@ -23,6 +24,7 @@ export interface JobSchemas {
 export abstract class JobContract {
   abstract readonly schemas: JobSchemas
   abstract getIdempotencyKey(payload: SchemaOutput<ValueSchema>): string | undefined
+  abstract getDispatchKey(payload: SchemaOutput<ValueSchema>): string | undefined
   abstract canRetry(failure: SchemaOutput<ValueSchema>): boolean
 }
 
@@ -40,6 +42,7 @@ export interface JobOptions<
   readonly payload: Payload
   readonly result: Result
   readonly failure?: Failure
+  readonly dispatchKey?: (payload: SchemaOutput<Payload>) => string | undefined
   readonly idempotencyKey?: (payload: SchemaOutput<Payload>) => string
   readonly retryable?: (failure: FailureOutput<Failure>) => boolean
 }
@@ -55,6 +58,7 @@ export class JobDefinition<
     result: Result
     failure: Failure | undefined
   }>
+  private readonly dispatchKeyFactory: JobOptions<Payload, Result, Failure>['dispatchKey']
   private readonly keyFactory: JobOptions<Payload, Result, Failure>['idempotencyKey']
   private readonly retryClassifier: JobOptions<Payload, Result, Failure>['retryable']
 
@@ -69,6 +73,7 @@ export class JobDefinition<
       result: options.result,
       failure: options.failure
     })
+    this.dispatchKeyFactory = options.dispatchKey
     this.keyFactory = options.idempotencyKey
     this.retryClassifier = options.retryable
   }
@@ -117,18 +122,38 @@ export class JobDefinition<
     return key
   }
 
+  override getDispatchKey(payload: SchemaOutput<Payload>): string | undefined {
+    const key = this.dispatchKeyFactory?.(payload)
+    return key === undefined ? undefined : validateDispatchKey(key)
+  }
+
+  private publicationOptions(
+    payload: SchemaOutput<Payload>,
+    options: JobEnqueueOptions | undefined
+  ): JobEnqueueOptions | undefined {
+    const derived = this.getDispatchKey(payload)
+    const supplied = options?.dispatchKey
+    if (supplied !== undefined) validateDispatchKey(supplied)
+    if (derived !== undefined && supplied !== undefined && derived !== supplied)
+      throw new ContractDefinitionException(
+        'An explicit dispatchKey cannot override the key derived by the job contract'
+      )
+    return derived === undefined ? options : { ...options, dispatchKey: derived }
+  }
+
   override canRetry(failure: FailureOutput<Failure>): boolean {
     return this.retryClassifier?.(failure) ?? false
   }
 
   async enqueue(input: SchemaInput<Payload>, options?: JobEnqueueOptions): Promise<string> {
     const client = jobClient<SchemaOutput<Result>, FailureOutput<Failure>>(this)
-    return client.enqueue(await this.encodePayload(await this.parsePayload(input)), options)
+    const value = await this.parsePayload(input)
+    return client.enqueue(await this.encodePayload(value), this.publicationOptions(value, options))
   }
 
   async enqueueDecoded(value: SchemaOutput<Payload>, options?: JobEnqueueOptions): Promise<string> {
     const client = jobClient<SchemaOutput<Result>, FailureOutput<Failure>>(this)
-    return client.enqueue(await this.encodePayload(value), options)
+    return client.enqueue(await this.encodePayload(value), this.publicationOptions(value, options))
   }
 
   async enqueueMany(
@@ -137,8 +162,10 @@ export class JobDefinition<
     const client = jobClient<SchemaOutput<Result>, FailureOutput<Failure>>(this)
     const encoded = await Promise.all(
       items.map(async (item): Promise<JobEnqueueItem<string>> => {
-        const payload = await this.encodePayload(await this.parsePayload(item.payload))
-        return item.options === undefined ? { payload } : { payload, options: item.options }
+        const value = await this.parsePayload(item.payload)
+        const payload = await this.encodePayload(value)
+        const options = this.publicationOptions(value, item.options)
+        return options === undefined ? { payload } : { payload, options }
       })
     )
     return client.enqueueMany(encoded)
@@ -146,7 +173,8 @@ export class JobDefinition<
 
   async prepare(input: SchemaInput<Payload>, options?: JobEnqueueOptions): Promise<PreparedJob> {
     const client = jobClient<SchemaOutput<Result>, FailureOutput<Failure>>(this)
-    return client.prepare(await this.encodePayload(await this.parsePayload(input)), options)
+    const value = await this.parsePayload(input)
+    return client.prepare(await this.encodePayload(value), this.publicationOptions(value, options))
   }
 
   async poll(

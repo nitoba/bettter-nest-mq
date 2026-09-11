@@ -1,5 +1,16 @@
 import 'reflect-metadata'
 
+export { QueueControls } from './controls/decorator.ts'
+export { MqQueueControlsService } from './controls/service.ts'
+export { QueueControlsException } from './controls/errors.ts'
+export type { QueueControlsPhase } from './controls/errors.ts'
+export type {
+  QueueControlsOptions,
+  MqControlsOptions,
+  QueueControlsSnapshot,
+  QueueControlsReport
+} from './controls/types.ts'
+
 export { MqModule } from './module/mq.module.ts'
 export { MqConfiguration } from './module/mq.configuration.ts'
 export { MqRegistry } from './module/mq.registry.ts'

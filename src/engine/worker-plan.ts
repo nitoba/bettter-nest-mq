@@ -8,7 +8,7 @@ import { JobFailureException } from '../contracts/errors.ts'
 import type { RegisteredJob } from '../contracts/queue-definition.ts'
 import type { JobExecutionContext, ProcessOptions, WorkerOptions } from '../workers/types.ts'
 import type { MqShutdownOptions } from '../module/mq-module.options.ts'
-import type { NamedStore } from './connection-definition.ts'
+import type { OperationStore } from './operation-store.ts'
 import type { CompiledJob, ContractValue } from './job-compiler.ts'
 import { validateDomainFailure } from './job-compiler.ts'
 
@@ -16,7 +16,7 @@ export type EngineWorker = WorkerServiceInstance<`nestjs.worker/${string}`>
 export interface WorkerPlan {
   readonly name: string
   readonly token: WorkerServiceToken<`nestjs.worker/${string}`>
-  readonly layer: Layer<EngineWorker, NamedStore>
+  readonly layer: Layer<EngineWorker, OperationStore>
 }
 
 export interface WorkerInvocation {

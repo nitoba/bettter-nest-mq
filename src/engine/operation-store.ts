@@ -15,9 +15,15 @@ export function operationStoreToken(name: string): OperationStoreToken {
 }
 
 /** Keep the raw token/namespace unchanged; the additional token is an in-runtime protocol view. */
-export function operationStoreLayer(name: string, queues: readonly QueueDefinition[]): Layer<OperationStore, NamedStore> {
+export function operationStoreLayer(
+  name: string,
+  queues: readonly QueueDefinition[]
+): Layer<OperationStore, NamedStore> {
   const raw = namedStoreToken(name)
   return Layer.gen(operationStoreToken(name), async function* () {
-    return dispatchStore(yield* raw, queues.filter((queue) => queue.connection === name))
+    return dispatchStore(
+      yield* raw,
+      queues.filter((queue) => queue.connection === name)
+    )
   })
 }

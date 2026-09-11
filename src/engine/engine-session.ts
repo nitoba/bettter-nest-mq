@@ -16,7 +16,9 @@ import { MqJobException } from '../jobs/errors.ts'
 import type { MqShutdownOptions } from '../module/mq-module.options.ts'
 import type { WorkerIdleOptions, WorkerMonitor, WorkerSnapshot } from '../workers/types.ts'
 import { connectionDefinition, copyConnections, namedStoreToken } from './connection-definition.ts'
-import type { AcquiredConnection, NamedStore, NamedStoreToken } from './connection-definition.ts'
+import type { AcquiredConnection, NamedStore } from './connection-definition.ts'
+import { operationStoreLayer } from './operation-store.ts'
+import type { OperationStore, OperationStoreToken } from './operation-store.ts'
 import type { EngineWorker, WorkerPlan } from './worker-plan.ts'
 
 interface ReadyConnection {
@@ -37,7 +39,7 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
   private currentState: MqEngineState = 'idle'
   private readonly configured: MqConnectionMap | undefined
   private readonly shutdown: Readonly<Required<MqShutdownOptions>>
-  private runtime: Runtime<NamedStore | EngineWorker | Clock> | undefined
+  private runtime: Runtime<NamedStore | OperationStore | EngineWorker | Clock> | undefined
   private acquired: AcquiredConnection[] = []
   private ready = new Map<string, ReadyConnection>()
   private snapshots: ReadonlyArray<MqConnectionSnapshot> = Object.freeze([])
@@ -123,8 +125,11 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
         return
       }
       const stores = Layer.merge(...bindings.map((binding) => binding.resource.layer))
+      const operations = Layer.merge(
+        ...bindings.map((binding) => operationStoreLayer(binding.name, queues))
+      )
       const workers = Layer.merge(...this.plans.map((plan) => plan.layer))
-      this.runtime = await Runtime.make(Layer.merge(ClockLive, stores, workers), {
+      this.runtime = await Runtime.make(Layer.merge(ClockLive, stores, operations, workers), {
         onCleanupFailure: (diagnostic) => {
           this.runtimeCleanupErrors.push(
             new Error('MQ runtime cleanup diagnostic', { cause: diagnostic })
@@ -222,7 +227,7 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
   }
 
   async runOperation<Value, Failure>(
-    operation: () => JobOperation<Value, Failure, NamedStoreToken, true>
+    operation: () => JobOperation<Value, Failure, OperationStoreToken, true>
   ): Promise<Result<Value, Failure>> {
     const runtime = this.runtime
     if (this.state !== 'ready' || runtime === undefined)

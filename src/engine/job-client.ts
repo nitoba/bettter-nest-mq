@@ -7,7 +7,8 @@ import type {
 import { JobExecutionCancelledError, JobNotCancellableError } from 'better-effect-mq'
 import { Result } from 'better-result'
 
-import { JobFailureException } from '../contracts/errors.ts'
+import { validateDispatchKey } from '../controls/decorator.ts'
+import { ContractDefinitionException, JobFailureException } from '../contracts/errors.ts'
 import { requireInteger } from '../contracts/policies.ts'
 import type { RegisteredJob } from '../contracts/queue-definition.ts'
 import type { JobClient } from '../jobs/binding.ts'
@@ -33,6 +34,11 @@ function enqueueOptions(
   registered: RegisteredJob,
   options: JobEnqueueOptions = {}
 ): EngineEnqueueOptions {
+  if (options.dispatchKey !== undefined) validateDispatchKey(options.dispatchKey)
+  if (registered.controls?.perKeyConcurrency !== undefined && options.dispatchKey === undefined)
+    throw new ContractDefinitionException(
+      'A per-key-limited queue requires a dispatchKey on every new job'
+    )
   const { policy } = registered
   const retry = options.retry ?? policy.retry
   const fields = {
