@@ -1,30 +1,35 @@
-# Execution extensions implementation plan
+# Execution extensions implementation and qualification
 
-> Execute the approved M3.1b roadmap in the isolated `work` branch. Do not publish or change repository settings. No subagent executor is available in this session.
+**Scope:** M3.1b in PR #10, on the isolated `work` branch. Named/versioned retry providers and an explicit MQ enhancer pipeline; no publication, new runtime, dependency upgrade or repository settings change. No subagent executor was available.
 
-**Goal:** Deliver named/versioned Nest retry providers and an explicit MQ enhancer pipeline without replacing the upstream supervisor.
+**Baseline:** main `ef06881367233c790e308191bc0b1510c3bb0b1c`; Bun 1.4.2; TypeScript 6/7; 266 source tests and 20 unchanged tooling files.
 
-**Architecture:** Retry decisions are synchronous static Nest providers, adapted to native Retry.custom. An internal metadata reference fences rolling policy changes; only references and native retry timestamps persist. MQ-specific decorators compose registered providers inside the existing attempt/phase context, leaving HTTP metadata rejected.
+## Implemented retry providers
 
-**Baseline:** main ef06881367233c790e308191bc0b1510c3bb0b1c; Bun 1.4.2; TypeScript 6/7; unchanged 20 tooling files. No dependency upgrade, SQL migration, new runtime or mandatory consumer dependency.
+- [x] Reproduce rejection of custom producer compilation before adding support.
+- [x] Add RetryPolicy metadata, public decision contracts and unique static provider discovery. Reject missing, duplicate or scoped policies before acquiring storage for consumed jobs.
+- [x] Adapt native Retry.custom without serializing callbacks. Keep producer-only contexts independent of policy implementation.
+- [x] Preserve the reserved name/version reference across enqueue/batch/prepare, schedules, flow children and outbox. Reject caller overrides and mismatches before business code.
+- [x] Test native retry timing, predicates/budgets, stopping/throwing/async/invalid decisions and independent application contexts.
 
-## Retry providers
+## Implemented MQ enhancers
 
-- [x] Run the baseline (266 passing tests) and reproduce rejection of custom producer compilation in tests/unit/custom-retry.test.ts.
-- [ ] Add RetryPolicy metadata, MqRetryPolicy and context/decision contracts. Discover unique static providers; reject missing/duplicate/scoped policies before store acquisition for consumed jobs.
-- [ ] Adapt native Retry.custom in job compilation. Keep producer-only contexts independent of policy implementation. Persist `__better_nest_mq_retry` as a JSON name/version tuple; reject caller overrides and different publication-time policies.
-- [ ] Apply that boundary to enqueue/batch/prepare, schedules, flow child plans, outbox validation and worker/flow invocations. Reject missing/mismatched references before business code.
-- [ ] Test native persisted retry timing, typed predicates and budgets, rejected/throwing/async decisions, reference mismatches, aliases and independent application contexts. Verify real PostgreSQL restart through installed packages.
+- [x] Reproduce missing decorator behavior before implementing the public UseMqGuards/Pipes/Interceptors/Filters API.
+- [x] Resolve enhancers with the worker's fresh ContextId. Compose deterministic class/method stages and nearest supporting filters; revalidate decoded pipe outputs.
+- [x] Close single-use continuations on return and drain admitted downstream calls before settlement/resource release.
+- [x] Apply the same pipeline to Process, FanOut and Collect. Preserve HTTP enhancer rejection and native cancellation, schema and lease authority.
+- [x] Test order, shared scopes, inheritance/overrides, Date codecs, filter outputs, invalid payloads, accessor preflight, cancellation and continuation lifecycle.
 
-## MQ enhancers
+## Qualification evidence and remaining gate
 
-- [ ] Add explicit UseMqGuards/Pipes/Interceptors/Filters and facade-owned interfaces; test exports before implementation.
-- [ ] Resolve all providers with the worker's fresh Nest ContextId. Execute class then method guards/pipes/interceptors, then handler; handle failures with nearest matching filters. Revalidate transformed decoded payloads through the existing codec boundary.
-- [ ] Close interceptor next handles on return, prevent repeated dispatch, drain admitted calls, and honor cancellation before business invocation. Apply to Process, FanOut and Collect without leaking readers beyond the phase.
-- [ ] Test order, scopes, inheritance/override, failures, invalid payload/results, cancellation, escaped/repeated next, startup validation and flow phases. Keep HTTP enhancer rejection.
+The local source suite has **293 passing tests, zero failures**. Both compilers, formatting, build/declarations, publint, the 20-file tooling integrity check and diff whitespace validation passed. The native Oxlint binary crashes in this container; neither its rules nor configuration was changed. The Node 22 and Node 24 jobs of PR CI **34655507037** passed the complete quality gate, including type-aware lint and installed non-database consumers.
 
-## Qualification
+The first live PostgreSQL run reached the newly added extension fixture after the existing database scenarios passed, then correctly rejected its schedule write because the fixture omitted explicit reconcile mode. The fixture now sets `schedules: { mode: 'reconcile' }`; the production guard remains unchanged.
 
-- [ ] Run focused tests and negative type tests, then both compilers, full tests, formatter, build, type-aware lint and publint locally.
-- [ ] Remove the temporary read-only toolchain export workflow before delivery. Open a PR with code, documentation and precise evidence; run the retained Node22/24 and live PostgreSQL installed-consumer CI on its exact head.
-- [ ] Mark only delivered roadmap items complete. Durable events, ORM bridges and additional adapters remain separate work.
+The retained, read-only CI must qualify the final head's entire PostgreSQL matrix, including the new installed-package tests for producer-only references, outbox and schedules, persisted retry delays across recreated worker contexts, and custom child retries with scoped flow enhancers. Exact final run results belong in PR #10, not inferred from previous commits. All temporary development/transfer helpers have been removed from the branch tree.
+
+## Explicit compatibility boundary
+
+Upstream issue **nitoba/better-effect#389** tracks the pinned engine's incompatible representations for per-child backoff overrides. The facade inherits declared child policies, permits compatible attempt-budget changes and rejects changed backoffs before manifest creation. No native engine fix or release is claimed here.
+
+The roadmap marks only retry providers and MQ enhancers implemented. Durable events, ORM transaction bridges, other adapters and operational/release qualification remain separate work.
