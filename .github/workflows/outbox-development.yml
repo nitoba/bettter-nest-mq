@@ -1,0 +1,43 @@
+name: Outbox development validation
+
+on:
+  push:
+    branches: [feat/transactional-outbox]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: outbox-development
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/feat/transactional-outbox'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Wire the checked integration and format authored files
+        run: |
+          node .github/apply-outbox.mjs
+          bun install --frozen-lockfile
+          bun run format
+          bun run check:tooling
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat: wire opt-in outbox resources into the existing Nest runtime'
+            git push origin HEAD:feat/transactional-outbox
+          fi
+      - name: Verify the complete quality gate
+        run: bun run check
