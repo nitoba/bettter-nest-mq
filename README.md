@@ -2,7 +2,7 @@
 
 NestJS-native producers and decorated workers backed by the better-effect-mq engine.
 
-**Status: M3 core execution and M3.1a distributed controls are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can now be published, processed, retried, cancelled and queried through the Nest facade. Flows, schedules, transactional outbox and additional integrations remain on the roadmap.
+**Status: Core execution, distributed controls and the native PostgreSQL transactional outbox are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can now be published, processed, retried, cancelled and queried through the Nest facade. Flows, schedules, ORM transaction bridges and additional integrations remain on the roadmap.
 
 Repository: `nitoba/bettter-nest-mq` (three `t` characters). Package name: `better-nest-mq`.
 
@@ -12,7 +12,25 @@ Queue Services declare typed jobs using Standard Schema or optional Zod codecs. 
 
 Producers support enqueue, decoded enqueue, batches, preparation without publication, polling, result waiting, publish-and-wait execution, attempt history, promotion, retry and cancellation. Workers support known failures, configurable retries, execution timeout, local worker/handler concurrency, cooperative cancellation and attempt-local scoped dependencies. PostgreSQL resource ownership, explicit migrations and live connection probes remain available.
 
-See [PostgreSQL JSON fidelity](docs/postgres-json.md), [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+See [transactional outbox](docs/outbox.md), [PostgreSQL JSON fidelity](docs/postgres-json.md), [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+
+## Transactional outbox
+
+Enable `outbox: true` on a PostgreSQL connection, inject `MqOutboxService`, and obtain a typed client with `postgresOutbox(service, 'primary')` from better-nest-mq/postgres. Domain SQL and outbox appends share the same real transaction client:
+
+```ts
+const prepared = await reports.summarize.prepare({ values: [10, 20, 30] })
+await postgresOutbox(outboxes, 'primary').transaction(
+  { id: operationId, job: prepared },
+  async (tx) => {
+    await tx.query('INSERT INTO report_requests (id) VALUES ($1)', [operationId])
+  }
+)
+```
+
+The report_requests table and operationId belong to the application. The publisher sees committed rows only; callback or append failures roll back both writes. Multiple records and dynamic `tx.append` calls are supported. The transaction handle exposes only query/append and closes with its callback. Native application parsers remain unchanged.
+
+Publisher and worker roles are independent: a domain-only process sets `execution: { workers: false, outboxPublisher: false }`, while a publisher process enables outboxPublisher for the same durable source configuration. Publication retries are separate from job attempts, with stable request identities and at-least-once recovery. No second runtime/pool or additional consumer-installed engine dependency is required. See [docs/outbox.md](docs/outbox.md) for the complete Service example, explicit migration prerequisite, duplicate semantics and transaction restrictions.
 
 ## PostgreSQL JSON correction
 
@@ -126,7 +144,7 @@ bun add pg@^8.16.3
 bun add -d @types/pg
 ```
 
-The engine and its PostgreSQL/outbox adapters are normal internal dependencies, installed automatically with this library. Nest consumers do not install better-effect, better-result or any better-effect-mq package manually. Only the chosen native driver/schema library is application-facing. The root remains usable without loading pg or Zod, and the internal outbox dependency does not enable the pending Nest transactional-outbox API. See [dependency ownership](docs/dependencies.md).
+The engine and its PostgreSQL/outbox adapters are normal internal dependencies, installed automatically with this library. Nest consumers do not install better-effect, better-result or any better-effect-mq package manually. Only the chosen native driver/schema library is application-facing. The root remains usable without loading pg or Zod, and outbox storage is enabled explicitly with postgres({ outbox: true }), not merely by installing its internal dependency. See [dependency ownership](docs/dependencies.md).
 
 Execute migrations deliberately in a deployment script:
 
@@ -156,7 +174,7 @@ Input and decoded types remain distinct through `InputOf`, `PayloadOf`, `ResultO
 
 `MqConnectionsService` exposes safe connection snapshots/live probes. `MqWorkersService` exposes local state and awaitIdle; idle does not mean every delayed job in the database has completed. Shutdown detaches producers, stops admission and drains/cooperatively aborts workers before releasing stores and owned pools.
 
-Current boundaries: polling result waits only; class-based Worker providers; explicit JobData/JobContext parameters; no HTTP enhancer execution. Method/class HTTP guards, pipes, interceptors and filters are rejected instead of silently ignored. Global HTTP enhancers do not apply. Named custom retry providers, durable events, other adapters, flows, schedules and transactional outbox are still pending.
+Current boundaries: polling result waits only; class-based Worker providers; explicit JobData/JobContext parameters; no HTTP enhancer execution. Method/class HTTP guards, pipes, interceptors and filters are rejected instead of silently ignored. Global HTTP enhancers do not apply. Named custom retry providers, durable events, other adapters, flows, schedules and ORM outbox bridges are still pending. Native PostgreSQL outbox transactions and a managed publisher are available.
 
 ## Development and tests
 

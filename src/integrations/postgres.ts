@@ -7,20 +7,22 @@ import {
   validatePool,
   validateSchema
 } from 'better-effect-mq-postgres'
-
 import type { MqCapability, MqConnection } from '../connections/connection.ts'
 import { MqConnectionException } from '../connections/errors.ts'
 import { requireInteger } from '../contracts/policies.ts'
 import { defineConnection } from '../engine/connection-definition.ts'
+import type { AcquiredConnection } from '../engine/connection-definition.ts'
 import { postgresJsonPool } from './postgres-json-pool.ts'
+import { postgresOutboxLayer } from './postgres-outbox-resource.ts'
 
 interface PostgresCommonOptions {
   readonly schema?: string
   readonly namespace?: string
   readonly validateSchema?: boolean
   readonly requireCapabilities?: ReadonlyArray<MqCapability>
+  /** Enable a transactional outbox sharing this connection's native pool. */
+  readonly outbox?: boolean
 }
-
 export type PostgresConnectionOptions = PostgresCommonOptions &
   (
     | {
@@ -39,7 +41,6 @@ export type PostgresConnectionOptions = PostgresCommonOptions &
       }
   )
 
-/** Inert configuration. The optional pg driver creates an owned pool only during Nest startup. */
 export function postgres(options: PostgresConnectionOptions): MqConnection {
   try {
     return createPostgresConnection(options)
@@ -49,10 +50,24 @@ export function postgres(options: PostgresConnectionOptions): MqConnection {
   }
 }
 
+function withOutbox(
+  resource: AcquiredConnection,
+  pool: Pool,
+  schema: string,
+  namespace: string,
+  enabled: boolean
+): AcquiredConnection {
+  if (!enabled) return resource
+  return { ...resource, outbox: (name) => postgresOutboxLayer(name, pool, schema, namespace) }
+}
+
 function createPostgresConnection(options: PostgresConnectionOptions): MqConnection {
   const schema = validateSchema(options.schema ?? 'public')
   const namespace = validateNamespace(options.namespace ?? 'default')
   const validate = options.validateSchema ?? true
+  const outbox = options.outbox ?? false
+  if (outbox !== true && outbox !== false)
+    throw new MqConnectionException('<postgres>', 'configuration')
   const scope = JSON.stringify([schema, namespace])
   const requirements = [...(options.requireCapabilities ?? [])]
   if (options.pool !== undefined) {
@@ -62,14 +77,21 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
     validatePool(pool)
     return defineConnection(
       { adapter: 'postgres', ownership: 'borrowed', boundary: pool, scope, requirements },
-      (token) => ({
-        layer: PostgresJobStore.layerFor(token, {
-          pool: postgresJsonPool(pool),
+      (token) =>
+        withOutbox(
+          {
+            layer: PostgresJobStore.layerFor(token, {
+              pool: postgresJsonPool(pool),
+              schema,
+              namespace,
+              validateSchema: validate
+            })
+          },
+          pool,
           schema,
           namespace,
-          validateSchema: validate
-        })
-      })
+          outbox
+        )
     )
   }
   const connectionString = options.connectionString
@@ -94,7 +116,6 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
       })
       const logger = new Logger('BetterNestMqPostgres')
       const onIdleError = (): void => {
-        // Raw pg error/client objects may contain credentials and session secrets.
         logger.warn('An idle PostgreSQL client disconnected; the pool will replace it on demand')
       }
       pool.on('error', onIdleError)
@@ -103,15 +124,21 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
         pool.removeListener('error', onIdleError)
       }
       try {
-        return {
-          layer: PostgresJobStore.layerFor(token, {
-            pool: postgresJsonPool(pool),
-            schema,
-            namespace,
-            validateSchema: validate
-          }),
-          release
-        }
+        return withOutbox(
+          {
+            layer: PostgresJobStore.layerFor(token, {
+              pool: postgresJsonPool(pool),
+              schema,
+              namespace,
+              validateSchema: validate
+            }),
+            release
+          },
+          pool,
+          schema,
+          namespace,
+          outbox
+        )
       } catch (cause) {
         try {
           await release()
@@ -140,7 +167,6 @@ export interface PostgresSchemaReport {
   readonly version: number
 }
 
-/** Explicit deployment operation; never called by MqModule or the connection factory. */
 export async function migratePostgres(
   options: PostgresMigrationOptions
 ): Promise<PostgresMigrationReport> {
@@ -156,7 +182,6 @@ export async function migratePostgres(
     throw new MqConnectionException('<postgres-migrations>', 'migrate', { cause })
   }
 }
-
 export async function validatePostgres(
   options: PostgresMigrationOptions
 ): Promise<PostgresSchemaReport> {
@@ -168,3 +193,11 @@ export async function validatePostgres(
     throw new MqConnectionException('<postgres-migrations>', 'probe', { cause })
   }
 }
+
+export { postgresOutbox } from './postgres-outbox.ts'
+export type {
+  PostgresOutboxClient,
+  PostgresOutboxTransaction,
+  PostgresOutboxCallback,
+  PostgresOutboxParameter
+} from './postgres-outbox.types.ts'

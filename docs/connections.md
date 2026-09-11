@@ -2,7 +2,7 @@
 
 ## Current scope
 
-The private host now serves both M2 connection management and M3 public producers/workers. One better-effect runtime per configured Nest application owns named JobStores, Clock and lazy Worker supervisors. Public APIs expose Nest Services and Promises rather than engine handles. PostgreSQL is the first production adapter; the root remains independent of pg and Zod.
+The private host now serves both M2 connection management and M3 public producers/workers. One better-effect runtime per configured Nest application owns named JobStores, Clock, lazy Worker supervisors and explicitly enabled outbox stores/publisher. Public APIs expose Nest Services and Promises rather than engine handles. PostgreSQL is the first production adapter; the root remains independent of pg and Zod.
 
 Connection factories return opaque inert descriptors. They never open a pool when a module is merely declared or imported. Each application acquires its own resources from those descriptors; no acquired runtime is shared globally. See execution.md for job/worker operations using these connections.
 
@@ -18,7 +18,7 @@ Exact repeated descriptors or the same pool/connection-string boundary plus sche
 
 ## PostgreSQL configuration
 
-Import postgres from better-nest-mq/postgres. Consumers select pg and its TypeScript types; better-effect-mq-postgres and better-effect-mq-outbox are automatically installed internal dependencies of this library, not peers the application must manage. The internal outbox package does not mean a Nest transactional-outbox facade is implemented. See dependencies.md for the complete installation boundary.
+Import postgres from better-nest-mq/postgres. Consumers select pg and its TypeScript types; better-effect-mq-postgres and better-effect-mq-outbox are automatically installed internal dependencies of this library, not peers the application must manage. The native transactional-outbox facade is enabled explicitly with outbox:true on a connection; see outbox.md for managed transactions and independent publisher roles. See dependencies.md for the complete installation boundary.
 
 ```ts
 const owned = postgres({
@@ -77,7 +77,7 @@ Cancellation is cooperative. Runtime abort is not forced JavaScript interruption
 
 Tests use explicit internal upstream memory fixtures and a real PostgreSQL service, never a production fallback. They cover acquisition, capability failures, independent contexts, close races, cleanup errors, ownership, explicit migrations, durable identity and packed consumers. Public tarball tests exercise Node/Bun with TypeScript 6/7, including intentional idle-client termination and end-to-end worker execution.
 
-Other storage wrappers, flow/schedule/event/outbox resource bundles and true ORM transaction bridges remain planned. New resource bundles should share native connections and preserve these ownership/lifecycle guarantees rather than opening redundant pools.
+Native PostgreSQL outbox resources now share their existing pool and runtime. Other storage wrappers, flow/schedule/event bundles and true ORM transaction bridges remain planned. New resource bundles should share native connections and preserve these ownership/lifecycle guarantees rather than opening redundant pools.
 
 ## JSON fidelity and native parser isolation
 

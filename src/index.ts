@@ -1,5 +1,20 @@
 import 'reflect-metadata'
 
+export { MqOutboxService } from './outbox/service.ts'
+export { MqOutboxException } from './outbox/errors.ts'
+export type { OutboxPhase } from './outbox/errors.ts'
+export type {
+  OutboxEntry,
+  OutboxState,
+  OutboxSnapshot,
+  OutboxAppendResult,
+  OutboxCounts,
+  OutboxListOptions,
+  OutboxPublisherSnapshot,
+  OutboxFailure,
+  MqOutboxOptions
+} from './outbox/types.ts'
+
 export { QueueControls } from './controls/decorator.ts'
 export { MqQueueControlsService } from './controls/service.ts'
 export { QueueControlsException } from './controls/errors.ts'

@@ -8,7 +8,7 @@ bun run hooks:install
 bun run check
 ```
 
-The package now implements typed contracts, private engine/PostgreSQL lifecycle and core public producers/workers. Read docs/execution.md and the roadmap before adding APIs. Distributed QueueControls are implemented and documented in docs/controls.md. Future flow, schedule and outbox APIs must be real integrations, never simulated methods. Keep normal policy validation read-only and qualify shared limits with actual independent PostgreSQL worker processes.
+The package now implements typed contracts, private engine/PostgreSQL lifecycle and core public producers/workers. Read docs/execution.md and the roadmap before adding APIs. Distributed QueueControls are implemented and documented in docs/controls.md. Native PostgreSQL transactional outbox is implemented in docs/outbox.md. Future flows, schedules and ORM transaction bridges must be real integrations, never simulated methods. Keep normal policy validation read-only and qualify shared limits with actual independent PostgreSQL worker processes.
 
 Retain the exact upstream Oxlint/Oxfmt/plugin baseline and generated Bun lockfile. Source and packed declarations must work with TypeScript 6 and the primary TypeScript 7 compiler. Keep strictness and Nest decorator metadata; do not disable a rule to accommodate a fixture or broad internal type.
 
@@ -26,7 +26,7 @@ MQ_TEST_DATABASE_URL='postgresql://user:password@localhost:5432/test_db' bun run
 
 Tests create/drop random schemas and deliberately disconnect tagged clients. Never point them at production. The package execution fixture verifies producer-only shutdown, worker execution in a new application context, retry history and durable result reads afterward. CI supplies PostgreSQL 16 and runs the same scenarios.
 
-Preserve borrowed/owned resource boundaries, stable connection identities, explicit migrations and one runtime shared by stores and workers. Application schemas and Services use the Nest facade; engine types must not escape in declaration chunks. Keep cancellation cooperative and settlement fenced by the owning lease.
+Preserve borrowed/owned resource boundaries, stable connection identities, explicit migrations and one runtime shared by stores, workers and the opt-in outbox publisher. Domain queries and outbox appends must use one actual transaction client, preserving native parsers, rollback, caught-failure poisoning and late-handle rejection. Never automatically retry a business callback after a failed or uncertain commit. Application schemas and Services use the Nest facade; engine types must not escape in declaration chunks. Keep cancellation cooperative and settlement fenced by the owning lease.
 
 No automatic npm publishing is configured. Releases require explicit authorization and successful complete verification.
 

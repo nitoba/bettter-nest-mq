@@ -29,7 +29,7 @@ export function adapterJsonTypes(client: Pick<ClientBase, 'getTypeParser'>): Cus
   return { getTypeParser }
 }
 
-function jsonClient(client: PoolClient): JsonClient {
+export function postgresJsonClient(client: PoolClient): JsonClient {
   const parsers = adapterJsonTypes(client)
   return {
     async query<Row>(text: string, values?: QueryValues): Promise<QueryResult<Row>> {
@@ -58,7 +58,7 @@ export function postgresJsonPool(pool: Pool): JsonPool {
       return pool.options
     },
     async connect(): Promise<JsonClient> {
-      return jsonClient(await pool.connect())
+      return postgresJsonClient(await pool.connect())
     },
     async query<Row>(text: string, values?: QueryValues): Promise<QueryResult<Row>> {
       const client = await pool.connect()
@@ -68,7 +68,7 @@ export function postgresJsonPool(pool: Pool): JsonPool {
       client.once('error', onError)
       try {
         return await Promise.race([
-          jsonClient(client).query<Row>(text, values),
+          postgresJsonClient(client).query<Row>(text, values),
           disconnected.promise
         ])
       } catch (cause) {
