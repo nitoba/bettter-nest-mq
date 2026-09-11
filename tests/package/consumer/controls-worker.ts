@@ -62,13 +62,16 @@ class Probe {
   }
 }
 
+// The upstream supervisor derives its store deadline from twice the heartbeat interval.
+// A 500ms heartbeat permits a 1s query budget while the lease remains 2s. The parent still
+// holds work for 2.2s to require real renewal; no concurrency or fencing assertion is relaxed.
 @Injectable()
 @Worker({
   name: 'distributed-left',
   concurrency: 8,
   pollIntervalMs: 10,
   leaseDurationMs: 2_000,
-  heartbeatIntervalMs: 100
+  heartbeatIntervalMs: 500
 })
 class LeftWorker {
   constructor(@Inject(Probe) private readonly probe: Probe) {}
@@ -101,7 +104,7 @@ class LeftWorker {
   concurrency: 8,
   pollIntervalMs: 10,
   leaseDurationMs: 2_000,
-  heartbeatIntervalMs: 100
+  heartbeatIntervalMs: 500
 })
 class RightWorker {
   constructor(@Inject(Probe) private readonly probe: Probe) {}
