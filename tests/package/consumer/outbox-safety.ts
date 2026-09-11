@@ -211,7 +211,7 @@ export async function verifyOutboxSafety(connectionString: string): Promise<void
         assert.ok(record)
         assert.equal(record.failure?.kind, 'target-missing')
         assert.equal(record.attemptsMade, record.attemptsMax)
-        assert.equal(record.failure?.retryable, true)
+        assert.equal(record.failure?.retryable, false)
         assert.equal(record.attemptsMax, 3)
       }
       assert.equal(

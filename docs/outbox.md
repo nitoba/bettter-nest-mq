@@ -180,7 +180,7 @@ The native PostgreSQL transaction boundary is the first outbox implementation. O
 
 ## Identity scope and operational qualifications
 
-A missing destination route is classified as retryable by the pinned upstream publisher. It can recover when a later deployment supplies that route; without recovery, the record becomes failed after exhausting its publication attempt budget. The final failure can retain retryable=true even though no budget remains. This differs from an invalid prepared request, which is not made valid by retrying. The installed-package test verifies the missing-route budget independently of job execution attempts.
+A missing destination route is classified as retryable by the pinned upstream publisher. It can recover when a later deployment supplies that route; without recovery, the record becomes failed after exhausting its publication attempt budget. After the budget is exhausted, the upstream publisher persists a terminal failure with retryable=false; attemptsMade equals attemptsMax. This differs from an invalid prepared request, which is not made valid by retrying. The installed-package test verifies the missing-route budget independently of job execution attempts.
 
 Automatic proposed job IDs use the logical source name, outbox ID and logical destination name. Distinct source databases/namespaces with the same logical aliases are not globally distinguished by that derivation. Use globally unique outbox IDs, such as UUIDs, or explicit globally scoped job IDs when multiple independent source deployments converge on one destination. Duplicate append within one source does not deduplicate business callbacks across sources.
 

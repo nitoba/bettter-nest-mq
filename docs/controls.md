@@ -132,7 +132,7 @@ Unit/real-Nest tests cover immutable metadata, decoded dispatch keys, missing-ke
 
 ## Remaining work
 
-This delivers the distributed-controls portion of M3.1, not full feature parity or a production deployment. Named custom retry providers, MQ-specific enhancers, durable-event waits, additional adapters, flows, schedules and transactional outbox remain separate milestones. No npm package publication or environment provisioning is part of this change.
+This delivers the distributed-controls portion of M3.1, not full feature parity or a production deployment. Named custom retry providers, MQ-specific enhancers, durable-event waits, additional adapters, flows, schedules and ORM transaction bridges remain separate milestones. Native PostgreSQL outbox transactions are documented in outbox.md. No npm package publication or environment provisioning is part of this change.
 
 ## Heartbeat clock race and dependency ownership
 

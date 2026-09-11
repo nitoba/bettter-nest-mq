@@ -2,9 +2,9 @@
 
 ## Current delivery
 
-M0 foundation, M1 contracts, M2 engine/PostgreSQL lifecycle, M3 core producer/worker execution , **M3.1a distributed queue controls** and the **M6a native PostgreSQL outbox** are implemented. The library still does not provide full better-effect-mq feature parity and remains unreleased at version 0.0.0.
+M0 foundation, M1 contracts, M2 engine/PostgreSQL lifecycle, M3 core producer/worker execution, **M3.1a distributed queue controls** and the **M6a native PostgreSQL outbox** are implemented. The library still does not provide full better-effect-mq feature parity and remains unreleased at version 0.0.0.
 
-Current guides: README.md, docs/contracts.md, docs/connections.md, docs/execution.md , docs/controls.md and docs/outbox.md. Remaining APIs below are not exported as placeholders.
+Current guides: README.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/controls.md and docs/outbox.md. Remaining APIs below are not exported as placeholders.
 
 ## PostgreSQL JSON fidelity — corrected
 
