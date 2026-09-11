@@ -1,7 +1,7 @@
 import { CurrentAbortSignal, Effect } from 'better-effect'
 import type { Layer } from 'better-effect'
 import { JobContext, Worker } from 'better-effect-mq'
-import type { WorkerServiceInstance, WorkerServiceToken, FlowHandler } from 'better-effect-mq'
+import type { WorkerServiceInstance, WorkerServiceToken, FlowHandler, JobId } from 'better-effect-mq'
 import { Result } from 'better-result'
 
 import { ContractDefinitionException, JobFailureException } from '../contracts/errors.ts'
@@ -96,13 +96,13 @@ export function compileWorker(
       invocation.options
     )
   )
-  let recoveryIds: readonly string[] = []
+  let recoveryIds: readonly JobId[] = []
   const { name: _name, ...settings } = options
   return {
     name: options.name,
     token,
     async recover(readers) {
-      const ids = new Set<string>()
+      const ids = new Set<JobId>()
       for (const [connection, reader] of readers) {
         const route = operationStoreToken(connection).serviceTag
         const definitions = flows.map((entry) => ('fanOut' in entry ? entry.flow : entry))
