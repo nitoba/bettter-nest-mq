@@ -1,10 +1,3 @@
-// Test-only native diagnostics: not a supported public Worker option.
-const nativeFlowDiagnostics = {
-  onError: (error: Error): void => {
-    console.error('FLOW SUPERVISOR ERROR', error)
-  }
-}
-
 import 'reflect-metadata'
 import { Injectable, Inject } from '@nestjs/common'
 import { Pool } from 'pg'
@@ -133,7 +126,7 @@ class PhaseAudit {
     return value.value
   }
 }
-@Worker({ ...nativeFlowDiagnostics, name: 'flow-batch', ...workerOptions })
+@Worker({ name: 'flow-batch', ...workerOptions })
 @Flow({
   name: 'batch',
   parent: batch,
@@ -186,7 +179,7 @@ export class BatchWorker extends PhaseAudit {
     return this.handleItem(input, context)
   }
 }
-@Worker({ ...nativeFlowDiagnostics, name: 'flow-fast', ...workerOptions })
+@Worker({ name: 'flow-fast', ...workerOptions })
 @Flow({
   name: 'fast',
   parent: fast,
@@ -224,7 +217,7 @@ export class FastWorker extends PhaseAudit {
     return this.handleItem(input, context)
   }
 }
-@Worker({ ...nativeFlowDiagnostics, name: 'flow-date', ...workerOptions })
+@Worker({ name: 'flow-date', ...workerOptions })
 @Flow({ name: 'date', parent: dateParent, children: [dateItem], onChildFailure: 'continue' })
 export class DateWorker {
   @FanOut() split(@FlowData() value: Date) {
@@ -241,7 +234,7 @@ export class DateWorker {
     return value
   }
 }
-@Worker({ ...nativeFlowDiagnostics, name: 'flow-nested', ...workerOptions })
+@Worker({ name: 'flow-nested', ...workerOptions })
 @Flow({
   name: 'nested',
   parent: nested,

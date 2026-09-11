@@ -38,7 +38,6 @@ class FlowProcess {
       }
     })
     this.child.stderr?.on('data', (chunk: Buffer) => {
-      process.stderr.write(chunk)
       this.errors = `${this.errors}${chunk.toString()}`.slice(-10_000)
     })
     this.exited = new Promise((resolve) => this.child.once('exit', resolve))
