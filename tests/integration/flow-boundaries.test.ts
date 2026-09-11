@@ -170,3 +170,65 @@ test('a flow-only Worker is rejected before resource acquisition rather than sup
   expect(fixture.trace.acquired).toBe(0)
   await assert.rejects(app.close(), MqFlowException)
 })
+
+test('flow parents and ordinary handlers cannot collide across connections in one Worker', async () => {
+  @Queue({ name: 'same', connection: 'primary' })
+  class Parents extends QueueService {
+    @Job({ name: 'task', version: 1 }) readonly task = this.job({
+      payload: z.string(),
+      result: z.string()
+    })
+  }
+  @Queue({ name: 'same', connection: 'secondary' })
+  class Children extends QueueService {
+    @Job({ name: 'task', version: 1 }) readonly task = this.job({
+      payload: z.string(),
+      result: z.string()
+    })
+  }
+  @Worker({ name: 'colliding-flow' })
+  @Flow({
+    name: 'collision',
+    parent: flowJob(Parents, 'task'),
+    children: [flowJob(Children, 'task')],
+    onChildFailure: 'continue'
+  })
+  class Collision {
+    @FanOut() split() {
+      return []
+    }
+    @Collect() finish() {
+      return 'done'
+    }
+    @Process(Children, 'task') child(@JobData() value: string) {
+      return value
+    }
+  }
+  const primary = flowConnection()
+  const secondary = flowConnection()
+  const app = await Test.createTestingModule({
+    imports: [
+      MqModule.forRoot({
+        connections: { primary: primary.connection, secondary: secondary.connection }
+      }),
+      MqModule.forFeature([Parents, Children])
+    ],
+    providers: [Collision]
+  }).compile()
+  await assert.rejects(app.init())
+  expect(primary.trace.acquired + secondary.trace.acquired).toBe(0)
+  await assert.rejects(app.close())
+})
+
+test('contract-only applications can import flow Services without starting stores or workers', async () => {
+  const app = await Test.createTestingModule({
+    imports: [MqModule.forRoot({}), MqModule.forFeature([BoundaryQueue])],
+    providers: [BoundaryWorker, AttemptDependency]
+  }).compile()
+  try {
+    await app.init()
+    await assert.rejects(app.get(BoundaryQueue).parent.enqueue('inert'))
+  } finally {
+    await app.close()
+  }
+})

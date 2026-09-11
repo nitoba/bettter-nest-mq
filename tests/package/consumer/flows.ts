@@ -125,17 +125,20 @@ async function verify(connectionString: string): Promise<void> {
       const held = new FlowProcess(connectionString, schema, true)
       processes.push(held)
       await held.start()
+      console.log('FLOW CHECKPOINT first process ready')
       const restartId = await queue.batch.enqueue({ values: ['persisted', 123, null] })
       await until(
         async () => (await service.get(batch, restartId))?.counts.pending === 3,
         'Fan-out must persist before the crash'
       )
+      console.log('FLOW CHECKPOINT manifest persisted')
       const before = await pool.query(
         `SELECT child_key,child_job_id FROM "${schema}".better_effect_mq_flow_children WHERE flow_id=$1 ORDER BY child_key`,
         [restartId]
       )
       assert.equal(before.rows.length, 3)
       await held.kill()
+      console.log('FLOW CHECKPOINT first process killed')
       const left = new FlowProcess(connectionString, schema, false)
       const right = new FlowProcess(connectionString, schema, false)
       processes.push(left, right)
@@ -228,7 +231,7 @@ async function verify(connectionString: string): Promise<void> {
       await assert.rejects(queue.batch.awaitResult(cancelId, wait))
       await until(async () => {
         const rows = await pool.query<{ count: number }>(
-          `SELECT count(*)::integer AS count FROM "${schema}".better_effect_mq_jobs WHERE metadata->>'__better_effect_flow_v2.flowId'=$1 AND state NOT IN ('cancelled','completed','failed')`,
+          `SELECT count(*)::integer AS count FROM "${schema}".better_effect_mq_flow_children AS c LEFT JOIN "${schema}".better_effect_mq_jobs AS j ON j.id=c.child_job_id AND j.namespace=c.namespace WHERE c.flow_id=$1 AND (j.id IS NULL OR j.state NOT IN ('cancelled','completed','failed'))`,
           [cancelId]
         )
         return rows.rows[0]?.count === 0
@@ -236,6 +239,17 @@ async function verify(connectionString: string): Promise<void> {
       console.log(
         'PASS fail-fast without Collect and cooperative cascade cancellation with contract isolation'
       )
+    } catch (cause) {
+      console.error('FLOW SCENARIO FAILURE', cause)
+      console.error(
+        'FLOW DURABLE STATE',
+        (
+          await pool.query(
+            `SELECT id, name, state, delivery_count, flow, failure FROM "${schema}".better_effect_mq_jobs ORDER BY created_at_ms`
+          )
+        ).rows
+      )
+      throw cause
     } finally {
       await producer.close()
     }

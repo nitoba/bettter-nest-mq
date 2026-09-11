@@ -50,6 +50,16 @@ export function compileWorker(
     }
     identities.add(key)
   }
+  for (const registration of flows) {
+    if (!('fanOut' in registration)) continue
+    const identity = registration.flow.parent.identity
+    const key = JSON.stringify([identity.queue, identity.name, identity.version])
+    if (identities.has(key))
+      throw new ContractDefinitionException(
+        'A flow parent cannot share queue/name/version with another handler in this Worker, even across connections'
+      )
+    identities.add(key)
+  }
   const tag: `nestjs.worker/${string}` = `nestjs.worker/${options.name}`
   const token = Worker.service(tag)
   const handlers = invocations.map((invocation) =>

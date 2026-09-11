@@ -18,6 +18,7 @@ import { flowChildEntry } from './flow-discovery.ts'
 export class FlowResultReader implements FlowResultsReader {
   readonly counts
   private open = true
+  private readonly cursors = new Set<string>()
   private readonly active = new Set<Promise<void>>()
   constructor(
     private readonly flow: CompiledFlow,
@@ -65,9 +66,14 @@ export class FlowResultReader implements FlowResultsReader {
       throw new MqFlowException('definition', 'Flow pages are limited to 1000 manifest entries')
     if (
       options.cursor !== undefined &&
-      (options.cursor.length === 0 || options.cursor.length > 256)
+      (options.cursor.length === 0 ||
+        options.cursor.length > 256 ||
+        !this.cursors.has(options.cursor))
     )
-      throw new MqFlowException('definition', 'Invalid flow cursor')
+      throw new MqFlowException(
+        'definition',
+        'Flow cursors must come from this active Collect reader'
+      )
     // The pinned page Program closes over the already-resolved store. Invoke it inside the
     // supervisor-owned Collect scope, without constructing another runtime or executor.
     const result = await this.results.page({ ...options, limit })()
@@ -97,6 +103,7 @@ export class FlowResultReader implements FlowResultsReader {
         )
       } else items.push(Object.freeze({ ...base, outcome: 'cancelled' }))
     }
+    if (result.value.nextCursor !== undefined) this.cursors.add(result.value.nextCursor)
     return Object.freeze({ items: Object.freeze(items), nextCursor: result.value.nextCursor })
   }
   all<Job extends JobContract>(
