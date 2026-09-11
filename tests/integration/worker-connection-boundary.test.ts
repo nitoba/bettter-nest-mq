@@ -2,7 +2,16 @@ import { expect, test } from 'bun:test'
 import assert from 'node:assert/strict'
 import { Test } from '@nestjs/testing'
 import { z } from 'zod'
-import { ContractDefinitionException, Job, JobData, MqModule, Process, Queue, QueueService, Worker } from '../../src/index.ts'
+import {
+  ContractDefinitionException,
+  Job,
+  JobData,
+  MqModule,
+  Process,
+  Queue,
+  QueueService,
+  Worker
+} from '../../src/index.ts'
 import { memoryConnection } from '../fixtures/memory-connection.ts'
 
 class Tasks extends QueueService {
@@ -16,15 +25,25 @@ class Right extends Tasks {}
 @Worker({ name: 'ambiguous-supervisor' })
 class Ambiguous {
   @Process(Left, 'echo')
-  left(@JobData() value: string) { return value }
+  left(@JobData() value: string) {
+    return value
+  }
   @Process(Right, 'echo')
-  right(@JobData() value: string) { return value }
+  right(@JobData() value: string) {
+    return value
+  }
 }
 
 test('an unsupported cross-connection identity collision fails before any store is acquired', async () => {
   const left = memoryConnection()
   const right = memoryConnection()
-  const app = await Test.createTestingModule({ imports: [MqModule.forRoot({ connections: { left: left.connection, right: right.connection } }), MqModule.forFeature([Left, Right])], providers: [Ambiguous] }).compile()
+  const app = await Test.createTestingModule({
+    imports: [
+      MqModule.forRoot({ connections: { left: left.connection, right: right.connection } }),
+      MqModule.forFeature([Left, Right])
+    ],
+    providers: [Ambiguous]
+  }).compile()
   await assert.rejects(app.init(), ContractDefinitionException)
   expect(left.trace.acquisitions).toBe(0)
   expect(right.trace.acquisitions).toBe(0)
@@ -34,22 +53,34 @@ test('an unsupported cross-connection identity collision fails before any store 
 @Worker({ name: 'left-only', pollIntervalMs: 5 })
 class LeftWorker {
   @Process(Left, 'echo')
-  run(@JobData() value: string) { return `left:${value}` }
+  run(@JobData() value: string) {
+    return `left:${value}`
+  }
 }
 @Worker({ name: 'right-only', pollIntervalMs: 5 })
 class RightWorker {
   @Process(Right, 'echo')
-  run(@JobData() value: string) { return `right:${value}` }
+  run(@JobData() value: string) {
+    return `right:${value}`
+  }
 }
 
 test('separate worker Services preserve identical job names in independent connections', async () => {
   const left = memoryConnection()
   const right = memoryConnection()
-  const app = await Test.createTestingModule({ imports: [MqModule.forRoot({ connections: { left: left.connection, right: right.connection } }), MqModule.forFeature([Left, Right])], providers: [LeftWorker, RightWorker] }).compile()
+  const app = await Test.createTestingModule({
+    imports: [
+      MqModule.forRoot({ connections: { left: left.connection, right: right.connection } }),
+      MqModule.forFeature([Left, Right])
+    ],
+    providers: [LeftWorker, RightWorker]
+  }).compile()
   try {
     await app.init()
     const options = { wait: { timeoutMs: 2_000, pollIntervalMs: 5 } }
     expect(await app.get(Left).echo.execute('value', options)).toBe('left:value')
     expect(await app.get(Right).echo.execute('value', options)).toBe('right:value')
-  } finally { await app.close() }
+  } finally {
+    await app.close()
+  }
 })
