@@ -1,3 +1,5 @@
+import { MqFlowsService, FLOW_MONITOR } from '../flows/service.ts'
+import type { FlowMonitor } from '../flows/types.ts'
 import { ConfigurableModuleBuilder } from '@nestjs/common'
 import { DiscoveryModule } from '@nestjs/core'
 import type { MqConnectionMonitor } from '../connections/connection.ts'
@@ -58,6 +60,12 @@ export const { ConfigurableModuleClass } = new ConfigurableModuleBuilder<MqModul
         inject: [MqEngineHost],
         useFactory: (host: MqEngineHost): SchedulesMonitor => host.schedules
       },
+      {
+        provide: FLOW_MONITOR,
+        inject: [MqEngineHost],
+        useFactory: (host: MqEngineHost): FlowMonitor => host.flows
+      },
+      MqFlowsService,
       MqConnectionsService,
       MqWorkersService,
       MqQueueControlsService,
@@ -66,6 +74,7 @@ export const { ConfigurableModuleClass } = new ConfigurableModuleBuilder<MqModul
     exports: [
       ...(definition.exports ?? []),
       MqOutboxService,
+      MqFlowsService,
       MqConfiguration,
       MqRegistry,
       MqConnectionsService,

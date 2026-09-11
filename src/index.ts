@@ -124,3 +124,22 @@ export type {
   PreparedJob,
   PreparedBackoff
 } from './jobs/types.ts'
+
+export { Flow, FanOut, Collect, FlowData, FlowChildren } from './flows/decorators.ts'
+export { flowJob, flowChildren } from './flows/references.ts'
+export type { FlowJobReference, FlowChildPlan } from './flows/references.ts'
+export { MqFlowsService } from './flows/service.ts'
+export { MqFlowException } from './flows/errors.ts'
+export type { FlowPhase } from './flows/errors.ts'
+export type {
+  FlowOptions,
+  FlowChildOptions,
+  FlowChildInput,
+  FlowManifest,
+  FlowCounts,
+  FlowChildResult,
+  FlowPageOptions,
+  FlowChildPage,
+  FlowResultsReader,
+  FlowSnapshot
+} from './flows/types.ts'

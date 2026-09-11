@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["flows.ts", "flow-child.ts", "flow-contracts.ts"]
+}

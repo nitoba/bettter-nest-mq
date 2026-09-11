@@ -7,6 +7,8 @@ export interface WorkerOptions {
   readonly maxStalledCount?: number
   readonly pollIntervalMs?: number
   readonly retryDefects?: boolean
+  readonly flowSweepIntervalMs?: number
+  readonly flowBatchSize?: number
 }
 
 export interface ProcessOptions {

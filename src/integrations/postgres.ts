@@ -1,3 +1,4 @@
+import { postgresFlowLayer } from './postgres-flow-resource.ts'
 import { Logger } from '@nestjs/common'
 import type { Pool } from 'pg'
 import {
@@ -24,6 +25,7 @@ interface PostgresCommonOptions {
   /** Enable a transactional outbox sharing this connection's native pool. */
   readonly outbox?: boolean
   readonly schedules?: boolean
+  readonly flows?: boolean
 }
 export type PostgresConnectionOptions = PostgresCommonOptions &
   (
@@ -58,7 +60,8 @@ function withOutbox(
   schema: string,
   namespace: string,
   enabled: boolean,
-  schedules: boolean
+  schedules: boolean,
+  flows: boolean
 ): AcquiredConnection {
   let result = resource
   if (enabled)
@@ -68,6 +71,8 @@ function withOutbox(
       ...result,
       schedules: (name) => postgresScheduleLayer(name, pool, schema, namespace)
     }
+  if (flows)
+    result = { ...result, flows: (name) => postgresFlowLayer(name, pool, schema, namespace) }
   return result
 }
 
@@ -76,6 +81,9 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
   const namespace = validateNamespace(options.namespace ?? 'default')
   const validate = options.validateSchema ?? true
   const outbox = options.outbox ?? false
+  const flows = options.flows ?? false
+  if (flows !== true && flows !== false)
+    throw new MqConnectionException('<postgres>', 'configuration')
   const schedules = options.schedules ?? false
   if (schedules !== true && schedules !== false)
     throw new MqConnectionException('<postgres>', 'configuration')
@@ -104,7 +112,8 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
           schema,
           namespace,
           outbox,
-          schedules
+          schedules,
+          flows
         )
     )
   }
@@ -152,7 +161,8 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
           schema,
           namespace,
           outbox,
-          schedules
+          schedules,
+          flows
         )
       } catch (cause) {
         try {
