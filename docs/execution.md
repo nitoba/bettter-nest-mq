@@ -113,19 +113,19 @@ const result = await reports.generate.awaitResult(id, {
 
 A job descriptor is inert until the owning application binds it to a ready connection. A manually constructed, contract-only or closed queue cannot publish and rejects with MqJobException. Calls from provider constructors are too early. Contracts may still be validated/encoded independently of a connection.
 
-| Method | Implemented behavior |
-| --- | --- |
-| enqueue(input, options?) | Validate the schema input, encode it and publish through the engine |
-| enqueueDecoded(value, options?) | Accept the decoded output type and run its explicit inverse encoding |
-| enqueueMany(items) | Validate all payloads, then call the engine's batch publication API |
-| prepare(input, options?) | Produce encoded, serializable request data with connection routing, without publishing |
-| poll(id) | Read a job of this exact queue/name/version and decode its result/failure |
-| awaitResult(id, options?) | Poll for a decoded terminal result with an optional signal and wait timeout |
-| execute(input, options?) | Enqueue and wait; never invoke the handler locally |
-| attempts(id) | Read the persisted attempt history and decoded failure/result fields |
-| cancel(id) | Cancel pending work or request cooperative cancellation of active work |
-| retry(id, schedule?) | Administratively requeue a failed/cancelled job with a fresh attempt budget |
-| promote(id) | Make a delayed job immediately eligible |
+| Method                          | Implemented behavior                                                                   |
+| ------------------------------- | -------------------------------------------------------------------------------------- |
+| enqueue(input, options?)        | Validate the schema input, encode it and publish through the engine                    |
+| enqueueDecoded(value, options?) | Accept the decoded output type and run its explicit inverse encoding                   |
+| enqueueMany(items)              | Validate all payloads, then call the engine's batch publication API                    |
+| prepare(input, options?)        | Produce encoded, serializable request data with connection routing, without publishing |
+| poll(id)                        | Read a job of this exact queue/name/version and decode its result/failure              |
+| awaitResult(id, options?)       | Poll for a decoded terminal result with an optional signal and wait timeout            |
+| execute(input, options?)        | Enqueue and wait; never invoke the handler locally                                     |
+| attempts(id)                    | Read the persisted attempt history and decoded failure/result fields                   |
+| cancel(id)                      | Cancel pending work or request cooperative cancellation of active work                 |
+| retry(id, schedule?)            | Administratively requeue a failed/cancelled job with a fresh attempt budget            |
+| promote(id)                     | Make a delayed job immediately eligible                                                |
 
 Batch items have `{ payload, options? }`; methods return IDs or typed Promise results, not engine Results. Full payload validation precedes any batch write. The adapter determines the actual batch transaction guarantee; a uniform API does not make all future adapters atomic.
 
