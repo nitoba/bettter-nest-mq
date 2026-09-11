@@ -1,3 +1,4 @@
+import { FlowsCoordinator } from './flows.ts'
 import {
   Inject,
   Injectable,
@@ -24,6 +25,7 @@ import { discoverWorkers } from './worker-discovery.ts'
 export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
   readonly session: EngineSession
   readonly schedules: SchedulesCoordinator
+  readonly flows: FlowsCoordinator
   readonly controls: QueueControlsCoordinator
   readonly outbox: OutboxCoordinator
   private readonly bindingOwner = Symbol('MqJobBindingOwner')
@@ -53,6 +55,7 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
       moduleRef,
       configuration.options.schedules
     )
+    this.flows = new FlowsCoordinator(this.session, moduleRef)
     this.outbox = new OutboxCoordinator(this.session, registry)
     this.controls = new QueueControlsCoordinator(
       this.session,
@@ -73,6 +76,10 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
         entries.set(registered.contract, { registered, compiled: compileJob(registered) })
       }
     }
+    const flows =
+      this.configuration.options.connections === undefined
+        ? []
+        : this.flows.prepare(this.discovery, entries)
     const plans =
       this.configuration.options.execution.workers &&
       this.configuration.options.connections !== undefined
@@ -80,15 +87,17 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
             this.discovery,
             this.moduleRef,
             entries,
-            this.configuration.options.shutdown
+            this.configuration.options.shutdown,
+            flows
           )
         : []
     const schedules = await this.schedules.prepare()
     try {
-      await this.session.start(this.registry.queues(), plans, schedules)
+      await this.session.start(this.registry.queues(), plans, schedules, flows)
       if (this.session.state === 'ready') {
         await this.controls.initialize()
         await this.schedules.initialize()
+        await this.flows.initialize()
         for (const [contract, { registered, compiled }] of entries) {
           bindJobClient(
             contract,

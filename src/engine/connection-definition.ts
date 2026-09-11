@@ -1,3 +1,5 @@
+import type { FlowJobReads } from './flow-read-store.ts'
+import type { FlowLayerFactory } from './flow-plan.ts'
 import type { ScheduleLayerFactory } from './schedule-plan.ts'
 import type { OutboxLayerFactory } from './outbox-plan.ts'
 import { JobStore } from 'better-effect-mq'
@@ -18,6 +20,8 @@ export type NamedStoreToken = JobStoreToken<`nestjs/${string}`>
 export type NamedStore = InstanceType<NamedStoreToken>
 
 export interface AcquiredConnection {
+  readonly flowReads?: (name: string) => FlowJobReads
+  readonly flows?: FlowLayerFactory
   readonly schedules?: ScheduleLayerFactory
   readonly outbox?: OutboxLayerFactory
   readonly layer: Layer<NamedStore, never>

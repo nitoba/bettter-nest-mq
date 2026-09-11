@@ -127,7 +127,8 @@ try {
       'controls',
       'json-fidelity',
       'outbox',
-      'schedules'
+      'schedules',
+      'flows'
     ]) {
       await run(
         ['node', 'node_modules/typescript/bin/tsc', '-p', `tsconfig.${fixture}.json`],

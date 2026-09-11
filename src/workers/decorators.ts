@@ -14,7 +14,7 @@ type JobProperty<Queue extends QueueService> = {
   [Key in keyof Queue]: Queue[Key] extends JobContract ? Key : never
 }[keyof Queue] &
   string
-export type JobParameter = 'payload' | 'context'
+export type JobParameter = 'payload' | 'context' | 'children'
 export interface ProcessMetadata {
   readonly queue: Type<QueueService>
   readonly property: string
@@ -28,12 +28,19 @@ export function Worker(options: WorkerOptions): ClassDecorator {
     leaseDurationMs: options.leaseDurationMs,
     heartbeatIntervalMs: options.heartbeatIntervalMs,
     stalledIntervalMs: options.stalledIntervalMs,
-    pollIntervalMs: options.pollIntervalMs
+    pollIntervalMs: options.pollIntervalMs,
+    flowSweepIntervalMs: options.flowSweepIntervalMs,
+    flowBatchSize: options.flowBatchSize
   })) {
     if (value !== undefined) requireInteger(value, `worker.${name}`, 1)
   }
   if (options.maxStalledCount !== undefined)
     requireInteger(options.maxStalledCount, 'worker.maxStalledCount')
+  if (
+    (options.flowBatchSize ?? 100) > 10_000 ||
+    (options.flowSweepIntervalMs ?? 30_000) > 2_147_483_647
+  )
+    throw new ContractDefinitionException('Flow sweep options exceed safe bounds')
   const lease = options.leaseDurationMs ?? 30_000
   if ((options.heartbeatIntervalMs ?? Math.max(1, Math.floor(lease / 3))) >= lease)
     throw new ContractDefinitionException('Worker heartbeat must be shorter than its lease')
@@ -88,6 +95,10 @@ function parameter(kind: JobParameter): ParameterDecorator {
     next.set(String(method), current)
     Reflect.defineMetadata(PARAMETERS, next, target)
   }
+}
+
+export function flowChildrenParameter(): ParameterDecorator {
+  return parameter('children')
 }
 
 export function JobData(): ParameterDecorator {

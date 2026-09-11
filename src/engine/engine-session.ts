@@ -1,3 +1,9 @@
+import { flowReadStore, type FlowJobReads } from './flow-read-store.ts'
+import { flowToken, flowAlias } from './flow-plan.ts'
+import type { NamedFlow, OperationFlow } from './flow-plan.ts'
+import type { CompiledFlow } from './flow-discovery.ts'
+import type { FlowStoreV2 } from 'better-effect-mq'
+import { MqFlowException } from '../flows/errors.ts'
 import { JobSchedules } from 'better-effect-mq'
 import type { JobScheduleStoreContract, JobSchedulerHandle } from 'better-effect-mq'
 import { resolveScheduleOptions } from '../schedules/decorator.ts'
@@ -73,6 +79,8 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
         | Clock
         | NamedOutbox
         | EngineOutboxPublisher
+        | NamedFlow
+        | OperationFlow
         | NamedSchedule
         | OperationSchedule
         | EngineScheduler
@@ -82,6 +90,9 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
   private readonly scheduleOptions: Required<MqScheduleOptions>
   private readonly schedulerEnabled: boolean
   private scheduledDefinitions: readonly CompiledSchedule[] = []
+  private flowDefinitions: readonly CompiledFlow[] = []
+  private readyFlows = new Map<string, FlowStoreV2>()
+  private flowReaders = new Map<string, FlowJobReads>()
   private readySchedules = new Map<string, JobScheduleStoreContract>()
   private runningScheduler: JobSchedulerHandle | undefined
   private scheduling: Promise<void> | undefined
@@ -131,12 +142,14 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
   start(
     queues: ReadonlyArray<QueueDefinition>,
     plans: readonly WorkerPlan[] = [],
-    schedules: readonly CompiledSchedule[] = []
+    schedules: readonly CompiledSchedule[] = [],
+    flows: readonly CompiledFlow[] = []
   ): Promise<void> {
     if (this.stopRequested) return Promise.reject(new MqEngineStateException(this.state, 'start'))
     if (this.starting !== undefined) return this.starting
     this.plans = plans
     this.scheduledDefinitions = schedules
+    this.flowDefinitions = flows
     this.currentState = 'starting'
     this.starting = this.initialize(queues)
     return this.starting
@@ -183,7 +196,9 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
         const token = namedStoreToken(name)
         const resource = await definition.acquire(token)
         this.acquired.push(resource)
-        bindings.push({ name, connection, definition, token, resource })
+        const reads = resource.flowReads?.(name)
+        if (reads !== undefined) this.flowReaders.set(name, reads)
+        bindings.push({ name, connection, definition, token, resource, reads })
       }
       this.assertStarting()
       if (bindings.length === 0 && this.plans.length === 0) {
@@ -192,7 +207,11 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
       }
       const stores = Layer.merge(...bindings.map((binding) => binding.resource.layer))
       const operations = Layer.merge(
-        ...bindings.map((binding) => operationStoreLayer(binding.name, queues))
+        ...bindings.map((binding) =>
+          operationStoreLayer(binding.name, queues, binding.reads, () =>
+            this.readyFlows.get(binding.name)
+          )
+        )
       )
       const workers = Layer.merge(...this.plans.map((plan) => plan.layer))
       const outboxBindings = bindings.flatMap((binding) => {
@@ -201,6 +220,24 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
           ? []
           : [{ name: binding.name, token: outboxToken(binding.name), layer: factory(binding.name) }]
       })
+      const flowBindings = bindings.flatMap((binding) => {
+        const factory = binding.resource.flows
+        return factory === undefined
+          ? []
+          : [{ name: binding.name, token: flowToken(binding.name), layer: factory(binding.name) }]
+      })
+      const flowNames = new Set(flowBindings.map((binding) => binding.name))
+      for (const definition of this.flowDefinitions) {
+        for (const entry of [definition.parent, ...definition.children.values()]) {
+          if (!flowNames.has(entry.registered.identity.connection))
+            throw new MqFlowException(
+              'unavailable',
+              'Every flow participant requires an explicitly enabled flow store'
+            )
+        }
+      }
+      const flowStores = Layer.merge(...flowBindings.map((binding) => binding.layer))
+      const flowAliases = Layer.merge(...flowBindings.map((binding) => flowAlias(binding.name)))
       const scheduleBindings = bindings.flatMap((binding) => {
         const factory = binding.resource.schedules
         return factory === undefined
@@ -248,6 +285,8 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
           workers,
           outboxes,
           publisher,
+          flowStores,
+          flowAliases,
           scheduleStores,
           scheduleAliases,
           scheduler
@@ -272,7 +311,9 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
         )
         if (Result.isError(resolved))
           throw new MqConnectionException(binding.name, 'acquire', { cause: resolved.error })
-        const store = resolved.value
+        const store = flowReadStore(resolved.value, binding.reads, () =>
+          this.readyFlows.get(binding.name)
+        )
         let descriptor
         try {
           descriptor = assertJobStoreProtocolCompatible(store.descriptor)
@@ -300,6 +341,34 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
             capabilities: Object.freeze({ ...descriptor.capabilities })
           })
         })
+      }
+      const readyFlows = new Map<string, FlowStoreV2>()
+      for (const binding of flowBindings) {
+        this.assertStarting()
+        acquiring = binding.name
+        const resolved = await runtime.run(() =>
+          Effect.gen(async function* () {
+            return Result.ok(yield* binding.token)
+          })
+        )
+        if (Result.isError(resolved))
+          throw new MqFlowException('unavailable', 'Flow store acquisition failed', {
+            cause: resolved.error
+          })
+        if (
+          resolved.value.descriptor.protocolVersion !== 2 ||
+          !['complete', 'not-required'].includes(resolved.value.descriptor.migration.status)
+        )
+          throw new MqFlowException(
+            'unavailable',
+            'Flow protocol v2 and a complete migration are required'
+          )
+        const probe = await resolved.value.peekOutbox({ limit: 1 })
+        if (Result.isError(probe))
+          throw new MqFlowException('unavailable', 'Flow store probe failed', {
+            cause: probe.error
+          })
+        readyFlows.set(binding.name, resolved.value)
       }
       const readySchedules = new Map<string, JobScheduleStoreContract>()
       for (const binding of scheduleBindings) {
@@ -355,6 +424,7 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
       this.assertStarting()
       this.readyOutboxes = readyOutboxes
       this.readySchedules = readySchedules
+      this.readyFlows = readyFlows
       this.ready = ready
       this.snapshots = Object.freeze([...ready.values()].map((value) => value.snapshot))
       this.currentState = 'ready'
@@ -362,6 +432,7 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
       const primary =
         cause instanceof MqConnectionException ||
         cause instanceof MqEngineStateException ||
+        cause instanceof MqFlowException ||
         cause instanceof MqScheduleException ||
         cause instanceof MqOutboxException
           ? cause
@@ -379,6 +450,20 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
       }
       throw primary
     }
+  }
+
+  async withFlows<Value>(
+    name: string,
+    operation: (store: FlowStoreV2) => Value | PromiseLike<Value>
+  ): Promise<Value> {
+    const runtime = this.runtime
+    if (this.state !== 'ready' || runtime === undefined)
+      throw new MqFlowException('unavailable', 'The MQ engine is not ready')
+    const store = this.readyFlows.get(name)
+    if (store === undefined)
+      throw new MqFlowException('unavailable', 'This connection has no enabled flow store')
+    const result = await runtime.run(async () => ({ value: await operation(store) }))
+    return result.value
   }
 
   scheduleSources(): readonly string[] {
@@ -481,6 +566,10 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
     const runtime = this.runtime
     if (this.state !== 'ready' || runtime === undefined)
       throw new MqEngineStateException(this.state, 'start workers')
+    for (const plan of this.plans) {
+      this.assertStarting()
+      await plan.recover(this.flowReaders)
+    }
     for (const plan of this.plans) {
       this.assertStarting()
       const result = await runtime.run(() =>
@@ -643,6 +732,8 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
       this.ready.clear()
       this.readyOutboxes.clear()
       this.readySchedules.clear()
+      this.readyFlows.clear()
+      this.flowReaders.clear()
       this.runningScheduler = undefined
       this.runningPublisher = undefined
       this.runningWorkers = []

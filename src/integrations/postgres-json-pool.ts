@@ -20,17 +20,26 @@ interface JsonPool extends AdapterPool {
 
 /** The pinned adapter decodes JSON text itself. Preserve wire text only for its JSON fields;
  * native application queries and all non-JSON parsing keep the actual client's configuration. */
-export function adapterJsonTypes(client: Pick<ClientBase, 'getTypeParser'>): CustomTypesConfig {
+function jsonTypes(client: Pick<ClientBase, 'getTypeParser'>, decoded: boolean): CustomTypesConfig {
   const getTypeParser: CustomTypesConfig['getTypeParser'] = (oid, format = 'text') => {
     if (format === 'binary') return client.getTypeParser(oid, 'binary')
-    if (oid === 114 || oid === 3802) return (text: string) => text
+    if (oid === 114 || oid === 3802) return decoded ? JSON.parse : (text: string) => text
     return client.getTypeParser(oid, 'text')
   }
   return { getTypeParser }
 }
 
+export function adapterJsonTypes(client: Pick<ClientBase, 'getTypeParser'>): CustomTypesConfig {
+  return jsonTypes(client, false)
+}
+export function flowJsonTypes(client: Pick<ClientBase, 'getTypeParser'>): CustomTypesConfig {
+  return jsonTypes(client, true)
+}
 export function postgresJsonClient(client: PoolClient): JsonClient {
-  const parsers = adapterJsonTypes(client)
+  return jsonClient(client, false)
+}
+function jsonClient(client: PoolClient, decoded: boolean): JsonClient {
+  const parsers = jsonTypes(client, decoded)
   return {
     async query<Row>(text: string, values?: QueryValues): Promise<QueryResult<Row>> {
       if (values === undefined) return client.query<Row & QueryResultRow>({ text, types: parsers })
@@ -50,15 +59,23 @@ export function postgresJsonClient(client: PoolClient): JsonClient {
 // They acquire no resources, own no pool and cannot keep a native pool alive without a caller.
 const views = new WeakMap<Pool, JsonPool>()
 
+const flowViews = new WeakMap<Pool, JsonPool>()
 export function postgresJsonPool(pool: Pool): JsonPool {
-  const previous = views.get(pool)
+  return jsonPool(pool, false)
+}
+export function postgresFlowJsonPool(pool: Pool): JsonPool {
+  return jsonPool(pool, true)
+}
+function jsonPool(pool: Pool, decoded: boolean): JsonPool {
+  const cache = decoded ? flowViews : views
+  const previous = cache.get(pool)
   if (previous !== undefined) return previous
   const view: JsonPool = {
     get options() {
       return pool.options
     },
     async connect(): Promise<JsonClient> {
-      return postgresJsonClient(await pool.connect())
+      return jsonClient(await pool.connect(), decoded)
     },
     async query<Row>(text: string, values?: QueryValues): Promise<QueryResult<Row>> {
       const client = await pool.connect()
@@ -68,7 +85,7 @@ export function postgresJsonPool(pool: Pool): JsonPool {
       client.once('error', onError)
       try {
         return await Promise.race([
-          postgresJsonClient(client).query<Row>(text, values),
+          jsonClient(client, decoded).query<Row>(text, values),
           disconnected.promise
         ])
       } catch (cause) {
@@ -82,6 +99,6 @@ export function postgresJsonPool(pool: Pool): JsonPool {
       }
     }
   }
-  views.set(pool, view)
+  cache.set(pool, view)
   return view
 }

@@ -11,9 +11,12 @@ import { ContractDefinitionException } from '../contracts/errors.ts'
 import { JobContract } from '../contracts/job-definition.ts'
 import type { RegisteredJob } from '../contracts/queue-definition.ts'
 import { parameterMetadata, processMetadata, workerMetadata } from '../workers/decorators.ts'
-import type { JobExecutionContext } from '../workers/types.ts'
 import type { MqShutdownOptions } from '../module/mq-module.options.ts'
-import type { CompiledJob, ContractValue } from './job-compiler.ts'
+import type { CompiledJob } from './job-compiler.ts'
+import { compileFlowHandler } from './flow-plan.ts'
+import type { FlowInvocation } from './flow-plan.ts'
+import type { CompiledFlow } from './flow-discovery.ts'
+import { MqFlowException } from '../flows/errors.ts'
 import { compileWorker } from './worker-plan.ts'
 import type { WorkerInvocation, WorkerPlan } from './worker-plan.ts'
 
@@ -54,8 +57,9 @@ function invocationFor(
   wrapper: ProviderWrapper,
   method: string,
   entry: CompiledEntry,
-  moduleRef: ModuleRef
-): WorkerInvocation['invoke'] {
+  moduleRef: ModuleRef,
+  phase?: 'fanOut' | 'collect'
+): FlowInvocation {
   const target = wrapper.metatype
   if (target === undefined || target === null)
     throw new ContractDefinitionException('Workers must be registered as class providers')
@@ -77,13 +81,15 @@ function invocationFor(
       throw new ContractDefinitionException(
         `Processor ${method} parameter ${index} needs @JobData or @JobContext`
       )
+    if (kind === 'children' && phase !== 'collect')
+      throw new MqFlowException('definition', '@FlowChildren is only valid in Collect methods')
     return kind
   })
   const scoped =
     wrapper.scope === Scope.REQUEST ||
     wrapper.scope === Scope.TRANSIENT ||
     !wrapper.isDependencyTreeStatic()
-  return async (payload: ContractValue, context: JobExecutionContext) => {
+  return async (payload, context, results) => {
     const instance = scoped
       ? await moduleRef.resolve(wrapper.token, ContextIdFactory.create(), { strict: false })
       : wrapper.instance
@@ -93,7 +99,7 @@ function invocationFor(
       )
     return await handler.apply(
       instance,
-      kinds.map((kind) => (kind === 'payload' ? payload : context))
+      kinds.map((kind) => (kind === 'payload' ? payload : kind === 'context' ? context : results))
     )
   }
 }
@@ -102,7 +108,8 @@ export function discoverWorkers(
   discovery: DiscoveryService,
   moduleRef: ModuleRef,
   entries: ReadonlyMap<JobContract, CompiledEntry>,
-  shutdown: MqShutdownOptions
+  shutdown: MqShutdownOptions,
+  flows: readonly CompiledFlow[] = []
 ): readonly WorkerPlan[] {
   const names = new Set<string>()
   const processed = new Set<string>()
@@ -142,6 +149,13 @@ export function discoverWorkers(
         throw new ContractDefinitionException(
           `Processor ${method} refers to an unregistered job property`
         )
+      if (
+        flows.some((flow) => flow.parent.registered.identity.key === entry.registered.identity.key)
+      )
+        throw new MqFlowException(
+          'definition',
+          'A flow parent cannot also have a plain Process handler'
+        )
       if (processed.has(entry.registered.identity.key))
         throw new ContractDefinitionException(
           `Duplicate processor for ${entry.registered.identity.key}`
@@ -153,7 +167,16 @@ export function discoverWorkers(
         invoke: invocationFor(wrapper, method, entry, moduleRef)
       })
     }
-    plans.push(compileWorker(options, invocations, shutdown))
+    const registrations = flows.map((flow) =>
+      flow.owner !== options.name
+        ? flow.definition
+        : compileFlowHandler(
+            flow,
+            invocationFor(wrapper, flow.fanOutMethod, flow.parent, moduleRef, 'fanOut'),
+            invocationFor(wrapper, flow.collectMethod, flow.parent, moduleRef, 'collect')
+          )
+    )
+    plans.push(compileWorker(options, invocations, shutdown, registrations))
   }
   return plans
 }

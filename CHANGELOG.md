@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Durable flows
+
+- Add typed `flowJob`/`flowChildren` references and `@Flow`/`@FanOut`/`@Collect` Nest phases with normal DI and attempt-local context.
+- Add bounded `FlowResultsReader` pages/all collection with decoded completed, typed-failed and cancelled outcomes.
+- Add opt-in PostgreSQL flow resources that reuse the existing runtime, pool, namespace and private JSON parser boundary.
+- Preserve the native v1/v2 inspection boundary while supporting suspended-parent administration/recovery through a validated v2 projection.
+- Qualify fresh-lease Collect execution, stable child identities, process-death recovery, scalar/null/Date codecs, nested flows, fail-fast and cascade cancellation.
+- Pin the released internal flow engine pair `better-effect-mq@0.1.3` and `better-effect-mq-postgres@0.1.4`; consumers still declare no engine packages.
+
 ### Persistent schedules
 
 - Add repeatable Schedule decorators, cron/interval/timezone policies and schema/codec-validated static payloads.
@@ -72,7 +81,7 @@
 
 - Configure Bun, TypeScript 6 compatibility, unchanged upstream Oxlint/Oxfmt/plugin, tsdown, publint, Lefthook and CI.
 
-Still pending: flows, external ORM transaction bridges, additional drivers, named custom retry providers and MQ enhancer/event integration. Version remains 0.0.0; no npm release has been published.
+Still pending: external ORM transaction bridges, additional drivers, named custom retry providers and MQ enhancer/event integration. Version remains 0.0.0; no npm release has been published.
 
 ### PR #4 completion and packaging correction
 
