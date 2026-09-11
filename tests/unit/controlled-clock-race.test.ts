@@ -40,7 +40,7 @@ async function racedJob() {
     group: 'clock-race-test',
     controls: [EngineControls.define(EngineQueue.define('clock-race'), { globalConcurrency: 1 })]
   })
-  const policy = valueOf(await raw.reconcile(registry, { now }))
+  const policy = valueOf(await raw.reconcile(registry))
   const revision = policy.records[0]?.revision
   assert.ok(revision)
   valueOf(
@@ -68,8 +68,7 @@ async function racedJob() {
   // Deterministically reproduce a heartbeat committing after a mutation sampled its clock.
   const renewed = valueOf(
     await raw.heartbeat({
-      jobs: [{ jobId: job.id, leaseToken: job.leaseToken }],
-      workerId,
+      leases: [{ jobId: job.id, leaseToken: job.leaseToken }],
       leaseDurationMs: 60_000,
       now: now + 100
     })
