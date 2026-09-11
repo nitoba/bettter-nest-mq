@@ -1,17 +1,33 @@
 import { expect, test } from 'bun:test'
 import assert from 'node:assert/strict'
-import { MemoryJobStore, Queue, QueueControls, makeQueueName } from 'better-effect-mq'
+import {
+  MemoryJobStore,
+  Queue,
+  QueueControls,
+  makeQueueName,
+  validateJobRecordV2
+} from 'better-effect-mq'
 import { Result } from 'better-result'
 import { flowReadStore, type FlowJobReads } from '../../src/engine/flow-read-store.ts'
 import { controlledStore } from '../../src/engine/controlled-store.ts'
 
 function referenceReads(store: ReturnType<typeof MemoryJobStore.make>): FlowJobReads {
   return {
-    getJob: async (jobId) => store.getJob({ jobId }),
-    getAttempts: async (jobId) => store.getAttempts({ jobId }),
+    async getJob(jobId) {
+      const result = await store.getJob({ jobId })
+      assert.ok(Result.isOk(result))
+      return result.value === undefined
+        ? Result.ok(undefined)
+        : validateJobRecordV2({ ...result.value, parent: undefined, flow: undefined })
+    },
+    async getAttempts(jobId) {
+      const result = await store.getAttempts({ jobId })
+      assert.ok(Result.isOk(result))
+      return Result.ok(result.value)
+    },
     async counts(request) {
       const result = await store.counts(request)
-      if (Result.isError(result)) return result
+      assert.ok(Result.isOk(result))
       return Result.ok({ ...result.value, waitingChildren: 0 })
     },
     recoveryIds: async () => []
