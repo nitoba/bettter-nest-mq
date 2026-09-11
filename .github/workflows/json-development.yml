@@ -37,35 +37,6 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
-      - name: Verify method identity through descriptors rather than unbound callbacks
-        run: |
-          node --input-type=module <<'NODE'
-          import assert from 'node:assert/strict'
-          import { readFileSync, writeFileSync } from 'node:fs'
-          const unit='tests/unit/postgres-json-pool.test.ts'
-          let text=readFileSync(unit,'utf8')
-          if(!text.includes('poolMethodDescriptors')) {
-            const before='  const connect = pool.connect\n  const query = pool.query\n  const end = pool.end'
-            assert.ok(text.includes(before))
-            text="import { poolMethodDescriptors } from '../package/consumer/pool-methods.ts'\n"+text.replace(before,'  const methods = poolMethodDescriptors(pool)')
-            const checks='    expect(pool.connect).toBe(connect)\n    expect(pool.query).toBe(query)\n    expect(pool.end).toBe(end)'
-            assert.ok(text.includes(checks))
-            text=text.replace(checks,'    expect(poolMethodDescriptors(pool)).toEqual(methods)')
-            writeFileSync(unit,text)
-          }
-          const consumer='tests/package/consumer/json-fidelity.ts'
-          text=readFileSync(consumer,'utf8')
-          if(!text.includes('poolMethodDescriptors')) {
-            text="import { poolMethodDescriptors } from './pool-methods.js'\n"+text
-            const before='    query: pool.query,\n    connect: pool.connect,\n    end: pool.end,'
-            assert.ok(text.includes(before))
-            text=text.replace(before,'    methods: poolMethodDescriptors(pool),')
-            const checks='    assert.equal(pool.query, original.query)\n    assert.equal(pool.connect, original.connect)\n    assert.equal(pool.end, original.end)'
-            assert.ok(text.includes(checks))
-            text=text.replace(checks,'    assert.deepEqual(poolMethodDescriptors(pool), original.methods)')
-            writeFileSync(consumer,text)
-          }
-          NODE
       - name: Format authored files with the exact upstream rules
         run: |
           bun install --frozen-lockfile
@@ -75,13 +46,16 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -u
           if ! git diff --cached --quiet; then
-            git commit -m 'test: inspect native method descriptors and apply upstream formatting'
+            git commit -m 'style: format JSON fidelity qualification and documentation'
             git push origin HEAD:fix/postgres-json-fidelity
           fi
       - name: Check actual PostgreSQL JSON and native-driver boundaries
         run: |
           bun tests/postgres/json-driver.ts
           bun tests/postgres/json-fidelity.ts
+          bun build tests/postgres/json-disconnect.ts --target=node --packages=external --outfile node_modules/.cache/json-disconnect.mjs
+          node node_modules/.cache/json-disconnect.mjs
+          bun tests/postgres/json-disconnect.ts
       - name: Verify full package and retained regressions
         run: |
           if bun run check > /tmp/json-check.log 2>&1; then
