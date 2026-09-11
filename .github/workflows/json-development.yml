@@ -1,0 +1,62 @@
+name: PostgreSQL JSON regression
+
+on:
+  push:
+    branches: [fix/postgres-json-fidelity]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: json-development
+  cancel-in-progress: false
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mq
+          POSTGRES_PASSWORD: mq_test_only
+          POSTGRES_DB: mq_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U mq -d mq_test" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MQ_TEST_DATABASE_URL: postgresql://mq:mq_test_only@localhost:5432/mq_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      - name: Existing baseline
+        run: bun test
+      - name: Observe public JSON regression
+        run: bun tests/postgres/json-fidelity.ts
+      - name: Inspect installed boundaries and project constraints
+        if: always()
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, readdirSync } from 'node:fs'
+          for (const file of ['README.md','docs/controls.md','docs/contracts.md','docs/connections.md','docs/execution.md','docs/architecture.md','docs/roadmap.md','.oxlintrc.json']) {
+            console.log(`PROJECT ${file}\n${readFileSync(file,'utf8')}`)
+          }
+          for (const file of readdirSync('node_modules/better-effect-mq-postgres/dist').filter(name => name.endsWith('.mjs'))) {
+            const lines = readFileSync(`node_modules/better-effect-mq-postgres/dist/${file}`,'utf8').split('\n')
+            for (const term of ['const parseJson', 'function parseJson', 'function toRecord', 'listenerClient.on', 'listener.on']) {
+              const index=lines.findIndex(line=>line.includes(term)); if(index>=0) console.log(file,term,lines.slice(index,index+55).join('\n'))
+            }
+          }
+          const types=readFileSync('node_modules/@types/pg/index.d.ts','utf8').split('\n')
+          for(const term of ['interface CustomTypesConfig','class Pool','class ClientBase','interface QueryConfig']) {
+            const index=types.findIndex(line=>line.includes(term)); console.log(term, types.slice(index,index+100).join('\n'))
+          }
+          NODE
