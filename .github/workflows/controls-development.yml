@@ -16,6 +16,17 @@ jobs:
     if: github.ref == 'refs/heads/feat/distributed-controls'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mq
+          POSTGRES_PASSWORD: mq_test_only
+          POSTGRES_DB: mq_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U mq -d mq_test" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MQ_TEST_DATABASE_URL: postgresql://mq:mq_test_only@localhost:5432/mq_test
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,6 +40,7 @@ jobs:
       - name: Apply checked integration patches and format authored code
         run: |
           node .github/apply-controls.mjs
+          node .github/qualify-controls.mjs
           bun install --frozen-lockfile
           bun run format
           bun run check:tooling
@@ -36,8 +48,8 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -u
           if ! git diff --cached --quiet; then
-            git commit -m 'feat: wire distributed controls into the existing runtime and publication boundaries'
+            git commit -m 'test: qualify distributed controls and format authored sources'
             git push origin HEAD:feat/distributed-controls
           fi
-      - name: Verify complete package quality gate
+      - name: Verify full package and actual distributed PostgreSQL execution
         run: bun run check

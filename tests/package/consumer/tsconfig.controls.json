@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["controls.ts", "controls-worker.ts", "controls-contracts.ts"]
+}
