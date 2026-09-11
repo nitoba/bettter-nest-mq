@@ -5,7 +5,6 @@ import { Inject, Injectable } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { Layer } from 'better-effect'
 import {
-  MemoryJobStore,
   Queue as EngineQueue,
   QueueControls as EngineControls,
   makeQueueName
