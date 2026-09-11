@@ -2,65 +2,67 @@
 
 ## Current delivery
 
-M0 foundation, M1 contracts, M2 engine/PostgreSQL lifecycle and **M3 core producer/worker execution** are implemented. Jobs now run through the public Nest API and the existing durable supervisor. This is not yet full feature parity with better-effect-mq and is not published to npm.
+M0 foundation, M1 contracts, M2 engine/PostgreSQL lifecycle, M3 core producer/worker execution and **M3.1a distributed queue controls** are implemented. The library still does not provide full better-effect-mq feature parity and remains unreleased at version 0.0.0.
 
-README.md and docs/contracts.md, docs/connections.md and docs/execution.md describe actual supported behavior. Remaining milestones are not exported as simulated methods.
+Current guides: README.md, docs/contracts.md, docs/connections.md, docs/execution.md and docs/controls.md. Remaining APIs below are not exported as placeholders.
 
 ## M0 — Foundation — implemented
 
-Bun lockfile and scripts; exact upstream Oxlint/Oxfmt/plugin with hash checks; TypeScript 6 floor and independent compatibility check; strict compilation; Nest dynamic modules; ESM/declarations; publint; genuine packed-consumer tests; read-only CI.
+Bun-generated lockfile/scripts, strict TypeScript with independent 6.x and primary compiler checks, unchanged upstream Oxlint/Oxfmt/plugin with 20-file integrity verification, ESM/declarations, publint, real tarball consumers and read-only CI.
 
 ## M1 — Contracts — implemented
 
-Typed inert QueueService/JobDefinition properties; Queue/Job/Retry/JobTimeout metadata; stable identities and versions; immutable policy precedence; Standard Schema input/output/failure inference; explicit inverse codecs and optional Zod integration. Real Nest registration validates complete snapshots and supports ordinary module re-exports. Contracts stay singleton/static and independent of worker providers.
+QueueService/JobDefinition, Queue/Job/Retry/JobTimeout metadata, immutable policies, versioned identities, Standard Schema input/output/failure types and explicit generic/Zod codecs. Nest discovery validates complete singleton/static queue registries and supports ordinary module re-exports without starting consumers merely by importing a contract.
 
-## M2 — Engine and connection lifecycle — implemented
+## M2 — Lifecycle — implemented
 
-One private runtime per configured application context; named stores; protocol/capability checks; safe readiness/probes; failed-acquisition rollback; cooperative ordered cleanup. Contract-only contexts allocate no runtime. PostgreSQL borrows or owns pools explicitly, validates existing schemas and offers deliberate deployment migrations. Tests verify persistence, namespace identity, ownership, idle-client failures and package subpath isolation.
+One private application runtime, named stores, capabilities/protocol checks, safe probes, owned/borrowed resource boundaries and rollback. PostgreSQL delegates to the upstream adapter, validates schema without automatic migration, exposes explicit deployment helpers, and handles owned idle-client errors. Durable raw connection identities remain stable.
 
-## M3 — Core producers and workers — implemented
+## M3 — Core execution — implemented
 
-Public enqueue/enqueueDecoded/enqueueMany, prepare, poll, awaitResult, execute, attempts, cancel, retry and promote now use actual engine operations. Schemas encode and revalidate payloads/results/failures, preserve decoded codecs, reject unbound clients and scope lookups/mutations to a job contract. Wait timeout/abort does not cancel the job. Preparation does not publish or automatically join a transaction.
+Public enqueue/enqueueDecoded/enqueueMany, prepare, poll, awaitResult, execute, attempts, cancel, retry and promote use the actual queue engine. Schemas validate every persistence boundary; wait timeout/abort does not cancel durable work. Preparation is data, not an implicit transaction.
 
-Worker/Process/JobData/JobContext map Nest class providers onto the upstream supervisor in the same runtime. Implemented behavior includes local worker/handler concurrency, known failures versus defects, fixed/linear/exponential retries, execution timeout, cooperative active cancellation, attempt-local scoped dependencies, inherited processors, producer-only mode and shutdown draining. Unexpected defects do not retry by default; true is explicit opt-in.
+Worker/Process/JobData/JobContext use real Nest class providers and fresh attempt contexts for scoped dependencies. The existing supervisor owns retries, timeout, heartbeat, leases, local concurrency and cancellation. Defects are not retried by default. Producer-only mode, inherited metadata and shutdown draining have regression coverage. Packed PostgreSQL consumers verify work and results across recreated producer/worker contexts.
 
-Real PostgreSQL packed consumers verify producer exit, consumer startup in a separate application context, idempotency, retries, typed failures, decoded results and persistence after both contexts close. Unit/integration tests also cover lifecycle, cancellation, concurrency, identity guards and invalid registration.
+## M3.1a — Distributed controls — implemented
 
-## M3.1 — Execution extensions — next
+QueueControls declares storage-backed global/per-key concurrency and fixed-window admission limits. Jobs derive dispatch keys from decoded payloads; publication/prepare/batches validate required keys and reject conflicting overrides before engine execution.
 
-Add storage-backed global/per-key concurrency and rate-limit declarations with actual distributed tests across multiple application contexts/replicas. Resolve named/versioned custom retry providers through DI without serializing executable functions. Define a genuine MQ execution-context pipeline before supporting Nest guards/pipes/interceptors/filters; current HTTP metadata is rejected rather than ignored. Add durable-event wakeups for result waits and a precise cursor/checkpoint contract before claiming subscription guarantees.
+Replicas validate existing enabled policy read-only by default. Explicit coordinated deployment reconciles using group ownership checks, preserves unchanged revisions and ignores omissions rather than disabling policies. All adapter capabilities are checked before writes; writes across connections are not a distributed transaction.
 
-Expand supervisor/adapter crash, lease-loss, activation-failure and non-cooperative shutdown scenarios at the facade boundary. Preserve inherited metadata and request-scoped dependency isolation. These extensions may proceed in parallel where their contracts do not overlap.
+A private operation-store view routes the existing worker protocol to controlled claims, settlement, release, cancellation and recovery. It retains raw persistence tokens and introduces neither another pool/runtime nor a local substitute for distributed limits. Actual packed tests run independent Node worker processes against PostgreSQL, auditing global/per-key active jobs, persisted rate-window admissions, permit release and revision persistence. Shared memory is only an explicit reference fixture; production code does not promote its conservative capabilities.
 
-## M4 — Additional adapters and resource integrations
+## M3.1b — Further execution integration — pending
 
-PostgreSQL JobStore execution is available. Add MySQL, Redis/Valkey, MongoDB and Node SQLite wrappers with optional drivers and their true topology/transaction guarantees. Reuse upstream conformance suites and real-server failure tests. Extend each connection bundle with flow/event/schedule/outbox stores as those features are implemented, sharing native resources instead of opening redundant pools.
+Add named/versioned custom retry providers with DI and no serialized executable functions. Specify a true MQ execution-context pipeline before supporting Nest guards/pipes/interceptors/filters; current unsupported HTTP metadata is rejected. Add durable-event wakeups with precise cursor/recovery semantics. Extend crash/lease-loss and mid-flight policy revision qualification without weakening fencing or cancellation guarantees.
 
-## M5 — Durable flows and schedules
+## M4 — Additional adapters and shared resource bundles — pending
 
-Implement Flow/FanOut/Collect bindings using persisted parent/children coordination, stable manifests, bounded child counts/depth, paginated collection and defined failure/cancellation policies. A waiting parent must not occupy a worker slot. No Promise.all substitute for durable state.
+Add MySQL, Redis/Valkey, MongoDB and Node SQLite wrappers with optional native drivers and real topology/transaction semantics. Reuse conformance/failure tests. Add required flow/schedule/event/outbox stores to connection bundles without redundant pools. Existing PostgreSQL JobStore execution and controls are available; the presence of an upstream outbox peer does not provide a Nest outbox facade.
 
-Implement persistent cron/interval schedules, time zones, misfire/overlap policies, administration and rolling-deployment-safe reconciliation. Test competing schedulers and restart windows. Dynamic work belongs in a coordinator job, not a serialized function or timer per replica.
+## M5 — Durable flows and schedules — pending
 
-## M6 — Transactional outbox
+Bind Flow/FanOut/Collect to the existing persisted parent/children model: stable manifests, bounded fan-out/depth, paginated collection and explicit failure policies. Waiting parents must not occupy worker slots. Do not replace durable coordination with Promise.all.
 
-Build explicit transaction/append/publish APIs around the already implemented prepared request. The outbox write and domain write must share the same real transaction resource. Add adapter-specific contexts and independently tested ORM bridges. Test rollback, publish-after-commit, replay after enqueue-before-ack, conflicting IDs, independent publication/execution retries and borrowed resource ownership.
+Implement persistent cron/interval/timezone/misfire/overlap and safe reconciliation during rolling deployments. Test competing schedulers and restart windows. Dynamic work belongs in a coordinator job, not a serialized function or timer per replica.
 
-The upstream outbox package currently exists as a PostgreSQL adapter peer. That dependency alone is not the Nest transactional outbox facade. Keep application outbox separate from internal flow coordination.
+## M6 — Transactional outbox — pending
 
-## M7 — Operations and release hardening
+Build explicit transaction/append/publish APIs around prepared requests. Domain writes and outbox appends must share the actual transaction resource. Implement/test adapter-specific contexts and ORM bridges separately. Preserve rollback, publication only after commit, replay after enqueue-before-ack, conflicting IDs, independent publication/job retries and ownership. Application outbox stays separate from flow coordination.
 
-Extend local workers and connection probes into job/flow/schedule/outbox administration, durable event cursors, observability and operational examples. Any management HTTP endpoints require opt-in authentication/authorization. Validate every optional entry point through installed tarballs, run distributed crash/restart/shutdown tests and define version compatibility before production release. No exactly-once external-side-effect promise or cross-database atomicity claim.
+## M7 — Operational and release qualification — pending
 
-## Dependencies
+Extend connection/worker/control diagnostics to authenticated opt-in job/flow/schedule/outbox administration, durable cursors, observability and production examples. Qualify additional distributed failure windows and every optional entry point with installed tarballs. Define version/upgrade guarantees before publishing a production release. Never promise exactly-once external effects or cross-database atomicity.
+
+## Dependencies and independent work
 
 ```text
-M0 → M1 → M2 → M3 core
-                  ├──→ M3.1 execution extensions
-                  ├──→ M4 additional adapters/resource bundles
-                  ├──→ M5 flows/schedules (required stores first)
-                  └──→ M6 outbox (transaction bridges first)
-        M3.1 + M4 + M5 + M6 → M7 full parity/release hardening
+M0 → M1 → M2 → M3 → M3.1a
+                  ├──→ M3.1b custom retry / MQ enhancers / durable events
+                  ├──→ M4 adapter and resource bundles
+                  ├──→ M5 flows / schedules after their stores exist
+                  └──→ M6 outbox after transaction bridges exist
+     M3.1b + M4 + M5 + M6 → M7 full parity and release qualification
 ```
 
-Adapter wrappers can proceed independently after agreeing on resource/capability boundaries. Flow and schedule work can proceed in parallel once their required stores exist. Do not distribute overlapping lease/settlement/outbox protocol changes without shared contracts and failure tests.
+Adapters and independent execution extensions may proceed in parallel after their shared boundaries are stable. Flows and schedules can be split once their store/lifecycle requirements are agreed. Lease, settlement and transaction changes require coordinated protocol tests rather than overlapping independent edits.
