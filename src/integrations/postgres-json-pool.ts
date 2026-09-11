@@ -73,7 +73,8 @@ export function postgresJsonPool(pool: Pool): JsonPool {
         ])
       } catch (cause) {
         // Match native pool.query disposal: an unsuccessful client is not returned as healthy.
-        releaseError = cause instanceof Error ? cause : new Error('PostgreSQL query failed', { cause })
+        releaseError =
+          cause instanceof Error ? cause : new Error('PostgreSQL query failed', { cause })
         throw cause
       } finally {
         client.removeListener('error', onError)
