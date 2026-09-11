@@ -65,11 +65,18 @@ export function postgresFlowSnapshot(
       return Result.err(error)
     }
   }
-  return new Proxy(store, {
-    get(target, key) {
-      if (key === 'getFlow') return getFlow
-      const value = Reflect.get(target, key, target)
-      return value instanceof Function ? value.bind(target) : value
-    }
-  })
+  // An explicit protocol view preserves native method receivers without evaluating
+  // arbitrary properties or hiding missing operations behind dynamic reflection.
+  return {
+    descriptor: store.descriptor,
+    fanOut: store.fanOut.bind(store),
+    recordChildResults: store.recordChildResults.bind(store),
+    cancel: store.cancel.bind(store),
+    reconcile: store.reconcile.bind(store),
+    markCascaded: store.markCascaded.bind(store),
+    appendChildReport: store.appendChildReport.bind(store),
+    peekOutbox: store.peekOutbox.bind(store),
+    ackOutbox: store.ackOutbox.bind(store),
+    getFlow
+  }
 }
