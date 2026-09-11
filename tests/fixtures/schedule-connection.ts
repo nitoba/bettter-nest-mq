@@ -8,9 +8,23 @@ export function scheduleConnection(enabled = true) {
   const jobs = MemoryJobStore.make()
   const schedules = MemoryJobScheduleStore.make({ jobStore: jobs })
   const trace = { acquired: 0, released: 0 }
-  const connection = defineConnection({ adapter: 'memory', ownership: 'borrowed', boundary: jobs, scope: 'schedule-tests' }, (token) => {
-    const layer = Layer.scoped(token, () => { trace.acquired += 1; return jobs }, () => { trace.released += 1 })
-    return enabled ? { layer, schedules: (name: string) => Layer.succeed(scheduleToken(name), schedules) } : { layer }
-  })
+  const connection = defineConnection(
+    { adapter: 'memory', ownership: 'borrowed', boundary: jobs, scope: 'schedule-tests' },
+    (token) => {
+      const layer = Layer.scoped(
+        token,
+        () => {
+          trace.acquired += 1
+          return jobs
+        },
+        () => {
+          trace.released += 1
+        }
+      )
+      return enabled
+        ? { layer, schedules: (name: string) => Layer.succeed(scheduleToken(name), schedules) }
+        : { layer }
+    }
+  )
   return { connection, jobs, schedules, trace }
 }

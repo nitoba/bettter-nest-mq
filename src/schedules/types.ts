@@ -4,8 +4,12 @@ import type { QueueService } from '../contracts/queue-service.ts'
 import type { RetryOptions } from '../contracts/policies.ts'
 import type { JobJsonValue, PreparedBackoff } from '../jobs/types.ts'
 
-export type ScheduleMisfire = { readonly strategy: 'skip' | 'run-once' } | { readonly strategy: 'catch-up'; readonly maxOccurrences: number }
-export type ScheduleCadence = { readonly cron: string; readonly everyMs?: never } | { readonly everyMs: number; readonly cron?: never }
+export type ScheduleMisfire =
+  | { readonly strategy: 'skip' | 'run-once' }
+  | { readonly strategy: 'catch-up'; readonly maxOccurrences: number }
+export type ScheduleCadence =
+  | { readonly cron: string; readonly everyMs?: never }
+  | { readonly everyMs: number; readonly cron?: never }
 export type ScheduleOptions<Input = JobJsonValue> = ScheduleCadence & {
   readonly key: string
   readonly group?: string
@@ -58,19 +62,42 @@ export interface ScheduleReport {
   readonly updated: readonly string[]
   readonly unchanged: readonly string[]
 }
-export interface ScheduleListOptions { readonly group?: string; readonly paused?: boolean; readonly limit?: number }
+export interface ScheduleListOptions {
+  readonly group?: string
+  readonly paused?: boolean
+  readonly limit?: number
+}
 export interface SchedulerSnapshot {
   readonly state: 'running' | 'quiescing' | 'draining' | 'stopped'
   readonly activeTickCount: number
   readonly reportedErrors: number
 }
-export type ScheduledJobKey<Queue extends QueueService> = { [Key in keyof Queue]: Queue[Key] extends JobContract ? Key : never }[keyof Queue] & string
-export type ScheduledInput<Queue extends QueueService, Key extends ScheduledJobKey<Queue>> = Queue[Key] extends JobContract ? InputOf<Queue[Key]> : never
+export type ScheduledJobKey<Queue extends QueueService> = {
+  [Key in keyof Queue]: Queue[Key] extends JobContract ? Key : never
+}[keyof Queue] &
+  string
+export type ScheduledInput<
+  Queue extends QueueService,
+  Key extends ScheduledJobKey<Queue>
+> = Queue[Key] extends JobContract ? InputOf<Queue[Key]> : never
 
 export interface SchedulesMonitor {
-  get(queue: Type<QueueService>, property: string, key: string, group?: string): Promise<ScheduleSnapshot | undefined>
-  list(queue: Type<QueueService>, property: string, options?: ScheduleListOptions): Promise<readonly ScheduleSnapshot[]>
-  upsert<Input>(queue: Type<QueueService>, property: string, options: ScheduleOptions<Input>): Promise<ScheduleSnapshot>
+  get(
+    queue: Type<QueueService>,
+    property: string,
+    key: string,
+    group?: string
+  ): Promise<ScheduleSnapshot | undefined>
+  list(
+    queue: Type<QueueService>,
+    property: string,
+    options?: ScheduleListOptions
+  ): Promise<readonly ScheduleSnapshot[]>
+  upsert<Input>(
+    queue: Type<QueueService>,
+    property: string,
+    options: ScheduleOptions<Input>
+  ): Promise<ScheduleSnapshot>
   pause(queue: Type<QueueService>, property: string, key: string, group?: string): Promise<void>
   resume(queue: Type<QueueService>, property: string, key: string, group?: string): Promise<void>
   remove(queue: Type<QueueService>, property: string, key: string, group?: string): Promise<boolean>

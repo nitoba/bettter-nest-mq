@@ -17,18 +17,61 @@ import { MqConfiguration } from './mq.configuration.ts'
 import { MqRegistry } from './mq.registry.ts'
 import { MODULE_OPTIONS_TOKEN } from './mq.tokens.ts'
 
-export const { ConfigurableModuleClass } = new ConfigurableModuleBuilder<MqModuleOptions>({ moduleName: 'Mq', optionsInjectionToken: MODULE_OPTIONS_TOKEN })
-  .setClassMethodName('forRoot').setFactoryMethodName('createMqOptions')
+export const { ConfigurableModuleClass } = new ConfigurableModuleBuilder<MqModuleOptions>({
+  moduleName: 'Mq',
+  optionsInjectionToken: MODULE_OPTIONS_TOKEN
+})
+  .setClassMethodName('forRoot')
+  .setFactoryMethodName('createMqOptions')
   .setExtras({ isGlobal: false }, (definition, extras) => ({
-    ...definition, global: extras.isGlobal, imports: [...(definition.imports ?? []), DiscoveryModule],
+    ...definition,
+    global: extras.isGlobal,
+    imports: [...(definition.imports ?? []), DiscoveryModule],
     providers: [
-      ...(definition.providers ?? []), MqConfiguration, MqRegistry, MqEngineHost,
-      { provide: MqOutboxService, inject: [MqEngineHost], useFactory: (host: MqEngineHost): MqOutboxService => bindOutboxService(new MqOutboxService(host.outbox), host.outbox) },
-      { provide: CONNECTION_MONITOR, inject: [MqEngineHost], useFactory: (host: MqEngineHost): MqConnectionMonitor => host.session },
-      { provide: WORKER_MONITOR, inject: [MqEngineHost], useFactory: (host: MqEngineHost): WorkerMonitor => host.session },
-      { provide: QUEUE_CONTROLS_MONITOR, inject: [MqEngineHost], useFactory: (host: MqEngineHost): QueueControlsMonitor => host.controls },
-      { provide: SCHEDULE_MONITOR, inject: [MqEngineHost], useFactory: (host: MqEngineHost): SchedulesMonitor => host.schedules },
-      MqConnectionsService, MqWorkersService, MqQueueControlsService, MqSchedulesService
+      ...(definition.providers ?? []),
+      MqConfiguration,
+      MqRegistry,
+      MqEngineHost,
+      {
+        provide: MqOutboxService,
+        inject: [MqEngineHost],
+        useFactory: (host: MqEngineHost): MqOutboxService =>
+          bindOutboxService(new MqOutboxService(host.outbox), host.outbox)
+      },
+      {
+        provide: CONNECTION_MONITOR,
+        inject: [MqEngineHost],
+        useFactory: (host: MqEngineHost): MqConnectionMonitor => host.session
+      },
+      {
+        provide: WORKER_MONITOR,
+        inject: [MqEngineHost],
+        useFactory: (host: MqEngineHost): WorkerMonitor => host.session
+      },
+      {
+        provide: QUEUE_CONTROLS_MONITOR,
+        inject: [MqEngineHost],
+        useFactory: (host: MqEngineHost): QueueControlsMonitor => host.controls
+      },
+      {
+        provide: SCHEDULE_MONITOR,
+        inject: [MqEngineHost],
+        useFactory: (host: MqEngineHost): SchedulesMonitor => host.schedules
+      },
+      MqConnectionsService,
+      MqWorkersService,
+      MqQueueControlsService,
+      MqSchedulesService
     ],
-    exports: [...(definition.exports ?? []), MqOutboxService, MqConfiguration, MqRegistry, MqConnectionsService, MqWorkersService, MqQueueControlsService, MqSchedulesService]
-  })).build()
+    exports: [
+      ...(definition.exports ?? []),
+      MqOutboxService,
+      MqConfiguration,
+      MqRegistry,
+      MqConnectionsService,
+      MqWorkersService,
+      MqQueueControlsService,
+      MqSchedulesService
+    ]
+  }))
+  .build()

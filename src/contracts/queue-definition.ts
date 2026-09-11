@@ -1,5 +1,7 @@
 import { queueControlsMetadata } from '../controls/decorator.ts'
 import type { QueueControlsOptions } from '../controls/types.ts'
+import { assertScheduleProperties, scheduleMetadata } from '../schedules/decorator.ts'
+import type { ScheduleOptions } from '../schedules/types.ts'
 import { getJobMetadata, getOwnQueueMetadata } from './decorators.ts'
 import { ContractDefinitionException } from './errors.ts'
 import { JobContract } from './job-definition.ts'
@@ -17,6 +19,7 @@ export interface JobIdentity {
 }
 
 export interface RegisteredJob {
+  readonly schedules?: readonly ScheduleOptions[]
   readonly controls?: QueueControlsOptions | undefined
   readonly property: string
   readonly identity: JobIdentity
@@ -41,6 +44,7 @@ export function getQueueDefinition(queue: QueueService, defaults: JobPolicy = {}
   }
   const controls = queueControlsMetadata(queue.constructor)
   const properties = getJobMetadata(queue)
+  assertScheduleProperties(queue, new Set(properties.keys()))
   for (const key of Reflect.ownKeys(queue)) {
     const value = Object.getOwnPropertyDescriptor(queue, key)?.value
     if (value instanceof JobContract && properties.get(String(key))?.job === undefined) {
@@ -72,6 +76,7 @@ export function getQueueDefinition(queue: QueueService, defaults: JobPolicy = {}
       Object.freeze({
         controls,
         property,
+        schedules: scheduleMetadata(queue, property),
         identity: Object.freeze({
           connection: metadata.connection,
           queue: metadata.name,

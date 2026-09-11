@@ -13,6 +13,7 @@ import { requireInteger } from '../contracts/policies.ts'
 import { defineConnection } from '../engine/connection-definition.ts'
 import type { AcquiredConnection } from '../engine/connection-definition.ts'
 import { postgresJsonPool } from './postgres-json-pool.ts'
+import { postgresScheduleLayer } from './postgres-schedule-resource.ts'
 import { postgresOutboxLayer } from './postgres-outbox-resource.ts'
 
 interface PostgresCommonOptions {
@@ -22,6 +23,7 @@ interface PostgresCommonOptions {
   readonly requireCapabilities?: ReadonlyArray<MqCapability>
   /** Enable a transactional outbox sharing this connection's native pool. */
   readonly outbox?: boolean
+  readonly schedules?: boolean
 }
 export type PostgresConnectionOptions = PostgresCommonOptions &
   (
@@ -55,10 +57,18 @@ function withOutbox(
   pool: Pool,
   schema: string,
   namespace: string,
-  enabled: boolean
+  enabled: boolean,
+  schedules: boolean
 ): AcquiredConnection {
-  if (!enabled) return resource
-  return { ...resource, outbox: (name) => postgresOutboxLayer(name, pool, schema, namespace) }
+  let result = resource
+  if (enabled)
+    result = { ...result, outbox: (name) => postgresOutboxLayer(name, pool, schema, namespace) }
+  if (schedules)
+    result = {
+      ...result,
+      schedules: (name) => postgresScheduleLayer(name, pool, schema, namespace)
+    }
+  return result
 }
 
 function createPostgresConnection(options: PostgresConnectionOptions): MqConnection {
@@ -66,6 +76,9 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
   const namespace = validateNamespace(options.namespace ?? 'default')
   const validate = options.validateSchema ?? true
   const outbox = options.outbox ?? false
+  const schedules = options.schedules ?? false
+  if (schedules !== true && schedules !== false)
+    throw new MqConnectionException('<postgres>', 'configuration')
   if (outbox !== true && outbox !== false)
     throw new MqConnectionException('<postgres>', 'configuration')
   const scope = JSON.stringify([schema, namespace])
@@ -90,7 +103,8 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
           pool,
           schema,
           namespace,
-          outbox
+          outbox,
+          options.schedules ?? false
         )
     )
   }
@@ -137,7 +151,8 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
           pool,
           schema,
           namespace,
-          outbox
+          outbox,
+          options.schedules ?? false
         )
       } catch (cause) {
         try {

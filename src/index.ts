@@ -1,4 +1,18 @@
 import 'reflect-metadata'
+export { Schedule } from './schedules/decorator.ts'
+export { MqSchedulesService } from './schedules/service.ts'
+export { MqScheduleException } from './schedules/errors.ts'
+export type { SchedulePhase } from './schedules/errors.ts'
+export type {
+  ScheduleOptions,
+  ScheduleMisfire,
+  ScheduleCadence,
+  MqScheduleOptions,
+  ScheduleSnapshot,
+  ScheduleReport,
+  ScheduleListOptions,
+  SchedulerSnapshot
+} from './schedules/types.ts'
 
 export { MqOutboxService } from './outbox/service.ts'
 export { MqOutboxException } from './outbox/errors.ts'

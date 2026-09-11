@@ -1,3 +1,4 @@
+import type { ScheduleLayerFactory } from './schedule-plan.ts'
 import type { OutboxLayerFactory } from './outbox-plan.ts'
 import { JobStore } from 'better-effect-mq'
 import type { JobStoreToken } from 'better-effect-mq'
@@ -17,6 +18,7 @@ export type NamedStoreToken = JobStoreToken<`nestjs/${string}`>
 export type NamedStore = InstanceType<NamedStoreToken>
 
 export interface AcquiredConnection {
+  readonly schedules?: ScheduleLayerFactory
   readonly outbox?: OutboxLayerFactory
   readonly layer: Layer<NamedStore, never>
   /** Release facade-owned resources after the runtime has released adapter resources. */
