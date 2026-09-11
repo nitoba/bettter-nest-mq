@@ -133,3 +133,7 @@ Unit/real-Nest tests cover immutable metadata, decoded dispatch keys, missing-ke
 ## Remaining work
 
 This delivers the distributed-controls portion of M3.1, not full feature parity or a production deployment. Named custom retry providers, MQ-specific enhancers, durable-event waits, additional adapters, flows, schedules and transactional outbox remain separate milestones. No npm package publication or environment provisioning is part of this change.
+
+## Heartbeat clock race and dependency ownership
+
+Controlled mutations can be rejected when a heartbeat commits a newer updatedAt after the supervisor samples now. The bridge refreshes only the upstream explicit stale-clock rejection, at most three times. It retains the job ID, original lease token and handler result, rechecks current wall time and lease validity in the store, and preserves a retry delay when moving its scheduled time. It never replays the handler or retries ambiguous writes/network failures. Deterministic memory and PostgreSQL tests verify completion, duplicate acknowledgments, active cancellation and expired/replaced lease fencing. Engine/adapter packages are now normal internal dependencies; consumers install only their chosen pg/Zod integrations as documented in dependencies.md.

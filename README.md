@@ -122,7 +122,7 @@ bun add pg@^8.16.3 better-effect-mq-postgres@0.1.3 better-effect-mq-outbox@0.1.3
 bun add -d @types/pg
 ```
 
-The outbox peer is required by the upstream adapter's dependency graph; it does not enable a Nest transactional outbox API. The root entry point works without PostgreSQL or Zod integration packages installed.
+The engine and its PostgreSQL/outbox adapters are normal internal dependencies, installed automatically with this library. Nest consumers do not install better-effect, better-result or any better-effect-mq package manually. Only the chosen native driver/schema library is application-facing. The root remains usable without loading pg or Zod, and the internal outbox dependency does not enable the pending Nest transactional-outbox API. See [dependency ownership](docs/dependencies.md).
 
 Execute migrations deliberately in a deployment script:
 

@@ -43,3 +43,11 @@
 - Configure Bun, TypeScript 6 compatibility, unchanged upstream Oxlint/Oxfmt/plugin, tsdown, publint, Lefthook and CI.
 
 Still pending: flows, schedules, transactional outbox, additional drivers, named custom retry providers and MQ enhancer/event integration. Version remains 0.0.0; no npm release has been published.
+
+### PR #4 completion and packaging correction
+
+- Correct the controlled heartbeat/settlement race with bounded refresh of explicitly rejected stale-clock mutations, without replaying handlers or granting expired/replaced leases.
+- Cover real PostgreSQL clock races, duplicate acknowledgments, cancellation, retry delays and bounded retry safety.
+- Move the PostgreSQL/outbox adapters to normal internal dependencies alongside the engine; consumers no longer install any better-effect package manually.
+- Test actual tarballs whose application manifest has no internal engine/adapter dependencies.
+- Retain issue #5 as a separate scalar-payload qualification item and keep the package unreleased.

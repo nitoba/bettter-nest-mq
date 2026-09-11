@@ -18,7 +18,7 @@ Exact repeated descriptors or the same pool/connection-string boundary plus sche
 
 ## PostgreSQL configuration
 
-Import postgres from better-nest-mq/postgres. This subpath needs pg, its TypeScript types when compiling, better-effect-mq-postgres@0.1.3 and the adapter's better-effect-mq-outbox@0.1.3 peer. The peer does not mean a Nest transactional outbox facade is implemented.
+Import postgres from better-nest-mq/postgres. Consumers select pg and its TypeScript types; better-effect-mq-postgres and better-effect-mq-outbox are automatically installed internal dependencies of this library, not peers the application must manage. The internal outbox package does not mean a Nest transactional-outbox facade is implemented. See dependencies.md for the complete installation boundary.
 
 ```ts
 const owned = postgres({
@@ -78,3 +78,7 @@ Cancellation is cooperative. Runtime abort is not forced JavaScript interruption
 Tests use explicit internal upstream memory fixtures and a real PostgreSQL service, never a production fallback. They cover acquisition, capability failures, independent contexts, close races, cleanup errors, ownership, explicit migrations, durable identity and packed consumers. Public tarball tests exercise Node/Bun with TypeScript 6/7, including intentional idle-client termination and end-to-end worker execution.
 
 Other storage wrappers, flow/schedule/event/outbox resource bundles and true ORM transaction bridges remain planned. New resource bundles should share native connections and preserve these ownership/lifecycle guarantees rather than opening redundant pools.
+
+## Known adapter qualification item
+
+Issue #5 tracks a separately observed scalar-string JSON payload failure in the pinned PostgreSQL adapter. Current PostgreSQL end-to-end examples and controlled-claim tests use object payloads; they do not establish universal scalar JSON persistence. Do not treat this unreleased version as fully production-qualified or silently change persisted payload envelopes to conceal that issue.

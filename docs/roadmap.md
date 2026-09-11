@@ -38,7 +38,7 @@ Add named/versioned custom retry providers with DI and no serialized executable 
 
 ## M4 — Additional adapters and shared resource bundles — pending
 
-Add MySQL, Redis/Valkey, MongoDB and Node SQLite wrappers with optional native drivers and real topology/transaction semantics. Reuse conformance/failure tests. Add required flow/schedule/event/outbox stores to connection bundles without redundant pools. Existing PostgreSQL JobStore execution and controls are available; the presence of an upstream outbox peer does not provide a Nest outbox facade.
+Add MySQL, Redis/Valkey, MongoDB and Node SQLite wrappers with optional native drivers and real topology/transaction semantics. Reuse conformance/failure tests. Add required flow/schedule/event/outbox stores to connection bundles without redundant pools. Existing PostgreSQL JobStore execution and controls are available; the presence of the internal upstream outbox dependency does not provide a Nest outbox facade.
 
 ## M5 — Durable flows and schedules — pending
 

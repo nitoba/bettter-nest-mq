@@ -20,12 +20,12 @@ The outbox package is currently an internal dependency required by the upstream 
 
 The integration uses the application's compatible Nest installation, reflect-metadata and RxJS. TypeScript consumers need a compiler supporting the declared >=6.0.0 floor. Optional integrations require only the selected schema library or native driver:
 
-| Use | Application dependency |
-| --- | --- |
-| Existing Nest application | Compatible @nestjs/common, @nestjs/core, reflect-metadata and rxjs |
-| PostgreSQL subpath | pg; @types/pg for TypeScript consumers |
-| Zod schemas/codecs | zod when the application chooses it |
-| Another Standard Schema validator | That validator, not Zod |
+| Use                               | Application dependency                                             |
+| --------------------------------- | ------------------------------------------------------------------ |
+| Existing Nest application         | Compatible @nestjs/common, @nestjs/core, reflect-metadata and rxjs |
+| PostgreSQL subpath                | pg; @types/pg for TypeScript consumers                             |
+| Zod schemas/codecs                | zod when the application chooses it                                |
+| Another Standard Schema validator | That validator, not Zod                                            |
 
 For example, after building and packing this unreleased repository, a Nest application can consume the tarball and the PostgreSQL driver:
 
