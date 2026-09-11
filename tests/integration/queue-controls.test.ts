@@ -1,3 +1,4 @@
+import { controlReferenceStore } from '../fixtures/control-store.ts'
 import { expect, test } from 'bun:test'
 import assert from 'node:assert/strict'
 import { Inject, Injectable } from '@nestjs/common'
@@ -41,7 +42,7 @@ class LimitedQueue extends QueueService {
 }
 
 function sharedStore() {
-  const store = MemoryJobStore.make()
+  const store = controlReferenceStore()
   let acquired = 0
   let released = 0
   const connection = defineConnection(

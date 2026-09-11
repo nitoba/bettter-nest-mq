@@ -8,9 +8,17 @@ export const WorkResult = z.object({ pid: z.int(), key: z.string() })
 
 class WorkQueue extends QueueService {
   @Job({ name: 'left', version: 1 })
-  readonly left = this.job({ payload: WorkPayload, result: WorkResult, dispatchKey: (payload) => payload.key })
+  readonly left = this.job({
+    payload: WorkPayload,
+    result: WorkResult,
+    dispatchKey: (payload) => payload.key
+  })
   @Job({ name: 'right', version: 1 })
-  readonly right = this.job({ payload: WorkPayload, result: WorkResult, dispatchKey: (payload) => payload.key })
+  readonly right = this.job({
+    payload: WorkPayload,
+    result: WorkResult,
+    dispatchKey: (payload) => payload.key
+  })
 }
 
 @Injectable()

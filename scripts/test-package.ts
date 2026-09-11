@@ -96,7 +96,7 @@ try {
       })
     )
     await run(['bun', 'install', '--ignore-scripts'], directory)
-    for (const fixture of ['codec', 'postgres', 'execution']) {
+    for (const fixture of ['codec', 'postgres', 'execution', 'controls']) {
       await run(
         ['node', 'node_modules/typescript/bin/tsc', '-p', `tsconfig.${fixture}.json`],
         directory

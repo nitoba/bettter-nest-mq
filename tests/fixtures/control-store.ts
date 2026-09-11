@@ -5,9 +5,15 @@ import { MemoryJobStore } from 'better-effect-mq'
  * distributed guarantees are qualified separately against PostgreSQL worker processes. */
 export function controlReferenceStore() {
   const store = MemoryJobStore.make()
-  Object.defineProperty(store, 'descriptor', { value: Object.freeze({
-    ...store.descriptor,
-    capabilities: Object.freeze({ ...store.descriptor.capabilities, globalConcurrency: true, rateLimiting: true })
-  }) })
+  Object.defineProperty(store, 'descriptor', {
+    value: Object.freeze({
+      ...store.descriptor,
+      capabilities: Object.freeze({
+        ...store.descriptor.capabilities,
+        globalConcurrency: true,
+        rateLimiting: true
+      })
+    })
+  })
   return store
 }
