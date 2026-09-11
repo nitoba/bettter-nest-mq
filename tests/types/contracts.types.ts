@@ -49,6 +49,5 @@ export async function verifyMethods(queue: TypedQueue): Promise<void> {
   await queue.task.encodeFailure(failure)
   // @ts-expect-error Encoding decoded values does not accept a wire-format timestamp.
   await queue.task.encodePayload(input)
-  // @ts-expect-error The engine-backed producer API is not a simulated stub in M1.
   await queue.task.enqueue(input)
 }

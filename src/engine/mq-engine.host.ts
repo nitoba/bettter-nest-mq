@@ -1,4 +1,9 @@
-import { Inject, Injectable, type OnApplicationBootstrap, type OnModuleDestroy } from '@nestjs/common'
+import {
+  Inject,
+  Injectable,
+  type OnApplicationBootstrap,
+  type OnModuleDestroy
+} from '@nestjs/common'
 import { DiscoveryService, ModuleRef } from '@nestjs/core'
 
 import { JobContract } from '../contracts/job-definition.ts'
@@ -20,13 +25,35 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
     @Inject(MqRegistry) private readonly registry: MqRegistry,
     @Inject(DiscoveryService) private readonly discovery: DiscoveryService,
     @Inject(ModuleRef) private readonly moduleRef: ModuleRef
-  ) { this.session = new EngineSession(configuration.options.connections, configuration.options.shutdown) }
+  ) {
+    this.session = new EngineSession(
+      configuration.options.connections,
+      configuration.options.shutdown
+    )
+  }
 
   async onApplicationBootstrap(): Promise<void> {
     this.registry.initialize()
-    const entries = new Map(this.configuration.options.connections === undefined ? [] : this.registry.jobs().map((registered) => [registered.contract, { registered, compiled: compileJob(registered) }]))
-    const plans = this.configuration.options.execution.workers && this.configuration.options.connections !== undefined
-      ? discoverWorkers(this.discovery, this.moduleRef, entries, this.configuration.options.shutdown) : []
+    const entries = new Map(
+      this.configuration.options.connections === undefined
+        ? []
+        : this.registry
+            .jobs()
+            .map((registered) => [
+              registered.contract,
+              { registered, compiled: compileJob(registered) }
+            ])
+    )
+    const plans =
+      this.configuration.options.execution.workers &&
+      this.configuration.options.connections !== undefined
+        ? discoverWorkers(
+            this.discovery,
+            this.moduleRef,
+            entries,
+            this.configuration.options.shutdown
+          )
+        : []
     try {
       await this.session.start(this.registry.queues(), plans)
       if (this.session.state === 'ready') {
@@ -38,8 +65,13 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
       }
     } catch (cause) {
       this.detach()
-      try { await this.session.close() }
-      catch (cleanupCause) { throw new AggregateError([cause, cleanupCause], 'MQ activation and cleanup failed', { cause }) }
+      try {
+        await this.session.close()
+      } catch (cleanupCause) {
+        throw new AggregateError([cause, cleanupCause], 'MQ activation and cleanup failed', {
+          cause
+        })
+      }
       throw cause
     }
   }

@@ -9,7 +9,9 @@ export interface WorkerOptions {
   readonly retryDefects?: boolean
 }
 
-export interface ProcessOptions { readonly concurrency?: number }
+export interface ProcessOptions {
+  readonly concurrency?: number
+}
 
 /** This is a job attempt context, never an HTTP Request or a mutable lease handle. */
 export interface JobExecutionContext {
@@ -33,7 +35,10 @@ export interface WorkerSnapshot {
   readonly activeCount: number
 }
 
-export interface WorkerIdleOptions { readonly timeoutMs?: number; readonly signal?: AbortSignal }
+export interface WorkerIdleOptions {
+  readonly timeoutMs?: number
+  readonly signal?: AbortSignal
+}
 export interface WorkerMonitor {
   workers(): ReadonlyArray<WorkerSnapshot>
   awaitIdle(options?: WorkerIdleOptions): Promise<void>

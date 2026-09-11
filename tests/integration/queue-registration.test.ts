@@ -127,7 +127,7 @@ describe('Nest queue registration', () => {
     try {
       await app.init()
       expect(await app.get(Reports).generate.parsePayload('value')).toBe('value')
-      expect('enqueue' in app.get(Reports).generate).toBe(false)
+      expect('enqueue' in app.get(Reports).generate).toBe(true)
     } finally {
       await app.close()
     }

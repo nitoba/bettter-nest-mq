@@ -1,10 +1,29 @@
 import type { RetryOptions } from '../contracts/policies.ts'
 
 /** Portable JSON data; this type deliberately has no dependency on engine protocol brands. */
-export type JobJsonValue = null | boolean | number | string | readonly JobJsonValue[] | { readonly [key: string]: JobJsonValue }
+export type JobJsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | readonly JobJsonValue[]
+  | { readonly [key: string]: JobJsonValue }
 export type JobState = 'waiting' | 'delayed' | 'active' | 'completed' | 'failed' | 'cancelled'
-export type JobFailureKind = 'typed' | 'defect' | 'encode' | 'decode' | 'timeout' | 'stalled' | 'cancelled'
-export type JobAttemptOutcome = 'completed' | 'retried' | 'failed' | 'cancelled' | 'stalled' | 'released'
+export type JobFailureKind =
+  | 'typed'
+  | 'defect'
+  | 'encode'
+  | 'decode'
+  | 'timeout'
+  | 'stalled'
+  | 'cancelled'
+export type JobAttemptOutcome =
+  | 'completed'
+  | 'retried'
+  | 'failed'
+  | 'cancelled'
+  | 'stalled'
+  | 'released'
 
 export type JobScheduleOptions =
   | { readonly delayMs?: never; readonly at?: never }
@@ -46,10 +65,11 @@ interface JobFailureDetails {
   readonly recordedAt: number
 }
 
-export type JobFailureView<Failure> = JobFailureDetails & (
-  | { readonly kind: 'typed'; readonly data: Failure }
-  | { readonly kind: Exclude<JobFailureKind, 'typed'>; readonly data?: JobJsonValue }
-)
+export type JobFailureView<Failure> = JobFailureDetails &
+  (
+    | { readonly kind: 'typed'; readonly data: Failure }
+    | { readonly kind: Exclude<JobFailureKind, 'typed'>; readonly data?: JobJsonValue }
+  )
 
 /** Safe job view: the mutable lease token is intentionally not exposed. */
 export interface JobSnapshot<Success, Failure = never> {

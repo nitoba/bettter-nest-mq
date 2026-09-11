@@ -6,7 +6,12 @@ import { zodCodec } from '../../src/integrations/zod.ts'
 class TypedQueue extends QueueService {
   @Job({ name: 'task', version: 1 })
   readonly task = this.job({
-    payload: zodCodec(z.codec(z.iso.datetime(), z.date(), { decode: (text) => new Date(text), encode: (date) => date.toISOString() })),
+    payload: zodCodec(
+      z.codec(z.iso.datetime(), z.date(), {
+        decode: (text) => new Date(text),
+        encode: (date) => date.toISOString()
+      })
+    ),
     result: z.object({ count: z.number() })
   })
   readonly notAJob = 'value'
