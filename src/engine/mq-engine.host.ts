@@ -12,6 +12,7 @@ import type { RegisteredJob } from '../contracts/queue-definition.ts'
 import { bindJobClient, unbindJobClient } from '../jobs/binding.ts'
 import { MqConfiguration } from '../module/mq.configuration.ts'
 import { MqRegistry } from '../module/mq.registry.ts'
+import { OutboxCoordinator } from './outbox-coordinator.ts'
 import { QueueControlsCoordinator } from './queue-controls.ts'
 import { EngineSession } from './engine-session.ts'
 import { compileJob, type CompiledJob } from './job-compiler.ts'
@@ -22,6 +23,7 @@ import { discoverWorkers } from './worker-discovery.ts'
 export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
   readonly session: EngineSession
   readonly controls: QueueControlsCoordinator
+  readonly outbox: OutboxCoordinator
   private readonly bindingOwner = Symbol('MqJobBindingOwner')
   private readonly bound: JobContract[] = []
 
@@ -33,8 +35,13 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
   ) {
     this.session = new EngineSession(
       configuration.options.connections,
-      configuration.options.shutdown
+      configuration.options.shutdown,
+      {
+        enabled: configuration.options.execution.outboxPublisher,
+        options: configuration.options.outbox
+      }
     )
+    this.outbox = new OutboxCoordinator(this.session, registry)
     this.controls = new QueueControlsCoordinator(
       this.session,
       registry,
@@ -77,6 +84,7 @@ export class MqEngineHost implements OnApplicationBootstrap, OnModuleDestroy {
           this.bound.push(contract)
         }
         await this.session.activateWorkers()
+        await this.session.activateOutboxPublisher()
       }
     } catch (cause) {
       this.detach()

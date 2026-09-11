@@ -5,6 +5,8 @@ import { MqConnectionsService } from '../connections/mq-connections.service.ts'
 import { CONNECTION_MONITOR } from '../connections/tokens.ts'
 import { MqQueueControlsService, QUEUE_CONTROLS_MONITOR } from '../controls/service.ts'
 import type { QueueControlsMonitor } from '../controls/types.ts'
+import { MqOutboxService } from '../outbox/service.ts'
+import { bindOutboxService } from '../engine/outbox-coordinator.ts'
 import { MqEngineHost } from '../engine/mq-engine.host.ts'
 import { MqWorkersService, WORKER_MONITOR } from '../workers/mq-workers.service.ts'
 import type { WorkerMonitor } from '../workers/types.ts'
@@ -29,6 +31,12 @@ export const { ConfigurableModuleClass } = new ConfigurableModuleBuilder<MqModul
       MqRegistry,
       MqEngineHost,
       {
+        provide: MqOutboxService,
+        inject: [MqEngineHost],
+        useFactory: (host: MqEngineHost): MqOutboxService =>
+          bindOutboxService(new MqOutboxService(host.outbox), host.outbox)
+      },
+      {
         provide: CONNECTION_MONITOR,
         inject: [MqEngineHost],
         useFactory: (host: MqEngineHost): MqConnectionMonitor => host.session
@@ -49,6 +57,7 @@ export const { ConfigurableModuleClass } = new ConfigurableModuleBuilder<MqModul
     ],
     exports: [
       ...(definition.exports ?? []),
+      MqOutboxService,
       MqConfiguration,
       MqRegistry,
       MqConnectionsService,

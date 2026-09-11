@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { resolveControlsOptions } from '../controls/decorator.ts'
+import { resolveOutboxOptions } from '../outbox/options.ts'
 import { resolveJobPolicy } from '../contracts/policies.ts'
 import { copyConnections } from '../engine/connection-definition.ts'
 import { MODULE_OPTIONS_TOKEN } from './mq.tokens.ts'
@@ -18,9 +19,13 @@ export class MqConfiguration {
         abortAfterGracePeriod: options.shutdown?.abortAfterGracePeriod ?? true
       }),
       defaults: resolveJobPolicy(options.defaults ?? {}),
+      outbox: resolveOutboxOptions(options.outbox),
       controls: resolveControlsOptions(options.controls),
       connections: copyConnections(options.connections),
-      execution: Object.freeze({ workers: options.execution?.workers ?? true })
+      execution: Object.freeze({
+        workers: options.execution?.workers ?? true,
+        outboxPublisher: options.execution?.outboxPublisher ?? true
+      })
     })
   }
 }

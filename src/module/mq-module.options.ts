@@ -3,8 +3,14 @@ import type { MqControlsOptions } from '../controls/types.ts'
 import type { JobPolicy, ResolvedJobPolicy } from '../contracts/policies.ts'
 import type { MqOutboxOptions } from '../outbox/types.ts'
 
-export interface MqShutdownOptions { readonly gracePeriodMs?: number; readonly abortAfterGracePeriod?: boolean }
-export interface MqExecutionOptions { readonly workers?: boolean; readonly outboxPublisher?: boolean }
+export interface MqShutdownOptions {
+  readonly gracePeriodMs?: number
+  readonly abortAfterGracePeriod?: boolean
+}
+export interface MqExecutionOptions {
+  readonly workers?: boolean
+  readonly outboxPublisher?: boolean
+}
 export interface MqModuleOptions {
   readonly shutdown?: MqShutdownOptions
   readonly defaults?: JobPolicy
@@ -13,7 +19,9 @@ export interface MqModuleOptions {
   readonly controls?: MqControlsOptions
   readonly outbox?: MqOutboxOptions
 }
-export interface MqOptionsFactory { createMqOptions(): MqModuleOptions | Promise<MqModuleOptions> }
+export interface MqOptionsFactory {
+  createMqOptions(): MqModuleOptions | Promise<MqModuleOptions>
+}
 export interface MqResolvedOptions {
   readonly shutdown: Readonly<Required<MqShutdownOptions>>
   readonly defaults: ResolvedJobPolicy

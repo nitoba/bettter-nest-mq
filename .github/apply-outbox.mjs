@@ -11,67 +11,132 @@ function patch(path, marker, replacements) {
   writeFileSync(path, text)
 }
 patch('src/integrations/postgres-json-pool.ts', 'export function postgresJsonClient', [
-  ['function jsonClient(client: PoolClient)', 'export function postgresJsonClient(client: PoolClient)'],
+  [
+    'function jsonClient(client: PoolClient)',
+    'export function postgresJsonClient(client: PoolClient)'
+  ],
   ['return jsonClient(await pool.connect())', 'return postgresJsonClient(await pool.connect())'],
-  ['jsonClient(client).query<Row>(text, values)', 'postgresJsonClient(client).query<Row>(text, values)']
+  [
+    'jsonClient(client).query<Row>(text, values)',
+    'postgresJsonClient(client).query<Row>(text, values)'
+  ]
 ])
 patch('src/engine/connection-definition.ts', 'OutboxLayerFactory', [
-  ["import { JobStore }", "import type { OutboxLayerFactory } from './outbox-plan.ts'\nimport { JobStore }"],
-  ['export interface AcquiredConnection {', 'export interface AcquiredConnection {\n  readonly outbox?: OutboxLayerFactory']
+  [
+    'import { JobStore }',
+    "import type { OutboxLayerFactory } from './outbox-plan.ts'\nimport { JobStore }"
+  ],
+  [
+    'export interface AcquiredConnection {',
+    'export interface AcquiredConnection {\n  readonly outbox?: OutboxLayerFactory'
+  ]
 ])
 patch('src/module/mq.configuration.ts', 'resolveOutboxOptions', [
-  ["import { resolveJobPolicy }", "import { resolveOutboxOptions } from '../outbox/options.ts'\nimport { resolveJobPolicy }"],
-  ['      defaults: resolveJobPolicy(options.defaults ?? {}),', '      defaults: resolveJobPolicy(options.defaults ?? {}),\n      outbox: resolveOutboxOptions(options.outbox),'],
-  ['execution: Object.freeze({ workers: options.execution?.workers ?? true })', 'execution: Object.freeze({ workers: options.execution?.workers ?? true, outboxPublisher: options.execution?.outboxPublisher ?? true })']
+  [
+    'import { resolveJobPolicy }',
+    "import { resolveOutboxOptions } from '../outbox/options.ts'\nimport { resolveJobPolicy }"
+  ],
+  [
+    '      defaults: resolveJobPolicy(options.defaults ?? {}),',
+    '      defaults: resolveJobPolicy(options.defaults ?? {}),\n      outbox: resolveOutboxOptions(options.outbox),'
+  ],
+  [
+    'execution: Object.freeze({ workers: options.execution?.workers ?? true })',
+    'execution: Object.freeze({ workers: options.execution?.workers ?? true, outboxPublisher: options.execution?.outboxPublisher ?? true })'
+  ]
 ])
 patch('src/engine/mq-engine.host.ts', 'OutboxCoordinator', [
-  ["import { QueueControlsCoordinator }", "import { OutboxCoordinator } from './outbox-coordinator.ts'\nimport { QueueControlsCoordinator }"],
-  ['  readonly controls: QueueControlsCoordinator', '  readonly controls: QueueControlsCoordinator\n  readonly outbox: OutboxCoordinator'],
-  ['      configuration.options.shutdown\n    )', '      configuration.options.shutdown,\n      { enabled: configuration.options.execution.outboxPublisher, options: configuration.options.outbox }\n    )\n    this.outbox = new OutboxCoordinator(this.session, registry)'],
-  ['        await this.session.activateWorkers()', '        await this.session.activateWorkers()\n        await this.session.activateOutboxPublisher()']
+  [
+    'import { QueueControlsCoordinator }',
+    "import { OutboxCoordinator } from './outbox-coordinator.ts'\nimport { QueueControlsCoordinator }"
+  ],
+  [
+    '  readonly controls: QueueControlsCoordinator',
+    '  readonly controls: QueueControlsCoordinator\n  readonly outbox: OutboxCoordinator'
+  ],
+  [
+    '      configuration.options.shutdown\n    )',
+    '      configuration.options.shutdown,\n      { enabled: configuration.options.execution.outboxPublisher, options: configuration.options.outbox }\n    )\n    this.outbox = new OutboxCoordinator(this.session, registry)'
+  ],
+  [
+    '        await this.session.activateWorkers()',
+    '        await this.session.activateWorkers()\n        await this.session.activateOutboxPublisher()'
+  ]
 ])
 patch('src/module/mq-module.definition.ts', 'bindOutboxService', [
-  ["import { MqEngineHost }", "import { MqOutboxService } from '../outbox/service.ts'\nimport { bindOutboxService } from '../engine/outbox-coordinator.ts'\nimport { MqEngineHost }"],
-  ['      MqEngineHost,', '      MqEngineHost,\n      { provide: MqOutboxService, inject: [MqEngineHost], useFactory: (host: MqEngineHost): MqOutboxService => bindOutboxService(new MqOutboxService(host.outbox), host.outbox) },'],
-  ['    exports: [\n      ...(definition.exports ?? []),', '    exports: [\n      ...(definition.exports ?? []),\n      MqOutboxService,']
+  [
+    'import { MqEngineHost }',
+    "import { MqOutboxService } from '../outbox/service.ts'\nimport { bindOutboxService } from '../engine/outbox-coordinator.ts'\nimport { MqEngineHost }"
+  ],
+  [
+    '      MqEngineHost,',
+    '      MqEngineHost,\n      { provide: MqOutboxService, inject: [MqEngineHost], useFactory: (host: MqEngineHost): MqOutboxService => bindOutboxService(new MqOutboxService(host.outbox), host.outbox) },'
+  ],
+  [
+    '    exports: [\n      ...(definition.exports ?? []),',
+    '    exports: [\n      ...(definition.exports ?? []),\n      MqOutboxService,'
+  ]
 ])
 patch('src/index.ts', "from './outbox/types.ts'", [
-  ["import 'reflect-metadata'", `import 'reflect-metadata'
+  [
+    "import 'reflect-metadata'",
+    `import 'reflect-metadata'
 
 export { MqOutboxService } from './outbox/service.ts'
 export { MqOutboxException } from './outbox/errors.ts'
 export type { OutboxPhase } from './outbox/errors.ts'
-export type { OutboxEntry, OutboxState, OutboxSnapshot, OutboxAppendResult, OutboxCounts, OutboxListOptions, OutboxPublisherSnapshot, OutboxFailure, MqOutboxOptions } from './outbox/types.ts'`]
+export type { OutboxEntry, OutboxState, OutboxSnapshot, OutboxAppendResult, OutboxCounts, OutboxListOptions, OutboxPublisherSnapshot, OutboxFailure, MqOutboxOptions } from './outbox/types.ts'`
+  ]
 ])
 patch('src/engine/engine-session.ts', 'activateOutboxPublisher', [
-  ["import { Result } from 'better-result'", `import { Result } from 'better-result'
+  [
+    "import { Result } from 'better-result'",
+    `import { Result } from 'better-result'
 import type { OutboxStore, OutboxPublisherHandle } from 'better-effect-mq-outbox'
 import { MqOutboxException } from '../outbox/errors.ts'
 import { resolveOutboxOptions } from '../outbox/options.ts'
 import type { MqOutboxOptions, OutboxPublisherSnapshot } from '../outbox/types.ts'
 import { outboxToken, outboxPublisherLayer, Publisher } from './outbox-plan.ts'
-import type { NamedOutbox, EngineOutboxPublisher } from './outbox-plan.ts'`],
-  ['Runtime<NamedStore | OperationStore | EngineWorker | Clock>', 'Runtime<NamedStore | OperationStore | EngineWorker | Clock | NamedOutbox | EngineOutboxPublisher>'],
-  ['  private acquired: AcquiredConnection[] = []', `  private acquired: AcquiredConnection[] = []
+import type { NamedOutbox, EngineOutboxPublisher } from './outbox-plan.ts'`
+  ],
+  [
+    'Runtime<NamedStore | OperationStore | EngineWorker | Clock>',
+    'Runtime<NamedStore | OperationStore | EngineWorker | Clock | NamedOutbox | EngineOutboxPublisher>'
+  ],
+  [
+    '  private acquired: AcquiredConnection[] = []',
+    `  private acquired: AcquiredConnection[] = []
   private readonly outboxOptions: Readonly<Required<MqOutboxOptions>>
   private readonly publisherEnabled: boolean
   private readyOutboxes = new Map<string, OutboxStore>()
   private runningPublisher: OutboxPublisherHandle | undefined
   private publishing: Promise<void> | undefined
-  private hasPublisher = false`],
-  ['  constructor(connections: MqConnectionMap | undefined, shutdown: MqShutdownOptions = {}) {', `  constructor(connections: MqConnectionMap | undefined, shutdown: MqShutdownOptions = {}, outbox: { enabled?: boolean; options?: MqOutboxOptions } = {}) {
+  private hasPublisher = false`
+  ],
+  [
+    '  constructor(connections: MqConnectionMap | undefined, shutdown: MqShutdownOptions = {}) {',
+    `  constructor(connections: MqConnectionMap | undefined, shutdown: MqShutdownOptions = {}, outbox: { enabled?: boolean; options?: MqOutboxOptions } = {}) {
     this.outboxOptions = resolveOutboxOptions(outbox.options)
-    this.publisherEnabled = outbox.enabled ?? true`],
-  ['      const workers = Layer.merge(...this.plans.map((plan) => plan.layer))', `      const workers = Layer.merge(...this.plans.map((plan) => plan.layer))
+    this.publisherEnabled = outbox.enabled ?? true`
+  ],
+  [
+    '      const workers = Layer.merge(...this.plans.map((plan) => plan.layer))',
+    `      const workers = Layer.merge(...this.plans.map((plan) => plan.layer))
       const outboxBindings = bindings.flatMap((binding) => {
         const factory = binding.resource.outbox
         return factory === undefined ? [] : [{ name: binding.name, token: outboxToken(binding.name), layer: factory(binding.name) }]
       })
       const outboxes = Layer.merge(...outboxBindings.map((binding) => binding.layer))
       this.hasPublisher = this.publisherEnabled && outboxBindings.length > 0
-      const publisher = this.hasPublisher ? outboxPublisherLayer(outboxBindings.map((binding) => binding.name), bindings.map((binding) => binding.name), this.outboxOptions) : Layer.empty`],
-  ['Layer.merge(ClockLive, stores, operations, workers)', 'Layer.merge(ClockLive, stores, operations, workers, outboxes, publisher)'],
-  ['      this.assertStarting()\n      this.ready = ready', `      const readyOutboxes = new Map<string, OutboxStore>()
+      const publisher = this.hasPublisher ? outboxPublisherLayer(outboxBindings.map((binding) => binding.name), bindings.map((binding) => binding.name), this.outboxOptions) : Layer.empty`
+  ],
+  [
+    'Layer.merge(ClockLive, stores, operations, workers)',
+    'Layer.merge(ClockLive, stores, operations, workers, outboxes, publisher)'
+  ],
+  [
+    '      this.assertStarting()\n      this.ready = ready',
+    `      const readyOutboxes = new Map<string, OutboxStore>()
       for (const binding of outboxBindings) {
         this.assertStarting()
         acquiring = binding.name
@@ -84,9 +149,15 @@ import type { NamedOutbox, EngineOutboxPublisher } from './outbox-plan.ts'`],
       }
       this.assertStarting()
       this.readyOutboxes = readyOutboxes
-      this.ready = ready`],
-  ['cause instanceof MqConnectionException || cause instanceof MqEngineStateException', 'cause instanceof MqConnectionException || cause instanceof MqEngineStateException || cause instanceof MqOutboxException'],
-  ['  async runOperation<Value, Failure>(', `  activateOutboxPublisher(): Promise<void> {
+      this.ready = ready`
+  ],
+  [
+    'cause instanceof MqConnectionException || cause instanceof MqEngineStateException',
+    'cause instanceof MqConnectionException || cause instanceof MqEngineStateException || cause instanceof MqOutboxException'
+  ],
+  [
+    '  async runOperation<Value, Failure>(',
+    `  activateOutboxPublisher(): Promise<void> {
     this.publishing ??= this.activatePublisher()
     return this.publishing
   }
@@ -116,7 +187,14 @@ import type { NamedOutbox, EngineOutboxPublisher } from './outbox-plan.ts'`],
     return result.value
   }
 
-  async runOperation<Value, Failure>(`],
-  ['      if (this.activating !== undefined) await Promise.allSettled([this.activating])', '      if (this.activating !== undefined) await Promise.allSettled([this.activating])\n      if (this.publishing !== undefined) await Promise.allSettled([this.publishing])'],
-  ['      this.ready.clear()', '      this.ready.clear()\n      this.readyOutboxes.clear()\n      this.runningPublisher = undefined']
+  async runOperation<Value, Failure>(`
+  ],
+  [
+    '      if (this.activating !== undefined) await Promise.allSettled([this.activating])',
+    '      if (this.activating !== undefined) await Promise.allSettled([this.activating])\n      if (this.publishing !== undefined) await Promise.allSettled([this.publishing])'
+  ],
+  [
+    '      this.ready.clear()',
+    '      this.ready.clear()\n      this.readyOutboxes.clear()\n      this.runningPublisher = undefined'
+  ]
 ])

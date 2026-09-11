@@ -17,7 +17,12 @@ export interface MqOutboxOptions {
   readonly retryMaxDelayMs?: number
 }
 export interface OutboxFailure {
-  readonly kind: 'target-missing' | 'request-invalid' | 'store-transient' | 'store-permanent' | 'settlement-uncertain'
+  readonly kind:
+    | 'target-missing'
+    | 'request-invalid'
+    | 'store-transient'
+    | 'store-permanent'
+    | 'settlement-uncertain'
   readonly code?: string
   readonly message: string
   readonly retryable: boolean
@@ -38,10 +43,27 @@ export interface OutboxSnapshot {
   readonly publishedAtMs: number | undefined
   readonly failure: OutboxFailure | undefined
 }
-export interface OutboxAppendResult { readonly record: OutboxSnapshot; readonly duplicate: boolean }
-export interface OutboxCounts { readonly pending: number; readonly active: number; readonly published: number; readonly failed: number; readonly total: number }
-export interface OutboxListOptions { readonly state?: OutboxState | readonly OutboxState[]; readonly target?: string; readonly limit?: number }
-export interface OutboxPublisherSnapshot { readonly id: string; readonly state: 'running' | 'stopping' | 'stopped'; readonly activeCount: number }
+export interface OutboxAppendResult {
+  readonly record: OutboxSnapshot
+  readonly duplicate: boolean
+}
+export interface OutboxCounts {
+  readonly pending: number
+  readonly active: number
+  readonly published: number
+  readonly failed: number
+  readonly total: number
+}
+export interface OutboxListOptions {
+  readonly state?: OutboxState | readonly OutboxState[]
+  readonly target?: string
+  readonly limit?: number
+}
+export interface OutboxPublisherSnapshot {
+  readonly id: string
+  readonly state: 'running' | 'stopping' | 'stopped'
+  readonly activeCount: number
+}
 export interface OutboxMonitor {
   get(source: string, id: string): Promise<OutboxSnapshot | undefined>
   list(source: string, options?: OutboxListOptions): Promise<readonly OutboxSnapshot[]>

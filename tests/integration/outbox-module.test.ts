@@ -11,6 +11,11 @@ test('a contract-only application exposes outbox diagnostics without starting a 
     const outbox = app.get(MqOutboxService)
     expect(outbox.publisher()).toBeUndefined()
     await assert.rejects(outbox.counts('missing'), MqOutboxException)
-    await assert.rejects(postgresOutbox(outbox, 'missing').transaction(async () => 'no'), MqOutboxException)
-  } finally { await app.close() }
+    await assert.rejects(
+      postgresOutbox(outbox, 'missing').transaction(async () => 'no'),
+      MqOutboxException
+    )
+  } finally {
+    await app.close()
+  }
 })
