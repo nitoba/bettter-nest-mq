@@ -9,7 +9,7 @@ permissions:
 
 concurrency:
   group: json-development
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   regression:
@@ -49,7 +49,16 @@ jobs:
             git commit -m 'style: apply upstream formatting to JSON fidelity regression and fix'
             git push origin HEAD:fix/postgres-json-fidelity
           fi
-      - name: Check actual PostgreSQL JSON regression
-        run: bun tests/postgres/json-fidelity.ts
+      - name: Check actual PostgreSQL JSON and native-driver boundaries
+        run: |
+          bun tests/postgres/json-driver.ts
+          bun tests/postgres/json-fidelity.ts
       - name: Verify full package and retained regressions
-        run: bun run check
+        run: |
+          if bun run check > /tmp/json-check.log 2>&1; then
+            grep -E '^[[:space:]]+[0-9]+ (pass|fail)|Verified 20|TypeScript|PASS packed JSON' /tmp/json-check.log || true
+            tail -n 80 /tmp/json-check.log
+          else
+            tail -n 160 /tmp/json-check.log
+            exit 1
+          fi
