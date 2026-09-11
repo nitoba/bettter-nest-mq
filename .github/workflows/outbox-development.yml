@@ -29,6 +29,7 @@ jobs:
       - name: Wire the checked integration and format authored files
         run: |
           node .github/apply-outbox.mjs
+          node .github/qualify-outbox.mjs
           bun install --frozen-lockfile
           bun run format
           bun run check:tooling
@@ -36,7 +37,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -u
           if ! git diff --cached --quiet; then
-            git commit -m 'feat: wire opt-in outbox resources into the existing Nest runtime'
+            git commit -m 'feat: qualify outbox transaction and publisher integration'
             git push origin HEAD:feat/transactional-outbox
           fi
       - name: Verify the complete quality gate
