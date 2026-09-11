@@ -43,13 +43,11 @@ test('changed payload drift fails validation without rewriting the operator defi
   const deploy = await appFor(fixture, 'reconcile')
   try {
     await deploy.init()
-    await deploy
-      .get(MqSchedulesService)
-      .upsert(LifecycleQueue, 'task', {
-        key: 'regular',
-        everyMs: 60_000,
-        payload: { value: 'operator' }
-      })
+    await deploy.get(MqSchedulesService).upsert(LifecycleQueue, 'task', {
+      key: 'regular',
+      everyMs: 60_000,
+      payload: { value: 'operator' }
+    })
   } finally {
     await deploy.close()
   }
