@@ -185,3 +185,9 @@ A missing destination route is classified as retryable by the pinned upstream pu
 Automatic proposed job IDs use the logical source name, outbox ID and logical destination name. Distinct source databases/namespaces with the same logical aliases are not globally distinguished by that derivation. Use globally unique outbox IDs, such as UUIDs, or explicit globally scoped job IDs when multiple independent source deployments converge on one destination. Duplicate append within one source does not deduplicate business callbacks across sources.
 
 The pinned Worker supervisor requires queue/name/version uniqueness inside each Worker Service even across connections. When source and destination expose the same queue/job/version, register separate Worker Services for them. This is checked before resources open; the integration does not silently split a worker and change its local concurrency budget.
+
+## Persistent schedule integration
+
+Persistent Schedule declarations and MqSchedulesService are now implemented; see schedules.md for the supported API and exact recurrence semantics. Schedule stores opt in with postgres({ schedules: true }), sharing the existing pool, private JSON view and stable namespace. Definition deployment/validation and scheduler execution are independent from workers and the outbox publisher.
+
+This does not add flows or external ORM transactions. The pinned schedule protocol cannot carry dispatch keys, so keyed/per-key-limited schedules reject explicitly. Normal startup preserves operator pauses and validates deployed definitions; explicit reconciliation is a coordinated administrative operation, not a cross-store transaction.

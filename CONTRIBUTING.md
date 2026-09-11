@@ -33,3 +33,9 @@ No automatic npm publishing is configured. Releases require explicit authorizati
 ## Internal engine packages
 
 Do not add better-effect, better-result, better-effect-mq or the internal PostgreSQL/outbox adapters to external consumer manifests or this package's peerDependencies. They are normal dependencies maintained by better-nest-mq. Root-only tarball tests remove pg/Zod, not required internal adapters; integration tests then select only the native/schema peers. Preserve the explicit stale-clock regression, bounded mutation refresh and lease-fencing tests.
+
+## Schedule contributions
+
+Persistent scheduling is available; read docs/schedules.md before changing recurrence or administration. The PostgreSQL package fixture starts two independent scheduler processes and validates occurrence fencing, JSON fidelity, timezone/misfire/overlap, operator pause and later worker execution. Maintain these tests with the existing outbox/controls matrix.
+
+Schema migrations remain explicit. Normal startup validates definitions; reconcile is coordinated deployment authority, not an automatic multi-writer election. Preserve pause/revision/cursor state and drain ticks on shutdown. Per-key scheduled dispatch and arbitrary dynamic functions are not supported by the pinned protocol. Flows and external ORM transaction bridges remain planned.

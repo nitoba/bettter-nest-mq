@@ -2,7 +2,7 @@
 
 ## Scope and status
 
-Read README.md, docs/dependencies.md, docs/postgres-json.md, docs/controls.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/outbox.md, docs/architecture.md and docs/roadmap.md before changing APIs. Foundations, typed producers/workers, PostgreSQL lifecycle/JSON fidelity, distributed controls and native PostgreSQL transactional outbox are implemented. Flows, schedules, ORM transaction bridges, other drivers and further execution integration remain planned. Never simulate missing APIs or silently fall back to memory.
+Read docs/schedules.md, README.md, docs/dependencies.md, docs/postgres-json.md, docs/controls.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/outbox.md, docs/architecture.md and docs/roadmap.md before changing APIs. Foundations, typed producers/workers, PostgreSQL lifecycle/JSON fidelity, distributed controls and native PostgreSQL transactional outbox are implemented. Flows, ORM transaction bridges, other drivers and further execution integration remain planned. Never simulate missing APIs or silently fall back to memory.
 
 ## Toolchain
 
@@ -48,3 +48,11 @@ Run `bun run check` before delivery: TS6/7, real Nest/engine tests, formatting, 
 Use MQ_TEST_DATABASE_URL only with a dedicated database. PostgreSQL tests create/drop random schemas and terminate tagged clients. Run test:postgres and the JSON boundary scripts, then build/test:package with that environment. Retained CI also runs the transactional outbox fixture under Node and Bun with both TypeScript versions: rollback/invisibility, native parsers, duplicate routing, replay, scalar results, caught failures and shutdown/disconnection safety. Verify persistence after recreated contexts, not merely a returned ID.
 
 Use conventional commits. No npm publication, release, production deployment or repository settings changes without explicit authorization. Retained CI is read-only; remove temporary branch-only generation workflows before merging. Confirm the exact final commit passes and report remaining boundaries accurately.
+
+## Persistent scheduling rules
+
+Schedule decorators, schedule administration and PostgreSQL JobScheduler integration are implemented. Preserve the raw connection namespace, same-pool JSON parser view and single runtime. Validate definitions and static payloads before consumers start; normal replicas are read-only and deployment reconciliation must preserve pauses, cursors and omissions.
+
+Never replace atomic upstream tick/occurrence fencing with local timers. Keep scheduler/worker/outbox roles independent and drain admitted ticks before resources close. The pinned protocol cannot persist dispatch keys: reject derived-key/per-key destinations instead of silently losing keys. Catch-up is capped at 256 per tick; skip drops every observed due slot with no lateness tolerance. Do not advertise different semantics.
+
+Qualify schedules through installed tarballs with independent PostgreSQL scheduler processes under both consumer compilers/runtimes. Keep tests for scalar/null/date payloads, drift, paused definitions, invalid preflight, unsafe timer configuration and shutdown. Do not rerun one-shot source patch scripts from formatter workflows; remove temporary development helpers before integration.

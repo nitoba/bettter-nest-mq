@@ -84,3 +84,9 @@ Native PostgreSQL outbox resources now share their existing pool and runtime. Ot
 Issue #5 is corrected by a private, non-owning adapter pool/client view. JSON and JSONB fields reach the pinned adapter as encoded text, so its decoder parses exactly once and preserves strings, JSON null and other valid JSON values. Native application queries, custom parsers, global pg configuration and pool ownership remain unchanged. The format on disk is unchanged and needs no migration.
 
 The real database/package matrix covers 18 JSON values in ordinary and controlled queues, including single/decoded/batch publication, preparation, results, typed failures, retries and post-restart reads. Native driver regressions also check transaction identity, rollback, LISTEN notifications, SQL query failures and active connection termination. Correctly stored data remains readable; previously misinterpreted business results are not automatically repaired or replayed. See [PostgreSQL JSON fidelity](postgres-json.md) for the pinned compatibility boundary and operational precautions.
+
+## Persistent schedule integration
+
+Persistent Schedule declarations and MqSchedulesService are now implemented; see schedules.md for the supported API and exact recurrence semantics. Schedule stores opt in with postgres({ schedules: true }), sharing the existing pool, private JSON view and stable namespace. Definition deployment/validation and scheduler execution are independent from workers and the outbox publisher.
+
+This does not add flows or external ORM transactions. The pinned schedule protocol cannot carry dispatch keys, so keyed/per-key-limited schedules reject explicitly. Normal startup preserves operator pauses and validates deployed definitions; explicit reconciliation is a coordinated administrative operation, not a cross-store transaction.

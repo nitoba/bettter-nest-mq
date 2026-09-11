@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Persistent schedules
+
+- Add repeatable Schedule decorators, cron/interval/timezone policies and schema/codec-validated static payloads.
+- Add MqSchedulesService with typed upsert, contract-scoped get/list/pause/resume/remove, reconcile reports and local scheduler status/sweep.
+- Reuse upstream fenced occurrences and PostgreSQL schedule storage in the existing runtime/pool/parser boundary.
+- Separate scheduler, worker and outbox roles; preserve operator pauses, unchanged revisions, cursors and omitted definitions.
+- Validate declarations before resource writes and reject unsupported dispatch-key/per-key destinations, invalid options and unsafe timer delays explicitly.
+- Add independent-process installed PostgreSQL tests for JSON/null/date values, occurrence deduplication, timezone, misfire/overlap and post-scheduler worker execution.
+- Add startup-drift/rollback and in-flight tick shutdown regressions. No dependency version, migration envelope or required consumer peer changes.
+
 ### Native PostgreSQL transactional outbox
 
 - Add opt-in outbox stores sharing existing native pools and the private application runtime.
@@ -62,7 +72,7 @@
 
 - Configure Bun, TypeScript 6 compatibility, unchanged upstream Oxlint/Oxfmt/plugin, tsdown, publint, Lefthook and CI.
 
-Still pending: flows, schedules, transactional outbox, additional drivers, named custom retry providers and MQ enhancer/event integration. Version remains 0.0.0; no npm release has been published.
+Still pending: flows, external ORM transaction bridges, additional drivers, named custom retry providers and MQ enhancer/event integration. Version remains 0.0.0; no npm release has been published.
 
 ### PR #4 completion and packaging correction
 
