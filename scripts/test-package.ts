@@ -120,7 +120,14 @@ try {
       )
     await writeFile(join(directory, 'package.json'), JSON.stringify(integratedManifest))
     await run(['bun', 'install', '--ignore-scripts'], directory)
-    for (const fixture of ['codec', 'postgres', 'execution', 'controls', 'json-fidelity']) {
+    for (const fixture of [
+      'codec',
+      'postgres',
+      'execution',
+      'controls',
+      'json-fidelity',
+      'outbox'
+    ]) {
       await run(
         ['node', 'node_modules/typescript/bin/tsc', '-p', `tsconfig.${fixture}.json`],
         directory

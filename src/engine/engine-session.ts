@@ -159,13 +159,12 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
       })
       const outboxes = Layer.merge(...outboxBindings.map((binding) => binding.layer))
       this.hasPublisher = this.publisherEnabled && outboxBindings.length > 0
-      const publisher = this.hasPublisher
-        ? outboxPublisherLayer(
-            outboxBindings.map((binding) => binding.name),
-            bindings.map((binding) => binding.name),
-            this.outboxOptions
-          )
-        : Layer.empty
+      // The layer is inert. Only hasPublisher controls acquisition/activation below.
+      const publisher = outboxPublisherLayer(
+        outboxBindings.map((binding) => binding.name),
+        bindings.map((binding) => binding.name),
+        this.outboxOptions
+      )
       this.runtime = await Runtime.make(
         Layer.merge(ClockLive, stores, operations, workers, outboxes, publisher),
         {

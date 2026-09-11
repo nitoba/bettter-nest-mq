@@ -54,7 +54,7 @@ test('explicit job ids and publication budgets remain independent of job executi
     },
     jobs
   )
-  expect(record.request.id).toBe('explicit-job')
+  assert.equal(record.request.id, 'explicit-job')
   expect(record.attemptsMax).toBe(3)
   expect(record.request.attemptsMax).toBe(1)
 })
