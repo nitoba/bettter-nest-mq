@@ -13,47 +13,52 @@
 ## Global constraints
 
 - Work on feat/durable-schedules; integrate only after exact-head CI passes.
-- Internal engine packages remain dependencies, not consumer-installed peers. No new runtime/pool per feature or process-global resources.
-- No automatic schema migrations, silent memory fallback, timer-per-replica enqueue or duplicate occurrence algorithm.
-- Preserve raw connection identity and JSON parser/null corrections. Schedule policies never silently bypass per-key control requirements.
-- Use one coordinated reconcile writer; ordinary startup validates and never deletes omissions. No cross-store rollback promise.
-- Retain TS6/7, Bun, actual Node/Bun packed consumers, real PostgreSQL and exact 20-file tooling provenance.
+- Internal engine packages remain normal dependencies, not consumer-installed peers. No new runtime/pool per feature or process-global acquired resources.
+- No automatic migrations, silent memory fallback, timer-per-replica enqueue or replacement occurrence algorithm.
+- Preserve raw connection identity and JSON/null corrections. Scheduled work never silently loses a required dispatch key.
+- Use a coordinated reconcile writer; ordinary replicas validate and omissions are not removed. No cross-store rollback promise.
+- Retain TS6/7, Bun, installed Node/Bun consumers, real PostgreSQL and exact 20-file tooling provenance.
 
 ## Task 1 — Baseline and published contract inspection
 
-Files: tests/unit/schedules-public-api.test.ts, temporary .github/workflows/schedules-development.yml.
-
-- [ ] Run `bun test`: expect existing tests to pass and the missing Schedule export regression to fail.
-- [ ] Read project guides and exact installed scheduler/store/registry types; inspect raw namespace/layer construction and atomic tick behavior.
+- [x] Observe the Schedule export regression fail against the original 210-test baseline.
+- [x] Inspect installed schedule, store, registry and lifecycle contracts and the real PostgreSQL namespace/tick implementation.
 
 ## Task 2 — Metadata and compilation
 
-Files: src/schedules/types.ts, decorator.ts, errors.ts; src/engine/schedule-compiler.ts; tests/unit and tests/types.
-
-- [ ] Add regressions for invalid cron/interval/timezone, duplicate addresses, input payload copying, inheritance and unsupported combinations.
-- [ ] Implement Schedule options and metadata, then compile registered job properties through validateSchema/encodeSchema and resolved policies.
-- [ ] Ensure every schedule validates before resource writes. Run both TypeScript compiler checks and targeted tests.
+- [x] Add repeatable metadata, identity/inheritance checks, immutable JSON inputs and schema/codec compilation before resource writes.
+- [x] Validate cron/interval/timezone, unknown fields, accessors, timer bounds and the pinned catch-up maximum.
+- [x] Reject missing job metadata, conflicting addresses, inherited relative job delay and unsupported per-key/dispatch-key schedules explicitly.
+- [x] Preserve TypeScript input inference on dynamic upsert and negative type tests under both compilers.
 
 ## Task 3 — Resource and lifecycle integration
 
-Files: src/integrations/postgres schedule resource, src/engine schedule plan/session/host, module configuration/service.
+- [x] Add opt-in PostgreSQL schedule resources using the same native pool, private JSON view and raw stable JobStore namespace.
+- [x] Add raw/operation schedule aliases and a lazy upstream scheduler inside the existing runtime.
+- [x] Warm and validate stores/definitions before clients and consumers activate; keep scheduler role independent of workers/publisher.
+- [x] Test missing opt-in, preflight failure without writes, drift without overwriting and draining an admitted tick before store release.
 
-- [ ] Test opt-in validation, missing capabilities, contract-only use and independent scheduler role.
-- [ ] Add the existing PostgreSQL schedule store to the acquired connection bundle with the private JSON pool view and stable raw token.
-- [ ] Add one lazy upstream scheduler layer to the same runtime; warm stores, synchronize definitions, then activate consumers. Stop/drain ticks before pool release and cover startup rollback.
+## Task 4 — Administration and distributed qualification
 
-## Task 4 — Definition administration and distributed qualification
+- [x] Expose typed upsert, contract-scoped get/list/pause/resume/remove, validate/reconcile reports and local status/sweep through facade Promises.
+- [x] Verify preservation of pauses, unchanged revisions/cursors and omitted dynamic definitions.
+- [x] Run two independent Node scheduler processes against the installed package and PostgreSQL, proving occurrence fencing and later worker processing.
+- [x] Cover scalar/null/object/array JSON, Date codecs, IANA timezone, run-once/catch-up/skip, overlap, pause/resume and source ownership.
+- [x] Retain the existing real PostgreSQL JSON, controls, transaction/outbox and pool-failure qualification matrix.
 
-Files: src/schedules/service.ts, src/engine/schedules.ts; tests/package/consumer schedule fixtures and script integration.
+## Task 5 — Review and final integration gate
 
-- [ ] Expose scoped get/list/upsert/pause/resume/remove, validate/reconcile reports and scheduler status/sweep through facade-only Promises.
-- [ ] Verify pause/revision/next-run preservation, invalid input producing no writes, stable occurrence IDs and restart safety against real PostgreSQL.
-- [ ] Start independent scheduler child processes with the actual packed package, proving one enqueue per occurrence and overlap/misfire behavior without local mocks.
+- [x] Inspect the implementation and diff for resource ownership, namespace stability, lifecycle ordering, unsafe options and public type/dependency leakage.
+- [x] Run the complete quality gate after hardening: run 34607821597 passed on 3c4ed5874c963120aba94fd11ad7ab3663f159e2 with 242 tests, zero failures, TypeScript 6.0.3/7.0.2, Oxfmt, type-aware Oxlint, build, publint and installed Node/Bun PostgreSQL consumers.
+- [x] Update supported/pending status in the guides and document the exact pinned protocol limitations.
+- [x] Retire temporary source/doc patch helpers and remove the branch-only write-enabled workflow. Retained CI remains read-only.
 
-## Task 5 — Review and integration
+The exact cleanup commit must pass the retained Node 22/24 and PostgreSQL CI matrix before merge. Its result and final merge identity are recorded in PR #8; previous green commits are not a substitute for that integration gate.
 
-Files: README.md, docs/schedules.md, roadmap/architecture/dependency guides, AGENTS.md, CHANGELOG.md.
+## Explicit limitations and carry-over
 
-- [ ] Run complete quality gates, existing outbox/JSON/controls regressions and installed schedule consumers with TS6/7 and Node/Bun.
-- [ ] Document exact semantics and limitations. Remove temporary write-enabled tooling and verify retained read-only CI on the final commit.
-- [ ] Merge using expected-head protection, verify main and report the actual change set/results without claiming full feature parity.
+The pinned schedule protocol has no dispatchKey, so derived-key/per-key destinations are rejected rather than silently weakening grouping. Use an unkeyed coordinator that publishes keyed work. Catch-up is capped at 256 per tick, not globally across replicas. Skip advances every observed due slot without emitting; it has no lateness threshold. Declaration writers and live changes of incompatible queue policies require coordinated deployment.
+
+Schedules are persistent, but emitted jobs still have at-least-once delivery. Pausing/removing a schedule does not cancel already-emitted work. No cross-store atomic configuration rollout or arbitrary persisted function is promised. Dynamic admin get/check/mutate sequences assume coordinated writers, not tenant authorization.
+
+Flows, external ORM transaction bridges, other adapters, custom retry providers and MQ enhancer/event integration remain separate work. No dependency version update, required consumer peer, new persisted job envelope, npm release or production deployment is included.
