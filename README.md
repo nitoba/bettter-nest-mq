@@ -2,7 +2,7 @@
 
 NestJS-native producers and decorated workers backed by the better-effect-mq engine.
 
-**Status: Core execution, distributed controls, native PostgreSQL transactional outbox and persistent schedules are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can now be published, processed, retried, cancelled and queried through the Nest facade. Flows, ORM transaction bridges and additional integrations remain on the roadmap.
+**Status: Core execution, distributed controls, native PostgreSQL transactional outbox, persistent schedules and durable PostgreSQL flows are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can be published, processed, retried, cancelled, scheduled and coordinated as durable fan-out/collect flows through the Nest facade. ORM transaction bridges and additional integrations remain on the roadmap.
 
 Repository: `nitoba/bettter-nest-mq` (three `t` characters). Package name: `better-nest-mq`.
 
@@ -12,7 +12,15 @@ Queue Services declare typed jobs using Standard Schema or optional Zod codecs. 
 
 Producers support enqueue, decoded enqueue, batches, preparation without publication, polling, result waiting, publish-and-wait execution, attempt history, promotion, retry and cancellation. Workers support known failures, configurable retries, execution timeout, local worker/handler concurrency, cooperative cancellation and attempt-local scoped dependencies. PostgreSQL resource ownership, explicit migrations and live connection probes remain available.
 
-See [persistent schedules](docs/schedules.md), [transactional outbox](docs/outbox.md), [PostgreSQL JSON fidelity](docs/postgres-json.md), [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+See [durable flows](docs/flows.md), [persistent schedules](docs/schedules.md), [transactional outbox](docs/outbox.md), [PostgreSQL JSON fidelity](docs/postgres-json.md), [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+
+## Durable flows
+
+Declare a persisted fan-out/collect workflow with `@Flow`, `@FanOut` and `@Collect`, while queue jobs remain ordinary typed `QueueService` descriptors. `flowJob()` and `flowChildren()` keep parent/child references typed and inert; `FlowResultsReader` exposes bounded decoded outcomes. Enable `flows: true` on the PostgreSQL connection.
+
+PostgreSQL fan-out persists the child manifest and relinquishes the original parent lease. Collect runs only after a fresh claim owns the parent. Waiting parents do not hold ordinary worker execution capacity. Recovery is durable across process death and uses stable child keys; installed-package qualification includes SIGKILL followed by two independent replacement workers, typed child failures, JSON/null/Date codecs, nesting, fail-fast and cooperative cascading cancellation.
+
+The engine remains internal to this package. Applications do not install `better-effect-mq` or its adapter manually. The qualified internal versions are `better-effect-mq@0.1.3` and `better-effect-mq-postgres@0.1.4`. See [docs/flows.md](docs/flows.md) for the v1/v2 inspection boundary, bounded collection semantics and non-guarantees.
 
 ## Persistent schedules
 

@@ -2,7 +2,7 @@
 
 ## Scope and status
 
-Read docs/schedules.md, README.md, docs/dependencies.md, docs/postgres-json.md, docs/controls.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/outbox.md, docs/architecture.md and docs/roadmap.md before changing APIs. Foundations, typed producers/workers, PostgreSQL lifecycle/JSON fidelity, distributed controls and native PostgreSQL transactional outbox are implemented. Flows, ORM transaction bridges, other drivers and further execution integration remain planned. Never simulate missing APIs or silently fall back to memory.
+Read docs/flows.md, docs/schedules.md, README.md, docs/dependencies.md, docs/postgres-json.md, docs/controls.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/outbox.md, docs/architecture.md and docs/roadmap.md before changing APIs. Foundations, typed producers/workers, PostgreSQL lifecycle/JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules and durable PostgreSQL flows are implemented. ORM transaction bridges, other drivers and further execution integration remain planned. Never simulate missing APIs or silently fall back to memory.
 
 ## Toolchain
 
@@ -15,7 +15,7 @@ Read docs/schedules.md, README.md, docs/dependencies.md, docs/postgres-json.md, 
 
 - Public APIs use Nest DI, Promises and facade-owned types. No engine imports in public declaration chunks. Type-only public transaction interfaces must remain separate from native resource implementations.
 - better-effect, better-result, better-effect-mq and its PostgreSQL/outbox adapters are normal internal dependencies, never consumer peers. Installed test consumers must not declare these packages themselves. Native pg and chosen Zod remain optional integrations; root imports cannot require them.
-- One private runtime per configured application, sharing Clock, stores, workers and opt-in outbox publisher. No per-request/job/worker runtime or global acquired-resource singleton. Contract-only applications acquire none.
+- One private runtime per configured application, sharing Clock, job/flow/schedule/outbox stores, workers and opt-in publishers. No per-request/job/worker runtime or global acquired-resource singleton. Contract-only applications acquire none.
 - Descriptors are inert. Validate contracts and capabilities before activating workers, bind clients only after storage readiness, and detach them on failure/shutdown.
 - Keep the raw `nestjs/<name>` persistence token stable. A named connection is part of PostgreSQL storage identity; the operation-store view must not introduce another pool or namespace.
 
@@ -40,6 +40,15 @@ Read docs/schedules.md, README.md, docs/dependencies.md, docs/postgres-json.md, 
 - Prepared requests are revalidated against registered destination contracts. Duplicate validation includes full request, destination, dispatch key and publication budget. Duplicate append does not deduplicate the domain callback. Keep publication retry budget independent of job handler attempts.
 - Outbox publisher and Worker roles are independent. Publish only committed rows and preserve stable IDs/routes across replay. Delivery remains at-least-once; publish accepted does not mean executed. Shutdown does not drain the entire durable backlog.
 - Failed acquisition/activation must roll back locally: Nest close may rethrow bootstrap failure before destruction hooks. Drain admitted transactions and quiesce publisher/workers before releasing their stores and owned pools.
+
+## Durable flow rules
+
+- Keep FanOut and Collect as separate durable phases. PostgreSQL handoff relinquishes the original parent lease; Collect must execute only after a fresh native claim.
+- Suspended-parent inspection belongs to FlowStore/v2. Do not widen the frozen v1 JobStore state union or coerce `waiting-children` into an ordinary job state.
+- Preserve stable child keys, bounded manifests/readers, explicit continue/fail policies and the same schema/codec boundaries used by normal jobs. JSON null must remain distinct from SQL NULL.
+- Waiting parents must not hold ordinary worker execution capacity. Keep child-report delivery and bounded recovery as independent paths; recovery must not starve later parents or child keys.
+- Parent controls and per-key child dispatch combinations that cannot preserve flow ownership/routing must fail explicitly. Do not fabricate handlers, local flow engines or serialized executable functions.
+- Qualify changes through real PostgreSQL and installed-package process-death tests, including two replacement workers, typed failures, empty/nested flows, fail-fast and cascade cancellation.
 
 ## Verification and delivery
 
