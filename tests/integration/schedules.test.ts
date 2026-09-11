@@ -56,11 +56,11 @@ async function application(
   }).compile()
 }
 
-test('missing opt-in schedule resource fails bootstrap and releases already acquired resources', async () => {
+test('missing opt-in schedule resource fails before scoped store acquisition', async () => {
   const fixture = scheduleConnection(false)
   const app = await application(fixture)
   await assert.rejects(app.init(), MqScheduleException)
-  expect(fixture.trace.released).toBe(1)
+  expect(fixture.trace).toEqual({ acquired: 0, released: 0 })
   await assert.rejects(app.close(), MqScheduleException)
 })
 test('ordinary replicas do not create a missing declaration', async () => {
@@ -164,6 +164,13 @@ test('upstream sweeps enqueue real jobs, and a second sweep cannot fire the same
     })
     if (Result.isError(record)) throw record.error
     assert.ok(record.value)
+    // An unchanged upsert intentionally preserves the cursor. Seed a fresh overdue record
+    // in this isolated reference fixture instead of expecting upsert to reset runtime state.
+    const removed = await fixture.schedules.removeSchedule({
+      group: 'nestjs/schedules',
+      key: 'regular'
+    })
+    if (Result.isError(removed)) throw removed.error
     const set = await fixture.schedules.upsertSchedule({
       ...record.value,
       nextRunAtMs: Date.now() - 1
