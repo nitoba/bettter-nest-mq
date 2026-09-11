@@ -16,38 +16,53 @@ No additional runtime, implicit in-memory fallback, required engine peers, chang
 
 ## Task 1 — Regression and protocol inspection
 
-Files: tests/unit/outbox-public-api.test.ts, branch-only inspection workflow, plan/spec.
-
-- [ ] Run `bun test` against main plus the export regression; confirm missing MqOutboxService while the 191-test baseline remains valid.
-- [ ] Inspect installed OutboxStore/Publisher/Record signatures and current engine/JSON lifecycle code; record the source and destination namespace boundaries.
+- [x] Observe the missing public outbox API regression fail while the existing 191 tests pass.
+- [x] Inspect the published OutboxStore/Publisher/Record and current engine/JSON lifecycle contracts.
+- [x] Preserve distinct stable job and outbox storage namespaces without changing raw connection tokens.
 
 ## Task 2 — Opt-in stores and service
 
-Files: src/outbox/types.ts, options.ts, service.ts; src/engine/outbox.ts and connection/session/module integration.
+- [x] Add publisher-option, disabled-source and record-validation tests before implementation.
+- [x] Implement postgres({ outbox: true }) resources sharing native pools and the application runtime.
+- [x] Warm/probe source stores before activation and reuse the upstream lazy publisher layer.
+- [x] Expose safe MqOutboxService get/list/counts/publisher views and independent outboxPublisher execution control.
 
-- [ ] Add invalid publisher option, disabled-source and record-validation tests before implementation.
-- [ ] Implement `postgres({outbox:true})` resources and named outbox tokens sharing native pools. Warm/probe stores before publication; add one upstream publisher layer to the existing runtime.
-- [ ] Expose `MqOutboxService.get/list/counts/publisher` with safe snapshots, no leases or engine types. Preserve independent `execution.outboxPublisher` control.
+## Task 3 — Native PostgreSQL transactions
 
-## Task 3 — Transactions
-
-Files: src/integrations/postgres-outbox.ts, postgres-outbox-transaction.ts; tests/postgres/outbox.ts and tests/types/outbox.types.ts.
-
-- [ ] Specify atomic commit/rollback, native query parsers, multi-append and escaped-handle rejection with real PostgreSQL assertions.
-- [ ] Implement tracked transaction operations using one actual PoolClient, separate native/adapter query views, poison-on-failure, rollback and exactly-once client release.
-- [ ] Validate PreparedJob and stable id/routing, compare full duplicate content after locked append, and preserve callback causes without automatic retry.
+- [x] Use one actual PoolClient for domain queries and outbox appends, preserving native parsers for business queries and private JSON parsing for adapter SQL.
+- [x] Implement multi-entry and dynamic-append transactions, rollback, tracked-operation draining and caught-failure poisoning.
+- [x] Expose only query/append on the callback facade and reject use after the callback closes.
+- [x] Preserve callback errors without automatically replaying business code after query, connection or commit failure.
+- [x] Validate prepared destinations/payloads/keys and compare full duplicate request, destination and publication budget after locked append.
 
 ## Task 4 — Durable publication qualification
 
-Files: tests/package/consumer/outbox.ts, tsconfig.outbox.json, scripts/test-package.ts.
+- [x] Test actual installed tarballs with only Nest and chosen native pg/Zod peers, without consumer-declared internal engine packages.
+- [x] Verify domain rollback, uncommitted invisibility, native custom parsers, multi-record/generated-ID transactions and late-handle rejection.
+- [x] Verify separate producer/publisher/worker contexts, competing publishers, scalar/null payloads and persisted results.
+- [x] Reproduce an abandoned source record after destination enqueue but before acknowledgement; recover it with one stable destination job and one execution attempt.
+- [x] Verify active transaction disconnection rolls back without rerunning the callback, and shutdown drains an already-admitted transaction before releasing storage.
+- [x] Verify missing target routes consume the independent publication budget, then persist a classified terminal failure without publishing elsewhere.
+- [x] Keep existing real PostgreSQL JSON, connection, clock-fencing and independent-process distributed-control suites enabled.
 
-- [ ] Install the actual tarball with only Nest and chosen pg/Zod peers. Execute committed publication, no visibility before commit, domain rollback, separate producer/publisher/worker contexts and persistent outcomes.
-- [ ] Verify replay after enqueue-before-ack and source/target routing with deterministic job IDs, no second handler execution for the same queued record.
-- [ ] Exercise scalar/null codec payloads, key conflicts and custom native JSON parsers. Rerun existing real PostgreSQL/distributed/JSON suites.
+## Task 5 — Additional regression and public packaging
 
-## Task 5 — Documentation and delivery
+- [x] Observe and correct the callback facade exposing implementation fields; keep only query and append publicly accessible.
+- [x] Separate public transaction types from native resource modules so no engine imports appear in any public declaration chunk.
+- [x] Add an observed regression for identical queue/name/version handlers across different connections in one Worker. Reject the unsupported supervisor configuration before acquisition and test separate Worker Services as the supported alternative.
+- [x] Update outbox, dependency, connection, execution, architecture and contributor documentation with implemented and remaining boundaries.
+- [x] Remove the branch-only generation workflow and all temporary patch scripts from the final changeset.
 
-Files: docs/outbox.md, README.md, roadmap/architecture/dependencies/AGENTS and CHANGELOG.
+## Observed verification
 
-- [ ] Document actual Service/factory syntax, publisher-role separation, transaction restrictions, business-callback idempotency and pending ORM bridges.
-- [ ] Run `bun run check` and retained PostgreSQL CI; remove branch-only generation workflow and reverify the final head before merging.
+Development run **34600522538** completed successfully after formatting the branch to **108f705ced168f5fda3582f4d11237f3bd8551af**. It ran the focused PostgreSQL transaction/publisher scenarios and the complete quality gate: **210 passing tests**, zero failures, TypeScript **6.0.3 and 7.0.2**, the exact **20 upstream tooling hashes**, formatting, type-aware lint with zero warnings/errors, ESM/declaration build, publint and installed tarball consumers.
+
+Both compiler consumers executed under Node and Bun against PostgreSQL. The installed outbox fixtures passed rollback, visibility, parser, duplicate, competing-publisher, replay, scalar/null, disconnect, shutdown and missing-route cases. Existing distributed-control and 18-value JSON-fidelity matrices also passed. No engine or adapter package was added to consumer manifests, and dependency versions were not changed.
+
+The final cleanup/documentation commit must pass the retained read-only CI matrix before merge. Prior development success does not substitute for verification of the exact final head. Main-branch verification follows integration separately.
+
+## Deliberate scope boundaries
+
+This is the first native PostgreSQL outbox slice. Arbitrary external transaction handles, ORM bridges, failed-record reset administration, other adapters, flows and schedules remain pending. Managed query SQL is trusted application code and must not issue manual transaction control. Business callbacks are not automatically retried or deduplicated. Publication remains at-least-once, and proposed IDs based on logical source aliases need globally unique outbox IDs or explicit scoped job IDs when independent source deployments converge on one target.
+
+No npm release, automatic migration, production deployment or repository settings change is part of this delivery.
