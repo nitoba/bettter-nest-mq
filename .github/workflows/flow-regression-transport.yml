@@ -1,0 +1,83 @@
+name: Flow supervisor regression diagnosis
+
+on:
+  push:
+    branches: [feat/durable-flows]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flow-regression-transport
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/feat/durable-flows'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mq
+          POSTGRES_PASSWORD: mq_test_only
+          POSTGRES_DB: mq_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U mq -d mq_test" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MQ_TEST_DATABASE_URL: postgresql://mq:mq_test_only@localhost:5432/mq_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Instrument only the regression fixture and retire this one-shot workflow
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFileSync, writeFileSync } from 'node:fs'
+          const file = 'tests/package/consumer/flow-contracts.ts'
+          let text = readFileSync(file, 'utf8')
+          assert.ok(!text.includes('nativeFlowDiagnostics'))
+          assert.ok(text.includes('@Worker({'))
+          text = text.replaceAll('@Worker({', '@Worker({ ...nativeFlowDiagnostics,')
+          text = `// Test-only native diagnostics: not a supported public Worker option.\nconst nativeFlowDiagnostics = {\n  onError: (error: Error): void => { console.error('FLOW SUPERVISOR ERROR', error) }\n}\n\n${text}`
+          writeFileSync(file, text)
+          const parent = 'tests/package/consumer/flows.ts'
+          text = readFileSync(parent, 'utf8')
+          const hook = "    this.child.stderr?.on('data', (chunk: Buffer) => {"
+          assert.equal(text.split(hook).length - 1, 1)
+          text = text.replace(hook, `${hook}\n      process.stderr.write(chunk)`)
+          writeFileSync(parent, text)
+          NODE
+          bun install --frozen-lockfile
+          bun run format
+          bun run check:tooling
+          git rm .github/workflows/flow-regression-transport.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u
+          git commit -m 'test: expose flow supervisor diagnostics and format regression sources'
+          git push origin HEAD:feat/durable-flows
+      - name: Verify source, types and package boundaries
+        run: |
+          bun run typecheck
+          bun run typecheck:minimum
+          bun test > /tmp/flow-tests.log 2>&1 || { tail -100 /tmp/flow-tests.log; exit 1; }
+          tail -6 /tmp/flow-tests.log
+          bun run format:check
+          bun run build
+          bun run lint
+          bun run publint
+      - name: Exercise installed package with real worker diagnostics
+        if: always()
+        run: |
+          bun run build
+          bun run test:package > /tmp/flow-package.log 2>&1 || { tail -350 /tmp/flow-package.log; exit 1; }
+          grep '^PASS\|FLOW CHECKPOINT' /tmp/flow-package.log
