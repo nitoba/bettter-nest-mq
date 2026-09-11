@@ -1,3 +1,4 @@
+import { poolMethodDescriptors } from '../package/consumer/pool-methods.ts'
 import { expect, test } from 'bun:test'
 import { Client, Pool, types } from 'pg'
 import { adapterJsonTypes, postgresJsonPool } from '../../src/integrations/postgres-json-pool.ts'
@@ -56,9 +57,7 @@ test('views are inert, non-owning, and stable per pool for shared listener reser
     connectionString: 'postgresql://unused:unused@localhost:1/unused',
     max: 2
   })
-  const connect = pool.connect
-  const query = pool.query
-  const end = pool.end
+  const methods = poolMethodDescriptors(pool)
   try {
     const first = postgresJsonPool(pool)
     const second = postgresJsonPool(pool)
@@ -66,9 +65,7 @@ test('views are inert, non-owning, and stable per pool for shared listener reser
     expect(first.options).toBe(pool.options)
     expect('end' in first).toBe(false)
     expect(pool.totalCount).toBe(0)
-    expect(pool.connect).toBe(connect)
-    expect(pool.query).toBe(query)
-    expect(pool.end).toBe(end)
+    expect(poolMethodDescriptors(pool)).toEqual(methods)
     expect(Object.isFrozen(pool)).toBe(false)
   } finally {
     await pool.end()

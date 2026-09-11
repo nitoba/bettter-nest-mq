@@ -1,3 +1,4 @@
+import { poolMethodDescriptors } from './pool-methods.js'
 import 'reflect-metadata'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
@@ -169,9 +170,7 @@ async function runOwnership(
     types: { getTypeParser: template.getTypeParser.bind(template) }
   })
   const original = {
-    query: pool.query,
-    connect: pool.connect,
-    end: pool.end,
+    methods: poolMethodDescriptors(pool),
     json: types.getTypeParser(3802)
   }
   const connection: MqConnection =
@@ -317,9 +316,7 @@ async function runOwnership(
       await reader.close()
     }
     await nativeParsing(pool, ownership === 'custom-parsers')
-    assert.equal(pool.query, original.query)
-    assert.equal(pool.connect, original.connect)
-    assert.equal(pool.end, original.end)
+    assert.deepEqual(poolMethodDescriptors(pool), original.methods)
     assert.equal(types.getTypeParser(3802), original.json)
     console.log(
       `PASS packed JSON fidelity (${ownership}): 18 values, ordinary/controlled queues, single/decoded/batch, preparation, retries, typed failures, SQL null distinction and post-restart reads`
