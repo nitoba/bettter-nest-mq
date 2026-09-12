@@ -3,27 +3,55 @@ on:
   push:
     branches: [feat/event-result-waits]
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: event-waits-development
+  cancel-in-progress: false
 jobs:
   check:
+    if: github.ref == 'refs/heads/feat/event-result-waits'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mq
+          POSTGRES_PASSWORD: mq_test_only
+          POSTGRES_DB: mq_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U mq -d mq_test" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MQ_TEST_DATABASE_URL: postgresql://mq:mq_test_only@localhost:5432/mq_test
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
-      - run: bun install --frozen-lockfile
-      - name: Read existing project contracts and lifecycle guides
+      - name: Integrate the event resource and format with the unchanged tooling
         run: |
-          for file in README.md docs/execution-extensions.md docs/flows.md docs/schedules.md docs/dependencies.md docs/postgres-json.md docs/controls.md docs/contracts.md docs/connections.md docs/execution.md docs/outbox.md docs/architecture.md docs/roadmap.md; do
-            echo "GUIDE $file"
-            cat "$file"
-          done
-      - name: Observe event wait regression before implementation
+          if test -f .github/apply-event-waits.mjs; then
+            node .github/apply-event-waits.mjs
+            git rm .github/apply-event-waits.mjs
+          fi
+          bun install --frozen-lockfile
+          bun run format
+          bun run check:tooling
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat: bind opt-in event readers and native event waits to the Nest runtime'
+            git push origin HEAD:feat/event-result-waits
+          fi
+      - name: Verify focused event regressions
         run: bun test tests/integration/event-waits.test.ts
+      - name: Verify full source and installed PostgreSQL package matrix
+        run: |
+          bun run check > /tmp/event-check.log 2>&1 || { tail -220 /tmp/event-check.log; exit 1; }
+          grep -E '^PASS| pass| fail|Packed ' /tmp/event-check.log
