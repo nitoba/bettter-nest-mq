@@ -138,7 +138,7 @@ const result = await reports.generate.execute(input, {
 })
 ```
 
-A caller timeout or AbortSignal stops waiting only. It does not cancel the persisted job. In particular, a pre-aborted wait passed to execute does not undo its preceding enqueue. Use explicit cancel when changing the durable job is intended. Waits currently support polling only; durable-event wakeups are not exposed in this milestone. Avoid aggressive polling across large numbers of clients.
+A caller timeout or AbortSignal stops waiting only. It does not cancel the persisted job. In particular, a pre-aborted wait passed to execute does not undo its preceding enqueue. Use explicit cancel when changing the durable job is intended. Waits default to polling and also support the explicit events strategy with a configured event reader and bounded fallback; see event-waits.md. Avoid aggressive polling across large numbers of clients.
 
 ## Schemas and serialization
 
@@ -196,6 +196,6 @@ Scheduling does not provide external ORM transaction bridges. Durable flows are 
 
 ## Event-assisted wait integration
 
-Event-assisted awaitResult/execute is implemented; see docs/event-waits.md (event-waits.md from this directory) for the API and exact scope. Configure postgres({ events: true }) on the waiting application and select strategy: 'events' with pollFallbackMs. Polling remains the default. The raw event token shares the job namespace; only an in-runtime operation alias is added. No second pool/runtime, automatic migrations or required-writer activation is introduced.
+Event-assisted awaitResult/execute is implemented; see event-waits.md for the API and exact scope. Configure postgres({ events: true }) on the waiting application and select strategy: 'events' with pollFallbackMs. Polling remains the default. The raw event token shares the job namespace; only an in-runtime operation alias is added. No second pool/runtime, automatic migrations or required-writer activation is introduced.
 
-Earlier references to polling-only result waits are superseded by this integration. Runtime reader errors/lost hints use the existing bounded fallback; missing explicit reader configuration still fails. Timeout and abort do not cancel durable work. Keep tests for shutdown, parser fidelity and installed consumers. Resumable subscriptions, checkpoint APIs and retention administration remain pending; this is not a promise of zero polling.
+Runtime reader errors/lost hints use the existing bounded fallback; missing explicit reader configuration still fails. Timeout and abort do not cancel durable work. Keep tests for shutdown, parser fidelity and installed consumers. Resumable subscriptions, checkpoint APIs and retention administration remain pending; this is not a promise of zero polling.

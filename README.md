@@ -202,7 +202,7 @@ Input and decoded types remain distinct through `InputOf`, `PayloadOf`, `ResultO
 
 `MqConnectionsService` exposes safe connection snapshots/live probes. `MqWorkersService` exposes local state and awaitIdle; idle does not mean every delayed job in the database has completed. Shutdown detaches producers, stops admission and drains/cooperatively aborts workers before releasing stores and owned pools.
 
-Current boundaries: polling result waits only; class-based Worker providers; explicit JobData/JobContext parameters; no HTTP enhancer execution. Method/class HTTP guards, pipes, interceptors and filters are rejected instead of silently ignored. Global HTTP enhancers do not apply. Named custom retry providers and explicit MQ enhancers are implemented; durable events, other adapters and ORM outbox bridges remain pending. Native PostgreSQL outbox transactions and a managed publisher are available.
+Current boundaries: polling or opt-in event-assisted result waits; class-based Worker providers; explicit JobData/JobContext parameters; no HTTP enhancer execution. Method/class HTTP guards, pipes, interceptors and filters are rejected instead of silently ignored. Global HTTP enhancers do not apply. Named custom retry providers and explicit MQ enhancers are implemented; resumable event subscriptions, other adapters and ORM outbox bridges remain pending. Native PostgreSQL outbox transactions and a managed publisher are available.
 
 ## Development and tests
 

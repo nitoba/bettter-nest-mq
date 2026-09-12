@@ -26,7 +26,7 @@ Fixed/linear/exponential policies compile into the engine's serializable backoff
 
 Job descriptors now expose enqueue/enqueueDecoded/enqueueMany, prepare, poll, awaitResult, execute, attempts, cancel, retry and promote. They use existing Job operations inside the host runtime. Batch payload validation precedes publication, while true atomicity remains adapter-specific. Prepared data is serializable with explicit routing and causes no write; it is not itself an outbox transaction.
 
-Wait timeout/abort ends only the wait, not the durable job. execute is publish-and-wait, not a local handler call. Current waits use polling. Job lookups and mutations preserve queue/name/version guards, but those guards are not application tenant authorization. Delivery remains at-least-once and external effects need idempotency.
+Wait timeout/abort ends only the wait, not the durable job. execute is publish-and-wait, not a local handler call. Waits default to polling, with event-assisted waiting available through an explicitly configured reader. Job lookups and mutations preserve queue/name/version guards, but those guards are not application tenant authorization. Delivery remains at-least-once and external effects need idempotency.
 
 ## Workers and DI
 
@@ -72,6 +72,6 @@ The engine and its PostgreSQL/outbox adapters are installed as normal dependenci
 
 ## Event-assisted wait integration
 
-Event-assisted awaitResult/execute is implemented; see docs/event-waits.md (event-waits.md from this directory) for the API and exact scope. Configure postgres({ events: true }) on the waiting application and select strategy: 'events' with pollFallbackMs. Polling remains the default. The raw event token shares the job namespace; only an in-runtime operation alias is added. No second pool/runtime, automatic migrations or required-writer activation is introduced.
+Event-assisted awaitResult/execute is implemented; see event-waits.md for the API and exact scope. Configure postgres({ events: true }) on the waiting application and select strategy: 'events' with pollFallbackMs. Polling remains the default. The raw event token shares the job namespace; only an in-runtime operation alias is added. No second pool/runtime, automatic migrations or required-writer activation is introduced.
 
-Earlier references to polling-only result waits are superseded by this integration. Runtime reader errors/lost hints use the existing bounded fallback; missing explicit reader configuration still fails. Timeout and abort do not cancel durable work. Keep tests for shutdown, parser fidelity and installed consumers. Resumable subscriptions, checkpoint APIs and retention administration remain pending; this is not a promise of zero polling.
+Runtime reader errors/lost hints use the existing bounded fallback; missing explicit reader configuration still fails. Timeout and abort do not cancel durable work. Keep tests for shutdown, parser fidelity and installed consumers. Resumable subscriptions, checkpoint APIs and retention administration remain pending; this is not a promise of zero polling.
