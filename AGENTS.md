@@ -68,3 +68,9 @@ Schedule decorators, schedule administration and PostgreSQL JobScheduler integra
 Never replace atomic upstream tick/occurrence fencing with local timers. Keep scheduler/worker/outbox roles independent and drain admitted ticks before resources close. The pinned protocol cannot persist dispatch keys: reject derived-key/per-key destinations instead of silently losing keys. Catch-up is capped at 256 per tick; skip drops every observed due slot with no lateness tolerance. Do not advertise different semantics.
 
 Qualify schedules through installed tarballs with independent PostgreSQL scheduler processes under both consumer compilers/runtimes. Keep tests for scalar/null/date payloads, drift, paused definitions, invalid preflight, unsafe timer configuration and shutdown. Do not rerun one-shot source patch scripts from formatter workflows; remove temporary development helpers before integration.
+
+## Event-assisted wait integration
+
+Event-assisted awaitResult/execute is implemented; see docs/event-waits.md (event-waits.md from this directory) for the API and exact scope. Configure postgres({ events: true }) on the waiting application and select strategy: 'events' with pollFallbackMs. Polling remains the default. The raw event token shares the job namespace; only an in-runtime operation alias is added. No second pool/runtime, automatic migrations or required-writer activation is introduced.
+
+Earlier references to polling-only result waits are superseded by this integration. Runtime reader errors/lost hints use the existing bounded fallback; missing explicit reader configuration still fails. Timeout and abort do not cancel durable work. Keep tests for shutdown, parser fidelity and installed consumers. Resumable subscriptions, checkpoint APIs and retention administration remain pending; this is not a promise of zero polling.

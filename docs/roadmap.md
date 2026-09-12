@@ -2,9 +2,9 @@
 
 ## Current delivery
 
-The foundation, typed producers/workers, PostgreSQL lifecycle and JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable flows, **named retry providers and explicit MQ enhancers** are implemented. The library still lacks full better-effect-mq feature parity and remains unreleased at version 0.0.0.
+The foundation, typed producers/workers, PostgreSQL lifecycle and JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable flows, **named retry providers, explicit MQ enhancers and event-assisted result waits** are implemented. The library still lacks full better-effect-mq feature parity and remains unreleased at version 0.0.0.
 
-Current guides: README.md, docs/dependencies.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/controls.md, docs/outbox.md, docs/schedules.md, docs/flows.md and docs/execution-extensions.md. Remaining APIs below are not exported as placeholders.
+Current guides: README.md, docs/dependencies.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/controls.md, docs/outbox.md, docs/schedules.md, docs/flows.md, docs/execution-extensions.md and docs/event-waits.md. Remaining APIs below are not exported as placeholders.
 
 ## M0 — Foundation — implemented
 
@@ -38,9 +38,13 @@ RetryPolicy declares unique name/version identities on static Nest providers. Na
 
 UseMqGuards/Pipes/Interceptors/Filters compose explicit class/method stages over Process, FanOut and Collect. Providers share the worker's fresh Nest ContextId; transformed payloads and final results remain codec-validated. Continuations are single-use, close on return and drain admitted work. Cancellation cannot be recovered into a new invocation. HTTP enhancer metadata remains rejected. See execution-extensions.md for restrictions and tests.
 
-## M3.1c — Durable events and further failure qualification — pending
+## M3.1c — Event-assisted result waits — implemented
 
-Add durable-event waits with cursor/recovery semantics. Extend crash/lease-loss and mid-flight policy-change qualification. Do not substitute process-local middleware or observability callbacks for a durable event log.
+Opt-in PostgreSQL event readers share the raw namespace, native pool and existing runtime. Job awaitResult/execute support the native events strategy with bounded polling fallback, race-safe result rereads, timeout/abort isolation and no consumer-visible engine tokens. Reader configuration is explicit; runtime event failures can degrade to job polling. See event-waits.md. Native event-log polling remains adapter-specific; no push-only performance guarantee is claimed.
+
+## M3.1d — Durable subscriptions and further failure qualification — pending
+
+Add resumable subscription APIs with explicit cursor/checkpoint/retention/recovery semantics. Extend crash/lease-loss and mid-flight policy-change qualification. Do not substitute process-local observers for a durable log or treat ephemeral result waits as acknowledged subscriber checkpoints.
 
 ## M4 — Additional adapters and resource bundles — pending
 
@@ -84,7 +88,7 @@ Extend diagnostics to authenticated opt-in administration, durable cursors, obse
 
 ```text
 M0 → M1 → M2 → M3 → M3.1a
-                  ├──→ M3.1b retry / MQ enhancers implemented; M3.1c durable events pending
+                  ├──→ M3.1b retry / MQ enhancers + M3.1c event waits implemented; subscriptions pending
                   ├──→ M4 additional adapters and resources
                   ├──→ M5a schedules + M5b durable flows implemented
                   └──→ M6a native outbox implemented; M6b ORM bridges pending

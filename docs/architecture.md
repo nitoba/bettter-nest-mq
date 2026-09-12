@@ -69,3 +69,9 @@ Real Nest/engine tests cover contracts, scopes, retries, cancellation, concurren
 ## Internal dependency ownership
 
 The engine and its PostgreSQL/outbox adapters are installed as normal dependencies managed by this library. Nest applications do not need their own Effect/Result setup or manual adapter version selection. Only Nest/support peers and chosen native/schema integrations remain application-facing. Root isolation means no eager optional-driver loading, not the absence of internal packages from the dependency tree. See dependencies.md and controls.md for the qualified consumer and distributed-policy boundaries.
+
+## Event-assisted wait integration
+
+Event-assisted awaitResult/execute is implemented; see docs/event-waits.md (event-waits.md from this directory) for the API and exact scope. Configure postgres({ events: true }) on the waiting application and select strategy: 'events' with pollFallbackMs. Polling remains the default. The raw event token shares the job namespace; only an in-runtime operation alias is added. No second pool/runtime, automatic migrations or required-writer activation is introduced.
+
+Earlier references to polling-only result waits are superseded by this integration. Runtime reader errors/lost hints use the existing bounded fallback; missing explicit reader configuration still fails. Timeout and abort do not cancel durable work. Keep tests for shutdown, parser fidelity and installed consumers. Resumable subscriptions, checkpoint APIs and retention administration remain pending; this is not a promise of zero polling.

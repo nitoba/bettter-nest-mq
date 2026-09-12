@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Event-assisted result waits
+
+- Add opt-in PostgreSQL event readers sharing the existing pool, raw namespace and application runtime.
+- Expose the native event-result strategy through typed Promise options without public engine tokens; retain polling as the default.
+- Validate per-strategy intervals and timer bounds, require configured readers and preserve caller timeout/abort isolation.
+- Add real Nest regressions for lost hints, failing readers, startup rollback and shutdown; add installed PostgreSQL consumers for JSON/codecs, persistence and namespace matching.
+- Do not change persistence activation to required, add dependencies, install subscriptions or publish a package release.
+
 ### Retry providers and MQ enhancers
 
 - Add named/versioned RetryPolicy providers through static Nest DI and the native synchronous typed-failure retry hook.

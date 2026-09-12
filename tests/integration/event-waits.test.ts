@@ -45,6 +45,7 @@ function fixture(enabled = true) {
   const original = events.awaitEvents.bind(events)
   let waits = 0
   Object.defineProperty(events, 'awaitEvents', {
+    configurable: true,
     value: (...args: Parameters<typeof original>) => {
       waits += 1
       entered.resolve()
