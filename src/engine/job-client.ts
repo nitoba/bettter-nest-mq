@@ -1,3 +1,7 @@
+import { validateWaitOptions } from './wait-options.ts'
+import { operationEventToken } from './event-plan.ts'
+import type { JobAwaitOptions } from 'better-effect-mq'
+import type { OperationStoreToken } from './operation-store.ts'
 import { publicationRetry, publicationMetadata } from './retry-reference.ts'
 import type {
   JobAttemptView,
@@ -123,17 +127,13 @@ function unwrap<Value, Failure>(
 
 async function boundedWait(
   session: EngineSession,
+  connection: string,
   job: CompiledJob,
   id: string,
   options: JobWaitOptions = {}
 ): Promise<ContractValue> {
-  if (options.strategy !== undefined && options.strategy !== 'polling')
-    throw new MqJobException('awaitResult', 'Only polling waits are supported by this integration')
-  if (options.timeoutMs !== undefined) requireInteger(options.timeoutMs, 'wait.timeoutMs')
-  if (options.pollIntervalMs !== undefined)
-    requireInteger(options.pollIntervalMs, 'wait.pollIntervalMs', 1)
-  if (options.timeoutMs !== undefined && options.timeoutMs > 2_147_483_647)
-    throw new RangeError('wait.timeoutMs exceeds the supported timer range')
+  validateWaitOptions(options)
+  if (options.strategy === 'events') session.assertEvents(connection)
   if (options.signal?.aborted)
     throw new JobWaitAbortedException(id, { cause: options.signal.reason })
   const timeout = new AbortController()
@@ -146,9 +146,16 @@ async function boundedWait(
       ? undefined
       : setTimeout(() => timeout.abort(), options.timeoutMs)
   try {
-    const result = await session.runOperation(() =>
-      job.awaitResult(id, { signal, pollIntervalMs: options.pollIntervalMs ?? 100 })
-    )
+    const wait: JobAwaitOptions<OperationStoreToken> =
+      options.strategy === 'events'
+        ? {
+            strategy: 'events',
+            eventStore: operationEventToken(connection),
+            pollFallbackMs: options.pollFallbackMs ?? 5000,
+            signal
+          }
+        : { signal, pollIntervalMs: options.pollIntervalMs ?? 100 }
+    const result = await session.runOperation(() => job.awaitResult(id, wait))
     if (timeout.signal.aborted) throw new JobWaitTimeoutException(id, options.timeoutMs ?? 0)
     if (options.signal?.aborted)
       throw new JobWaitAbortedException(id, { cause: options.signal.reason })
@@ -222,7 +229,7 @@ export function createJobClient(
       return Object.freeze(attempts.map(attemptView))
     },
     async awaitResult(id, options) {
-      return boundedWait(session, job, id, options)
+      return boundedWait(session, registered.identity.connection, job, id, options)
     },
     async cancel(id) {
       await cancelJob(session, registered, job, id)

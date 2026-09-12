@@ -53,12 +53,21 @@ export interface JobEnqueueItem<Input> {
   readonly options?: JobEnqueueOptions
 }
 
-export interface JobWaitOptions {
-  readonly strategy?: 'polling'
-  readonly pollIntervalMs?: number
+export type JobWaitOptions = {
   readonly timeoutMs?: number
   readonly signal?: AbortSignal
-}
+} & (
+  | {
+      readonly strategy?: 'polling'
+      readonly pollIntervalMs?: number
+      readonly pollFallbackMs?: never
+    }
+  | {
+      readonly strategy: 'events'
+      readonly pollFallbackMs?: number
+      readonly pollIntervalMs?: never
+    }
+)
 
 /** Separate options prevent confusing the execution timeout with the caller's waiting timeout. */
 export interface JobExecuteOptions {

@@ -9,7 +9,12 @@ import { postgresFlowJsonPool } from './postgres-json-pool.ts'
 
 /** Event attributes are decoded JSON, unlike the pinned v1 JobStore's text codec.
  * Both views borrow the same native pool and leave application parsers untouched. */
-export function postgresEventLayer(name: string, pool: Pool, schema: string, namespace: string): Layer<NamedEvents, NamedStore> {
+export function postgresEventLayer(
+  name: string,
+  pool: Pool,
+  schema: string,
+  namespace: string
+): Layer<NamedEvents, NamedStore> {
   return PostgresJobEventStore.layerWithFor(eventToken(name), async function* () {
     yield* namedStoreToken(name)
     return { pool: postgresFlowJsonPool(pool), schema, namespace, validateSchema: false }
