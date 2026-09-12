@@ -1,7 +1,5 @@
 import { validateWaitOptions } from './wait-options.ts'
 import { operationEventToken } from './event-plan.ts'
-import type { JobAwaitOptions } from 'better-effect-mq'
-import type { OperationStoreToken } from './operation-store.ts'
 import { publicationRetry, publicationMetadata } from './retry-reference.ts'
 import type {
   JobAttemptView,
@@ -146,16 +144,16 @@ async function boundedWait(
       ? undefined
       : setTimeout(() => timeout.abort(), options.timeoutMs)
   try {
-    const wait: JobAwaitOptions<OperationStoreToken> =
+    const result = await session.runOperation(() =>
       options.strategy === 'events'
-        ? {
+        ? job.awaitResult(id, {
             strategy: 'events',
             eventStore: operationEventToken(connection),
             pollFallbackMs: options.pollFallbackMs ?? 5000,
             signal
-          }
-        : { signal, pollIntervalMs: options.pollIntervalMs ?? 100 }
-    const result = await session.runOperation(() => job.awaitResult(id, wait))
+          })
+        : job.awaitResult(id, { signal, pollIntervalMs: options.pollIntervalMs ?? 100 })
+    )
     if (timeout.signal.aborted) throw new JobWaitTimeoutException(id, options.timeoutMs ?? 0)
     if (options.signal?.aborted)
       throw new JobWaitAbortedException(id, { cause: options.signal.reason })

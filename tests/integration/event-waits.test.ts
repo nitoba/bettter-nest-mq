@@ -1,3 +1,4 @@
+import { Result } from 'better-result'
 import { expect, test } from 'bun:test'
 import assert from 'node:assert/strict'
 import { Inject, Injectable } from '@nestjs/common'
@@ -162,4 +163,108 @@ test('invalid event fallback timers are rejected before starting a wait', async 
   } finally {
     await app.close()
   }
+})
+
+test('a result completed before event registration is still returned without waiting for a future event', async () => {
+  const source = fixture()
+  const app = await application(source)
+  try {
+    app.get(Gate).release.resolve()
+    const job = app.get(EventQueue).task
+    const id = await job.enqueue('already done')
+    await job.awaitResult(id, { timeoutMs: 1000, pollIntervalMs: 5 })
+    expect(await job.awaitResult(id, eventOptions())).toBe('already done')
+    expect(source.waits()).toBe(0)
+  } finally {
+    app.get(Gate).release.resolve()
+    await app.close()
+  }
+})
+
+test('a missing wake hint falls back to the authoritative job without leaking a waiter', async () => {
+  const source = fixture()
+  const entered = Promise.withResolvers<void>()
+  let active = 0
+  Object.defineProperty(source.events, 'awaitEvents', {
+    value: async (request: Parameters<typeof source.events.awaitEvents>[0]) => {
+      assert.ok(request.signal)
+      const signal = request.signal
+      entered.resolve()
+      active += 1
+      try {
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) resolve()
+          else signal.addEventListener('abort', () => resolve(), { once: true })
+        })
+        return Result.ok(undefined)
+      } finally {
+        active -= 1
+      }
+    }
+  })
+  const app = await application(source)
+  try {
+    const job = app.get(EventQueue).task
+    const id = await job.enqueue('durable truth')
+    const waiting = job.awaitResult(id, { strategy: 'events', pollFallbackMs: 20, timeoutMs: 1000 })
+    await entered.promise
+    app.get(Gate).release.resolve()
+    expect(await waiting).toBe('durable truth')
+    expect(active).toBe(0)
+  } finally {
+    app.get(Gate).release.resolve()
+    await app.close()
+  }
+})
+
+test('a runtime event-reader failure degrades to bounded polling after a successful startup', async () => {
+  const source = fixture()
+  const entered = Promise.withResolvers<void>()
+  const app = await application(source)
+  Object.defineProperty(source.events, 'read', {
+    value: async () => {
+      entered.resolve()
+      throw new Error('Injected event reader failure')
+    }
+  })
+  try {
+    const job = app.get(EventQueue).task
+    const id = await job.enqueue('fallback result')
+    const waiting = job.awaitResult(id, { strategy: 'events', pollFallbackMs: 20, timeoutMs: 1000 })
+    await entered.promise
+    app.get(Gate).release.resolve()
+    expect(await waiting).toBe('fallback result')
+  } finally {
+    app.get(Gate).release.resolve()
+    await app.close()
+  }
+})
+
+test('application shutdown ends its admitted event wait without waiting for the caller deadline', async () => {
+  const source = fixture()
+  const app = await application(source, false)
+  const job = app.get(EventQueue).task
+  const id = await job.enqueue('survives application shutdown')
+  const waiting = job.awaitResult(id, { strategy: 'events', pollFallbackMs: 1000, timeoutMs: 2000 })
+  const rejected = assert.rejects(waiting, (cause) => {
+    assert.ok(cause instanceof Error)
+    assert.ok(
+      !(cause instanceof JobWaitTimeoutException),
+      'Shutdown must not rely on the caller timeout'
+    )
+    return true
+  })
+  await source.entered
+  await app.close()
+  await rejected
+})
+
+test('event-reader probe failures roll back initialization rather than activating an unusable reader', async () => {
+  const source = fixture()
+  Object.defineProperty(source.events, 'tailCursor', {
+    value: async () => {
+      throw new Error('Injected event-store probe failure')
+    }
+  })
+  await assert.rejects(application(source, false))
 })

@@ -129,7 +129,8 @@ try {
       'outbox',
       'schedules',
       'flows',
-      'execution-extensions'
+      'execution-extensions',
+      'event-waits'
     ]) {
       await run(
         ['node', 'node_modules/typescript/bin/tsc', '-p', `tsconfig.${fixture}.json`],
