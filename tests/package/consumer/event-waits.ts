@@ -177,7 +177,7 @@ async function verifyEventWaits(connectionString: string): Promise<void> {
           SELECT count(*)::integer AS total
           FROM "${schema}".better_effect_mq_job_events AS e
           JOIN "${schema}".better_effect_mq_jobs AS j ON e.namespace=j.namespace AND e.job_id=j.id
-          WHERE j.id=ANY($1::text[]) AND e.event_type='completed'
+          WHERE j.id=ANY($1::text[]) AND e.event_type='job-completed'
         `,
           [ids]
         )
