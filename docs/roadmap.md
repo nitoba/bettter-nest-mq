@@ -2,9 +2,9 @@
 
 ## Current delivery
 
-The foundation, typed producers/workers, PostgreSQL lifecycle and JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules and **durable flows** are implemented. The library still lacks full better-effect-mq feature parity and remains unreleased at version 0.0.0.
+The foundation, typed producers/workers, PostgreSQL lifecycle and JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable flows, **named retry providers and explicit MQ enhancers** are implemented. The library still lacks full better-effect-mq feature parity and remains unreleased at version 0.0.0.
 
-Current guides: README.md, docs/dependencies.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/controls.md, docs/outbox.md, docs/schedules.md and docs/flows.md. Remaining APIs below are not exported as placeholders.
+Current guides: README.md, docs/dependencies.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/controls.md, docs/outbox.md, docs/schedules.md, docs/flows.md and docs/execution-extensions.md. Remaining APIs below are not exported as placeholders.
 
 ## M0 — Foundation — implemented
 
@@ -32,9 +32,15 @@ QueueControls declares storage-backed global/per-key concurrency and fixed-windo
 
 An operation-store view routes claims, settlement, release, cancellation and stalled recovery to the upstream controlled protocol without changing raw tokens or opening another pool/runtime. Independent Node processes against PostgreSQL qualify shared limits, rate-window identities, heartbeat clock races and permit release. The internal shared memory fixture is test-only, not a production distributed store.
 
-## M3.1b — Further execution integration — pending
+## M3.1b — Retry providers and MQ enhancers — implemented
 
-Add named/versioned custom retry providers through DI without serializing functions, an explicitly specified MQ enhancer pipeline and durable-event waits with cursor/recovery semantics. Extend crash/lease-loss and mid-flight policy-change qualification. Current incompatible HTTP enhancer metadata is rejected rather than ignored.
+RetryPolicy declares unique name/version identities on static Nest providers. Native custom retry decisions preserve typed predicates and attempt budgets; only an internal reference and native retry timing persist. Producer-only contexts do not need policy implementations. All publication paths retain references, and workers fence rolling-version mismatches before user code.
+
+UseMqGuards/Pipes/Interceptors/Filters compose explicit class/method stages over Process, FanOut and Collect. Providers share the worker's fresh Nest ContextId; transformed payloads and final results remain codec-validated. Continuations are single-use, close on return and drain admitted work. Cancellation cannot be recovered into a new invocation. HTTP enhancer metadata remains rejected. See execution-extensions.md for restrictions and tests.
+
+## M3.1c — Durable events and further failure qualification — pending
+
+Add durable-event waits with cursor/recovery semantics. Extend crash/lease-loss and mid-flight policy-change qualification. Do not substitute process-local middleware or observability callbacks for a durable event log.
 
 ## M4 — Additional adapters and resource bundles — pending
 
@@ -78,7 +84,7 @@ Extend diagnostics to authenticated opt-in administration, durable cursors, obse
 
 ```text
 M0 → M1 → M2 → M3 → M3.1a
-                  ├──→ M3.1b custom retry / MQ enhancers / durable events
+                  ├──→ M3.1b retry / MQ enhancers implemented; M3.1c durable events pending
                   ├──→ M4 additional adapters and resources
                   ├──→ M5a schedules + M5b durable flows implemented
                   └──→ M6a native outbox implemented; M6b ORM bridges pending

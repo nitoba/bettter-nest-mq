@@ -43,7 +43,7 @@ Connection names now contribute to the actual PostgreSQL storage address through
 
 Policy precedence is library, module, queue, job, property decorators, then permitted enqueue overrides. A later retry policy replaces the complete earlier one, rather than combining incompatible backoff variants. Defaults are one total attempt, no explicit execution timeout, priority zero and delay zero.
 
-Fixed backoff has delayMs; linear has initialDelayMs/incrementMs; exponential has initialDelayMs and factor >=1. Built-ins support optional maxDelayMs and jitter in [0,1]. These policies now execute through the upstream supervisor. Custom named/versioned retry providers are still metadata-only and are rejected when compiling executable jobs. Zero timeout is likewise representable as metadata but rejected for execution; it is not silently treated as unlimited.
+Fixed backoff has delayMs; linear has initialDelayMs/incrementMs; exponential has initialDelayMs and factor >=1. Built-ins support optional maxDelayMs and jitter in [0,1]. These policies now execute through the upstream supervisor. Custom named/versioned retry providers now resolve through static Nest DI and the native synchronous typed-failure hook. Producer-only contexts retain the policy reference without requiring its implementation; see execution-extensions.md for deployment and override rules. Zero timeout is likewise representable as metadata but rejected for execution; it is not silently treated as unlimited.
 
 resolveJobPolicy exposes immutable metadata resolution separately. The worker's retryDefects default is false, independent of the upstream default. Typed retry predicates receive validated decoded failure values. Runtime attempt budgets and persisted overrides are described in execution.md.
 
@@ -113,10 +113,10 @@ Contract-only apps and manually constructed queues can parse/encode, but produce
 
 ## Verification
 
-Regression coverage includes schema transformations/fidelity, vendor errors, policies, identity/versioning, inherited metadata, Nest scopes/aliases/module exports and compile-time invalid types. Packed consumers use the actual installed package with optional peers absent or present. Public execution and persistence tests are detailed in execution.md; flows and outbox remain separate planned features.
+Regression coverage includes schema transformations/fidelity, vendor errors, policies, identity/versioning, inherited metadata, Nest scopes/aliases/module exports and compile-time invalid types. Packed consumers use the actual installed package with optional peers absent or present. Public execution and persistence tests are detailed in execution.md; implemented durable flows and native transactional outbox are documented in flows.md and outbox.md.
 
 ## Persistent schedule integration
 
 Persistent Schedule declarations and MqSchedulesService are now implemented; see schedules.md for the supported API and exact recurrence semantics. Schedule stores opt in with postgres({ schedules: true }), sharing the existing pool, private JSON view and stable namespace. Definition deployment/validation and scheduler execution are independent from workers and the outbox publisher.
 
-This does not add flows or external ORM transactions. The pinned schedule protocol cannot carry dispatch keys, so keyed/per-key-limited schedules reject explicitly. Normal startup preserves operator pauses and validates deployed definitions; explicit reconciliation is a coordinated administrative operation, not a cross-store transaction.
+Scheduling does not provide external ORM transaction bridges. Durable flows are documented separately in flows.md. The pinned schedule protocol cannot carry dispatch keys, so keyed/per-key-limited schedules reject explicitly. Normal startup preserves operator pauses and validates deployed definitions; explicit reconciliation is a coordinated administrative operation, not a cross-store transaction.

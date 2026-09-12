@@ -2,7 +2,7 @@
 
 ## Status
 
-M0 foundation, M1 contracts/Nest registration, M2 runtime/PostgreSQL lifecycle, M3 core execution, distributed controls, native PostgreSQL outbox, persistent schedules and durable PostgreSQL flows are implemented. The API now publishes and processes actual jobs and persisted fan-out/collect workflows. It is not full better-effect-mq feature parity: custom retry providers, MQ enhancers/events, other adapters and ORM transaction bridges are still planned.
+M0 foundation, M1 contracts/Nest registration, M2 runtime/PostgreSQL lifecycle, M3 core execution, distributed controls, native PostgreSQL outbox, persistent schedules and durable PostgreSQL flows are implemented. The API now publishes and processes actual jobs and persisted fan-out/collect workflows. Named/versioned retry providers and explicit MQ enhancers are also implemented. Full parity still requires durable events, other adapters and ORM transaction bridges.
 
 Read flows.md, schedules.md, outbox.md, contracts.md, connections.md and execution.md for the exported behavior. The package remains unreleased at 0.0.0; no simulated methods stand in for missing features.
 
@@ -20,7 +20,7 @@ Queue, Job, Retry and JobTimeout declarations preserve schema inference and dist
 
 Standard Schema describes validation; explicit codecs describe reverse encoding. Input, decoded value and JSON are different boundaries. Publication, worker reads, results and typed failures all validate against their declared contracts. JSON fidelity/round-trip checks prevent silent loss or double transforms. Application validators must be deterministic and side-effect-free.
 
-Fixed/linear/exponential policies compile into the engine's serializable backoff representation. Total attempt budgets include the first run. Known JobFailureException content is validated before entering the typed failure channel. Unexpected exceptions remain defects and do not retry by default in this facade; explicit worker configuration can enable them. Invalid outputs are not successful jobs. Custom policy providers and zero executable timeout are rejected rather than guessed.
+Fixed/linear/exponential policies compile into the engine's serializable backoff representation. Total attempt budgets include the first run. Known JobFailureException content is validated before entering the typed failure channel. Unexpected exceptions remain defects and do not retry by default in this facade; explicit worker configuration can enable them. Invalid outputs are not successful jobs. Custom policies use explicitly registered, named/versioned static Nest providers and the native synchronous retry hook. Zero executable timeout remains rejected.
 
 ## Real producer operations
 
@@ -34,7 +34,7 @@ Worker/Process/JobData/JobContext map actual registered class providers onto the
 
 Discovery rejects conflicting processors, missing contracts, invalid metadata, getters and ambiguous reuse of one JobDefinition for two identities before acquiring resources. Base processors are merged with subclass additions; an overridden method must carry its own parameter annotations to avoid inheriting a wrong positional map. Factory/value workers are not currently supported. The pinned supervisor also requires queue/name/version uniqueness within one Worker even across different connections; use separate Worker Services for those identities. This limitation is validated before acquisition rather than leaking an engine startup failure.
 
-The invocation is not the Nest HTTP pipeline. Method/class guards, pipes, interceptors and filters are rejected explicitly; global HTTP enhancers do not apply. A future MQ enhancer pipeline must define and test its own execution context. Local Worker and Process concurrency limits are implemented; they are not distributed queue limits.
+The invocation is not the Nest HTTP pipeline. Method/class HTTP guards, pipes, interceptors and filters are rejected explicitly; global HTTP enhancers do not apply. UseMqGuards/Pipes/Interceptors/Filters instead compose a separate MQ pipeline, sharing the worker ContextId and preserving schemas, cancellation and single-use continuation draining. See execution-extensions.md. Local Worker and Process concurrency limits are implemented; they are not distributed queue limits.
 
 The engine owns claims, leases, heartbeat, retries, stalled recovery and settlement. Pending cancellation uses its atomic job operation. Active cancellation revalidates identity, writes a cancellation request and leaves the owning supervisor to settle with its lease. The facade never steals a lease or promises to undo an external effect.
 
@@ -48,7 +48,7 @@ Connection readiness reports sanitized lifecycle/protocol information; explicit 
 
 ## Remaining durable features
 
-Distributed controls are implemented through QueueControls metadata and an internal protocol-dispatch view over the existing raw store. Global/per-key concurrency and fixed-window admission call the upstream controlled operations; no local semaphore or new lease algorithm is substituted. The raw persistence token stays stable. Replica startup validates persisted policy read-only; explicit coordinated deployment reconciles without disabling omissions. See controls.md for group checks, partial multi-store deployments, typed dispatch keys and separate-process PostgreSQL qualification. Named/versioned custom retry providers must resolve through DI without persisting executable functions. Durable-event waits/subscriptions need defined cursor and recovery semantics.
+Distributed controls are implemented through QueueControls metadata and an internal protocol-dispatch view over the existing raw store. Global/per-key concurrency and fixed-window admission call the upstream controlled operations; no local semaphore or new lease algorithm is substituted. The raw persistence token stays stable. Replica startup validates persisted policy read-only; explicit coordinated deployment reconciles without disabling omissions. See controls.md for group checks, partial multi-store deployments, typed dispatch keys and separate-process PostgreSQL qualification. Named/versioned custom retry providers resolve through static DI; reference metadata fences incompatible rolling deployments without persisting executable functions. Durable-event waits/subscriptions need defined cursor and recovery semantics.
 
 Durable flows retain the engine's persisted parent/children model. FanOut persists a stable manifest and relinquishes the PostgreSQL parent lease; Collect runs only after a fresh claim. Waiting parents do not occupy ordinary execution capacity. Typed result readers are bounded and phase-owned, while recovery rotates across persisted parents/children instead of relying solely on fast terminal reports. The v1 JobStore inspection contract is not widened for `waiting-children`; FlowStore/v2 is the suspended-parent inspection boundary. This is not arbitrary function replay or automatic saga compensation. See flows.md.
 

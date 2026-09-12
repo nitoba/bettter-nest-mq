@@ -1,3 +1,4 @@
+import type { RetryPolicies } from './retry-policies.ts'
 import { Codec, JobDecodeFailure, JobEncodeFailure, Queue } from 'better-effect-mq'
 import type {
   JobDefaultsInput,
@@ -90,13 +91,10 @@ function failureCodec(schema: ValueSchema | undefined): Codec<DomainFailure> {
 }
 
 /** Facade syntax is translated to the engine's serializable policy, never a serialized function. */
-export function compileBackoff(options: RetryOptions): PersistedBackoff {
+export function compileBackoff(options: RetryOptions): PersistedBackoff | undefined {
   const backoff = copyRetry(options).backoff
   if (backoff === undefined) return { type: 'constant', delayMs: 0 }
-  if (backoff.type === 'custom')
-    throw new ContractDefinitionException(
-      'Named custom retry providers are not supported by the execution bridge yet'
-    )
+  if (backoff.type === 'custom') return undefined
   let compiled: PersistedBackoff
   switch (backoff.type) {
     case 'fixed':
@@ -118,15 +116,18 @@ export function compileBackoff(options: RetryOptions): PersistedBackoff {
   return compiled
 }
 
-export function compileJob(registered: RegisteredJob): CompiledJob {
+export function compileJob(registered: RegisteredJob, retries?: RetryPolicies): CompiledJob {
   const { contract, identity, policy } = registered
   if (policy.timeoutMs === 0)
     throw new ContractDefinitionException('Executable job timeouts must be greater than zero')
+  if (policy.retry.backoff?.type === 'custom' && contract.schemas.failure === undefined)
+    throw new ContractDefinitionException('Custom retries require a declared typed failure schema')
+  const backoff = retries?.compile(registered) ?? compileBackoff(policy.retry)
   let defaults: JobDefaultsInput = {
     attempts: policy.retry.attempts,
-    backoff: compileBackoff(policy.retry),
     priority: policy.priority
   }
+  if (backoff !== undefined) defaults = { ...defaults, backoff }
   if (policy.timeoutMs !== undefined) defaults = { ...defaults, timeoutMs: policy.timeoutMs }
   return Queue.define(identity.queue).job(identity.name, {
     version: identity.version,

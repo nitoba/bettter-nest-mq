@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Retry providers and MQ enhancers
+
+- Add named/versioned RetryPolicy providers through static Nest DI and the native synchronous typed-failure retry hook.
+- Persist reference metadata, not callbacks; fence mismatched versions before user code and retain producer-only publication across jobs, schedules, flows and outbox.
+- Add UseMqGuards/Pipes/Interceptors/Filters with a facade-owned MQ execution context, deterministic class/method order and shared attempt-local DI.
+- Revalidate decoded pipe outputs and preserve native result/failure validation, cancellation, lease ownership and attempt budgets.
+- Prevent repeated/escaped interceptor continuations and drain already-admitted downstream work before settlement/shutdown.
+- Add source/type regressions and installed PostgreSQL consumers for restarted retry execution, schedules/outbox references and custom flow children.
+- Explicitly reject incompatible flow child backoff overrides while preserving inherited policies and compatible attempt-budget changes; upstream issue better-effect#389 tracks the native representation mismatch.
+- No dependency version, schema migration, required consumer peer or npm publication changes.
+
 ### Durable flows
 
 - Add typed `flowJob`/`flowChildren` references and `@Flow`/`@FanOut`/`@Collect` Nest phases with normal DI and attempt-local context.
@@ -81,7 +92,7 @@
 
 - Configure Bun, TypeScript 6 compatibility, unchanged upstream Oxlint/Oxfmt/plugin, tsdown, publint, Lefthook and CI.
 
-Still pending: external ORM transaction bridges, additional drivers, named custom retry providers and MQ enhancer/event integration. Version remains 0.0.0; no npm release has been published.
+Still pending: external ORM transaction bridges, additional drivers and durable event integration. Version remains 0.0.0; no npm release has been published.
 
 ### PR #4 completion and packaging correction
 

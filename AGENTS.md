@@ -2,7 +2,7 @@
 
 ## Scope and status
 
-Read docs/flows.md, docs/schedules.md, README.md, docs/dependencies.md, docs/postgres-json.md, docs/controls.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/outbox.md, docs/architecture.md and docs/roadmap.md before changing APIs. Foundations, typed producers/workers, PostgreSQL lifecycle/JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules and durable PostgreSQL flows are implemented. ORM transaction bridges, other drivers and further execution integration remain planned. Never simulate missing APIs or silently fall back to memory.
+Read docs/execution-extensions.md, docs/flows.md, docs/schedules.md, README.md, docs/dependencies.md, docs/postgres-json.md, docs/controls.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/outbox.md, docs/architecture.md and docs/roadmap.md before changing APIs. Foundations, typed producers/workers, PostgreSQL lifecycle/JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable PostgreSQL flows, named retry providers and explicit MQ enhancers are implemented. ORM transaction bridges, other drivers and further execution integration remain planned. Never simulate missing APIs or silently fall back to memory.
 
 ## Toolchain
 
@@ -28,7 +28,10 @@ Read docs/flows.md, docs/schedules.md, README.md, docs/dependencies.md, docs/pos
 - The pinned supervisor cannot host duplicate queue/name/version identities across different connections inside one Worker. Reject that before acquisition; use separate Worker Services without changing persisted identities or secretly splitting concurrency limits.
 - Distributed controls use upstream controlled operations, not local semaphores or fallback plain claims. Policy validation is read-only by default; one coordinated writer reconciles and never disables omissions or claims cross-store atomicity.
 - Derive dispatch keys from decoded payloads, reject conflicting overrides and require keys for per-key declarations on every publication/preparation path. Qualify distributed guarantees using independent PostgreSQL worker processes.
-- Custom retry providers, MQ enhancer execution and durable-event waits remain pending.
+- RetryPolicy providers are synchronous/static and named/versioned. Keep typed failure validation, retryable predicates and native attempt budgets; do not serialize callbacks or invoke async policy providers. Producer-only contexts do not require implementations.
+- Reserve `__better_nest_mq_retry` for internal references across enqueue/batch/prepare/schedules/flows/outbox. Reject caller overrides and check the persisted reference before business code or enhancers. Incompatible deployments must retain old versioned contracts/providers.
+- MQ enhancers are opt-in registered classes, not HTTP metadata. Share one ContextId with the worker per attempt/phase; preserve stage order and codec validation. Continuations are single-use, closed on return, and must drain admitted downstream work before settlement or resource release. Filters cannot bypass cancellation or reference/lease checks.
+- Durable-event waits remain pending; process-local middleware is not a durable event log.
 
 ## PostgreSQL and outbox
 

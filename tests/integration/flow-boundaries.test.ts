@@ -19,6 +19,8 @@ import {
   QueueService,
   Process,
   Worker,
+  UseMqGuards,
+  type MqExecutionContext,
   type FlowResultsReader
 } from '../../src/index.ts'
 import { flowConnection } from '../fixtures/flow-connection.ts'
@@ -50,11 +52,22 @@ const parent = flowJob(BoundaryQueue, 'parent')
 const child = flowJob(BoundaryQueue, 'child')
 const keyed = flowJob(BoundaryQueue, 'keyed')
 const scopes: number[] = []
+const guardScopes: number[] = []
 let nextScope = 0
 @Injectable({ scope: Scope.REQUEST })
 class AttemptDependency {
   readonly id = ++nextScope
 }
+@Injectable()
+class PhaseGuard {
+  constructor(private readonly dependency: AttemptDependency) {}
+  canActivate(context: MqExecutionContext) {
+    if (context.phase !== 'process') guardScopes.push(this.dependency.id)
+    assert.equal(context.children !== undefined, context.phase === 'collect')
+    return true
+  }
+}
+@UseMqGuards(PhaseGuard)
 @Worker({ name: 'boundaries', concurrency: 1, pollIntervalMs: 5, flowSweepIntervalMs: 10 })
 @Flow({
   name: 'boundary',
@@ -99,13 +112,14 @@ async function setup() {
       MqModule.forRoot({ connections: { primary: fixture.connection } }),
       MqModule.forFeature([BoundaryQueue])
     ],
-    providers: [BoundaryWorker, AttemptDependency]
+    providers: [BoundaryWorker, AttemptDependency, PhaseGuard]
   }).compile()
   await app.init()
   return { app, fixture }
 }
 test('flow phases resolve actual request-scoped Nest dependencies and preserve decoded Date results', async () => {
   scopes.length = 0
+  guardScopes.length = 0
   const { app } = await setup()
   try {
     const result = await app
@@ -114,6 +128,7 @@ test('flow phases resolve actual request-scoped Nest dependencies and preserve d
     expect(result).toBe('2026-09-11T12:00:00.000Z')
     expect(scopes).toHaveLength(2)
     expect(new Set(scopes).size).toBe(2)
+    expect(guardScopes).toEqual(scopes)
   } finally {
     await app.close()
   }
@@ -223,7 +238,7 @@ test('flow parents and ordinary handlers cannot collide across connections in on
 test('contract-only applications can import flow Services without starting stores or workers', async () => {
   const app = await Test.createTestingModule({
     imports: [MqModule.forRoot({}), MqModule.forFeature([BoundaryQueue])],
-    providers: [BoundaryWorker, AttemptDependency]
+    providers: [BoundaryWorker, AttemptDependency, PhaseGuard]
   }).compile()
   try {
     await app.init()
