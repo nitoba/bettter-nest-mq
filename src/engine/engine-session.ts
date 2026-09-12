@@ -1,3 +1,5 @@
+import { eventToken, eventAlias } from './event-plan.ts'
+import type { NamedEvents, OperationEvents } from './event-plan.ts'
 import { flowReadStore, type FlowJobReads } from './flow-read-store.ts'
 import { flowToken, flowAlias } from './flow-plan.ts'
 import type { NamedFlow, OperationFlow } from './flow-plan.ts'
@@ -84,9 +86,12 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
         | NamedSchedule
         | OperationSchedule
         | EngineScheduler
+        | NamedEvents
+        | OperationEvents
       >
     | undefined
   private acquired: AcquiredConnection[] = []
+  private readyEvents = new Set<string>()
   private readonly scheduleOptions: Required<MqScheduleOptions>
   private readonly schedulerEnabled: boolean
   private scheduledDefinitions: readonly CompiledSchedule[] = []
@@ -214,6 +219,14 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
         )
       )
       const workers = Layer.merge(...this.plans.map((plan) => plan.layer))
+      const eventBindings = bindings.flatMap((binding) => {
+        const factory = binding.resource.events
+        return factory === undefined
+          ? []
+          : [{ name: binding.name, token: eventToken(binding.name), layer: factory(binding.name) }]
+      })
+      const eventStores = Layer.merge(...eventBindings.map((binding) => binding.layer))
+      const eventAliases = Layer.merge(...eventBindings.map((binding) => eventAlias(binding.name)))
       const outboxBindings = bindings.flatMap((binding) => {
         const factory = binding.resource.outbox
         return factory === undefined
@@ -289,7 +302,9 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
           flowAliases,
           scheduleStores,
           scheduleAliases,
-          scheduler
+          scheduler,
+          eventStores,
+          eventAliases
         ),
         {
           onCleanupFailure: (diagnostic) => {
@@ -341,6 +356,32 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
             capabilities: Object.freeze({ ...descriptor.capabilities })
           })
         })
+      }
+      const readyEvents = new Set<string>()
+      for (const binding of eventBindings) {
+        this.assertStarting()
+        acquiring = binding.name
+        const resolved = await runtime.run(() =>
+          Effect.gen(async function* () {
+            return Result.ok(yield* binding.token)
+          })
+        )
+        if (Result.isError(resolved))
+          throw new MqConnectionException(binding.name, 'acquire', { cause: resolved.error })
+        const descriptor = resolved.value.descriptor
+        if (
+          descriptor.extension !== 'better-effect-mq/events' ||
+          descriptor.extensionVersion !== 1 ||
+          descriptor.jobStoreProtocolVersion !== 1
+        ) {
+          throw new MqConnectionException(binding.name, 'protocol', {
+            cause: new Error('Unsupported event-store protocol')
+          })
+        }
+        const probe = await runtime.run(async () => ({ value: await resolved.value.tailCursor() }))
+        if (Result.isError(probe.value))
+          throw new MqConnectionException(binding.name, 'probe', { cause: probe.value.error })
+        readyEvents.add(binding.name)
       }
       const readyFlows = new Map<string, FlowStoreV2>()
       for (const binding of flowBindings) {
@@ -422,6 +463,7 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
         readyOutboxes.set(binding.name, resolved.value)
       }
       this.assertStarting()
+      this.readyEvents = readyEvents
       this.readyOutboxes = readyOutboxes
       this.readySchedules = readySchedules
       this.readyFlows = readyFlows
@@ -633,8 +675,17 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
     return result.value
   }
 
+  assertEvents(name: string): void {
+    if (this.state !== 'ready' || !this.readyEvents.has(name)) {
+      throw new MqJobException(
+        'awaitResult',
+        'Event waits require an explicitly enabled, ready event reader on the job connection'
+      )
+    }
+  }
+
   async runOperation<Value, Failure>(
-    operation: () => JobOperation<Value, Failure, OperationStoreToken, true>
+    operation: () => JobOperation<Value, Failure, OperationStoreToken, true, OperationEvents>
   ): Promise<Result<Value, Failure>> {
     const runtime = this.runtime
     if (this.state !== 'ready' || runtime === undefined)
@@ -730,6 +781,7 @@ export class EngineSession implements MqConnectionMonitor, WorkerMonitor {
     } finally {
       this.runtime = undefined
       this.ready.clear()
+      this.readyEvents.clear()
       this.readyOutboxes.clear()
       this.readySchedules.clear()
       this.readyFlows.clear()

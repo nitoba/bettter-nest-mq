@@ -1,3 +1,4 @@
+import type { EventLayerFactory } from './event-plan.ts'
 import type { FlowJobReads } from './flow-read-store.ts'
 import type { FlowLayerFactory } from './flow-plan.ts'
 import type { ScheduleLayerFactory } from './schedule-plan.ts'
@@ -20,6 +21,7 @@ export type NamedStoreToken = JobStoreToken<`nestjs/${string}`>
 export type NamedStore = InstanceType<NamedStoreToken>
 
 export interface AcquiredConnection {
+  readonly events?: EventLayerFactory
   readonly flowReads?: (name: string) => FlowJobReads
   readonly flows?: FlowLayerFactory
   readonly schedules?: ScheduleLayerFactory

@@ -1,3 +1,4 @@
+import { postgresEventLayer } from './postgres-event-resource.ts'
 import { postgresFlowReads } from './postgres-flow-reads.ts'
 import { postgresFlowLayer } from './postgres-flow-resource.ts'
 import { Logger } from '@nestjs/common'
@@ -27,6 +28,8 @@ interface PostgresCommonOptions {
   readonly outbox?: boolean
   readonly schedules?: boolean
   readonly flows?: boolean
+  /** Enable an event reader without changing the namespace event activation policy. */
+  readonly events?: boolean
 }
 export type PostgresConnectionOptions = PostgresCommonOptions &
   (
@@ -62,7 +65,8 @@ function withOutbox(
   namespace: string,
   enabled: boolean,
   schedules: boolean,
-  flows: boolean
+  flows: boolean,
+  events: boolean
 ): AcquiredConnection {
   let result = resource
   if (enabled)
@@ -78,6 +82,8 @@ function withOutbox(
       flows: (name) => postgresFlowLayer(name, pool, schema, namespace),
       flowReads: (name) => postgresFlowReads(name, pool, schema, namespace)
     }
+  if (events)
+    result = { ...result, events: (name) => postgresEventLayer(name, pool, schema, namespace) }
   return result
 }
 
@@ -86,6 +92,9 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
   const namespace = validateNamespace(options.namespace ?? 'default')
   const validate = options.validateSchema ?? true
   const outbox = options.outbox ?? false
+  const events = options.events ?? false
+  if (events !== true && events !== false)
+    throw new MqConnectionException('<postgres>', 'configuration')
   const flows = options.flows ?? false
   if (flows !== true && flows !== false)
     throw new MqConnectionException('<postgres>', 'configuration')
@@ -118,7 +127,8 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
           namespace,
           outbox,
           schedules,
-          flows
+          flows,
+          events
         )
     )
   }
@@ -167,7 +177,8 @@ function createPostgresConnection(options: PostgresConnectionOptions): MqConnect
           namespace,
           outbox,
           schedules,
-          flows
+          flows,
+          events
         )
       } catch (cause) {
         try {

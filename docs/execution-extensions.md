@@ -157,3 +157,9 @@ The existing attempt abort signal is checked between stages and before business 
 Source tests cover retry DI, attempt budgets, decoded failures, malformed decisions, version fencing, middleware order, shared scoped dependencies, inherited/overridden metadata, Date pipes, filters, guard rejection, cancellation, single-use/escaped continuations and draining. Installed-package PostgreSQL qualification additionally exercises producer-only publication, schedules/outbox references, retry persistence across recreated worker contexts, and custom child retries through real FanOut/Collect phases under Node/Bun and TypeScript 6/7.
 
 Durable event subscriptions/waits, ORM transaction bridges, additional storage adapters and full operational/release qualification remain separate roadmap work. Process-local middleware is not a durable event log or an exactly-once external-effect guarantee.
+
+## Event-assisted wait integration
+
+Event-assisted awaitResult/execute is implemented; see event-waits.md for the API and exact scope. Configure postgres({ events: true }) on the waiting application and select strategy: 'events' with pollFallbackMs. Polling remains the default. The raw event token shares the job namespace; only an in-runtime operation alias is added. No second pool/runtime, automatic migrations or required-writer activation is introduced.
+
+Runtime reader errors/lost hints use the existing bounded fallback; missing explicit reader configuration still fails. Timeout and abort do not cancel durable work. Keep tests for shutdown, parser fidelity and installed consumers. Resumable subscriptions, checkpoint APIs and retention administration remain pending; this is not a promise of zero polling.
