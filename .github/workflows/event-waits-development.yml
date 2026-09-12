@@ -1,0 +1,29 @@
+name: Event wait development verification
+on:
+  push:
+    branches: [feat/event-result-waits]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      - name: Read existing project contracts and lifecycle guides
+        run: |
+          for file in README.md docs/execution-extensions.md docs/flows.md docs/schedules.md docs/dependencies.md docs/postgres-json.md docs/controls.md docs/contracts.md docs/connections.md docs/execution.md docs/outbox.md docs/architecture.md docs/roadmap.md; do
+            echo "GUIDE $file"
+            cat "$file"
+          done
+      - name: Observe event wait regression before implementation
+        run: bun test tests/integration/event-waits.test.ts

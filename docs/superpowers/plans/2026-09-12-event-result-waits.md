@@ -1,0 +1,9 @@
+# Event-assisted result waits
+
+Continuation of the approved roadmap after PR #10. Deliver the existing Job.awaitResult event strategy through the Nest Promise facade, not another queue subscriber/runtime. Public syntax: postgres({ events: true }) and job.awaitResult(id, { strategy: 'events', pollFallbackMs, timeoutMs, signal }). Polling remains the default. Missing explicitly requested event readers fail rather than silently pretending events are configured; runtime event failures retain the engine's bounded polling fallback.
+
+Use a matching raw named EventStore resource and an operation-token alias over the same store/pool/namespace. Warm and validate opted-in readers before clients/workers activate. Do not promote namespace event persistence to required automatically. No global parser changes, migrations, new dependencies or consumer peers.
+
+Tests first: observe existing polling-only behavior reject an event wait. Then implement the optional resource, lifecycle, strategy dispatch and bounded option validation. Verify actual event-store invocation, terminal results, missing opt-in, timeout/abort without durable cancellation, lost-wake fallback and readiness/shutdown cleanup. Add an installed PostgreSQL consumer using two application contexts and the full pre-existing matrix. Preserve TS6/7 and all 20 tooling hashes. Remove temporary development tooling before final integration.
+
+This increment does not expose resumable subscriptions, cursor checkpoint management, retention administration, SSE endpoints or continuous jobs. Those remain separate features. Native PostgreSQL event readers may themselves poll: this is event-log-assisted result waiting, not a zero-polling transport claim. Independent agents are not available in the current tool set; CI runs independent verification jobs in parallel.
