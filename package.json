@@ -40,7 +40,11 @@
       "types": "./dist/postgres.d.mts",
       "import": "./dist/postgres.mjs"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./kysely": {
+      "types": "./dist/kysely.d.mts",
+      "import": "./dist/kysely.mjs"
+    }
   },
   "scripts": {
     "build": "tsdown",
@@ -77,6 +81,7 @@
     "@types/bun": "1.4.1",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.15.5",
+    "kysely": "0.29.5",
     "lefthook": "^2.1.10",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.78.0",
@@ -94,6 +99,7 @@
     "@nestjs/common": ">=12.0.0 <13.0.0",
     "@nestjs/core": ">=12.0.0 <13.0.0",
     "@types/pg": "^8.15.5",
+    "kysely": ">=0.29.5 <0.30.0",
     "pg": ">=8.11.0 <9.0.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
@@ -111,6 +117,9 @@
       "optional": true
     },
     "pg": {
+      "optional": true
+    },
+    "kysely": {
       "optional": true
     }
   },

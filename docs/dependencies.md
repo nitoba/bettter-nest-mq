@@ -14,11 +14,11 @@ The following are normal dependencies of better-nest-mq, not consumer peer depen
 
 Their compatible versions are pinned and maintained by this package. They appear in the installed dependency tree because their code is reused; they are not copied out or removed. The consumer does not need to list or import them, create a Runtime/Layer, or return a Result from a worker. Native driver objects, such as a borrowed pg Pool, remain part of the selected integration rather than exposing engine objects.
 
-The native PostgreSQL outbox now reuses this internal package through MqOutboxService and the postgresOutbox factory. Consumers still install no additional better-effect packages. Outbox resources are explicitly enabled on their connection; ORM transaction bridges remain separate work. See outbox.md and roadmap.md.
+The native PostgreSQL outbox reuses this internal package through MqOutboxService and the postgresOutbox factory. Consumers still install no additional better-effect packages. Outbox resources are explicitly enabled on their connection. Managed Kysely queries can use the same native transaction; enrollment of caller-owned ORM transactions remains separate work. See outbox.md, kysely-outbox.md and roadmap.md.
 
 ## Application-facing peers
 
-The integration uses the application's compatible Nest installation, reflect-metadata and RxJS. TypeScript consumers need a compiler supporting the declared >=6.0.0 floor. Optional integrations require only the selected schema library or native driver:
+The integration uses the application's compatible Nest installation, reflect-metadata and RxJS. TypeScript consumers need a compiler supporting the declared >=6.0.0 floor. Optional integrations require only the selected schema library, query builder or native driver:
 
 | Use                               | Application dependency                                             |
 | --------------------------------- | ------------------------------------------------------------------ |
@@ -36,12 +36,18 @@ bun add -d @types/pg
 
 Add Zod separately only when using Zod. There is no instruction to install internal better-effect packages. No npm release has been published; the tarball path above refers to a locally built artifact, not an existing registry release.
 
-The package root does not load the PostgreSQL adapter or native driver merely because a QueueService is imported. Installing internal adapter code is different from loading it or opening a connection. Package managers may also resolve transitive peer dependencies; this document does not promise a minimal installed dependency count. External tests explicitly remove pg and Zod to verify root-only usage does not require either at runtime.
+The package root does not load the PostgreSQL adapter or native driver merely because a QueueService is imported. Installing internal adapter code is different from loading it or opening a connection. Package managers may also resolve transitive peer dependencies; this document does not promise a minimal installed dependency count. External tests explicitly remove pg, Zod and Kysely to verify root-only usage does not require them at runtime.
+
+## Optional Kysely integration
+
+Import kyselyOutbox from better-nest-mq/kysely when choosing typed Kysely queries inside a managed PostgreSQL outbox callback. The application supplies Kysely >=0.29.5 <0.30.0 and pg; Kysely 0.29.5 is pinned in development. This optional peer is not required for root-only or PostgreSQL-only imports. The library still installs and coordinates all its internal engine packages automatically.
+
+The scoped Kysely builder uses the existing managed transaction, not the application's unrelated Kysely connection. It does not accept an arbitrary external transaction by assertion. See kysely-outbox.md for ownership, rollback, callback lifetime and unsupported operations.
 
 ## Verification and version responsibility
 
-Regression tests inspect the package manifest so none of the internal engine/adapter packages can accidentally become consumer peer dependencies. Actual tarball-consumer manifests declare only better-nest-mq, Nest/support peers and the selected pg/Zod integrations. They do not list engine packages, even during PostgreSQL worker, distributed-control and transactional-outbox tests.
+Regression tests inspect the package manifest so none of the internal engine/adapter packages can accidentally become consumer peer dependencies. Actual tarball-consumer manifests declare only better-nest-mq, Nest/support peers and their selected pg/Zod/Kysely integrations. They do not list engine packages, even during PostgreSQL worker, distributed-control and transactional-outbox tests.
 
 Library code and public declarations are compiled with TypeScript 6 and the primary compiler. The CI Node 22 and Node 24 jobs are separate compatibility environments, not two Node versions running inside the same application. Bun remains the package manager and test runner; applications select a supported execution runtime.
 
-Keep optional native/schema imports behind their public integration subpaths. Keep every public declaration chunk free of Effect/Result/Layer/Runtime dependencies. When upgrading the internal engine, the library maintainer must qualify the complete resource, persistence, worker, controls and package-consumption suite instead of shifting version coordination onto Nest users.
+Keep optional native/schema/query-builder imports behind their public integration subpaths. Keep every public declaration chunk free of Effect/Result/Layer/Runtime dependencies. When upgrading the internal engine, the library maintainer must qualify the complete resource, persistence, worker, controls and package-consumption suite instead of shifting version coordination onto Nest users.

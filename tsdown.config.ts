@@ -4,7 +4,8 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     zod: 'src/integrations/zod.ts',
-    postgres: 'src/integrations/postgres.ts'
+    postgres: 'src/integrations/postgres.ts',
+    kysely: 'src/integrations/kysely.ts'
   },
   format: ['esm'],
   platform: 'node',
@@ -21,7 +22,8 @@ export default defineConfig({
       'reflect-metadata',
       'rxjs',
       'zod',
-      'pg'
+      'pg',
+      'kysely'
     ]
   }
 })
