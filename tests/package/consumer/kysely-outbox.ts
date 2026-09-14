@@ -44,7 +44,7 @@ class BusinessWorker {
   }
 }
 function barrier() {
-  let open = () => {
+  let open: () => void = () => {
     throw new Error('Barrier not initialized')
   }
   const promise = new Promise<void>((resolve) => {
