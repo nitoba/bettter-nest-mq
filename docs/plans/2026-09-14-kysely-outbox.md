@@ -1,0 +1,11 @@
+# Managed PostgreSQL outbox with Kysely
+
+Continue from main e08eab3 after the successful full post-merge event-wait CI. Deliver one verified ORM/query-builder integration, not simultaneous partial implementations of several drivers.
+
+Public API: `kyselyOutbox<Database>(outboxes, 'primary').transaction(async ({ db, append }) => ...)`, with optional predeclared entries. Kysely queries and append use the existing managed PostgreSQL transaction client. No separate pool/runtime and no arbitrary external Kysely transaction accepted by assertion. Expose a transaction-scoped Kysely query surface, not manual transaction ownership. The PostgreSQL source must already have outbox enabled.
+
+Use Kysely's public Driver/Dialect interfaces with PostgreSQL compiler/adapter, and the existing native transaction wrapper for commit/rollback, poisoning, draining, parser semantics and resource ownership. SQL remains trusted application code, not sandboxed. Streaming, nested transactions and driver destruction through the scoped view reject explicitly. Queries and derivatives escaping the callback must reject; no use of a released client. Runtime driver failures and append errors poison commit even if caught. Compilers/plugins that throw before reaching the driver are application-level failures and must propagate from the callback to force rollback.
+
+Kysely is an optional application-facing peer isolated behind better-nest-mq/kysely, not another required root dependency. Pin Kysely 0.29.5 in development and qualify actual installed consumers under both supported compilers/runtimes. Keep internal Effect/MQ packages as normal dependencies and preserve original tooling.
+
+Tests: missing entrypoint baseline; actual Kysely compiler and scoped driver delegation; transaction handle closure and derivatives; mutation row counts; unsupported operations; native SQL failure and caught append rollback; real PostgreSQL physical PID/transaction ID identity; invisibility before commit; typed results; borrower ownership; publisher processing and restart. No mock modules. Run complete retained CI before merge, remove any temporary lockfile/formatter tooling and report exact head results. No npm publication or production deployment is requested for this milestone.
