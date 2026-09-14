@@ -222,7 +222,10 @@ async function verifyRecovery(connectionString: string): Promise<void> {
       }
       const existing = await record(service, 'already-enqueued')
       accepted.push(
-        await service.retryFailed('source', existing.id, { expected: expected(existing), attempts: 1 })
+        await service.retryFailed('source', existing.id, {
+          expected: expected(existing),
+          attempts: 1
+        })
       )
       const corrupted = await record(service, 'corrupt')
       rejectRevalidation = true
