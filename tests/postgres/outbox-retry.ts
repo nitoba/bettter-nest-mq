@@ -53,7 +53,7 @@ export async function verifyOutboxRetryProtocol(connectionString: string): Promi
     await app.init()
     const service = app.get(MqOutboxService)
     const job = await app.get(ProtocolQueue).job.prepare('original', { jobId: 'unchanged' })
-    await postgresOutbox(service).transaction(
+    await postgresOutbox(service, 'primary').transaction(
       { id: 'record', job, attempts: 1 },
       async () => undefined
     )
