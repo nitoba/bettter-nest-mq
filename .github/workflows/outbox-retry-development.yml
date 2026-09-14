@@ -3,39 +3,53 @@ on:
   push:
     branches: [feat/outbox-failed-retry]
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: outbox-retry-development
+  cancel-in-progress: false
 jobs:
-  inspect:
+  verify:
+    if: github.ref == 'refs/heads/feat/outbox-failed-retry'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mq
+          POSTGRES_PASSWORD: mq_test_only
+          POSTGRES_DB: mq_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U mq -d mq_test" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MQ_TEST_DATABASE_URL: postgresql://mq:mq_test_only@localhost:5432/mq_test
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
-      - run: bun install --frozen-lockfile
-      - name: Review current guides and exact pinned administrative contracts
+      - name: Apply checked exports and format authored code
         run: |
-          node --input-type=module <<'NODE'
-          import { readFileSync, readdirSync } from 'node:fs'
-          for (const file of ['README.md','docs/kysely-outbox.md','docs/event-waits.md','docs/execution-extensions.md','docs/flows.md','docs/schedules.md','docs/dependencies.md','docs/postgres-json.md','docs/controls.md','docs/contracts.md','docs/connections.md','docs/execution.md','docs/outbox.md','docs/architecture.md','docs/roadmap.md']) {
-            console.log(`GUIDE ${file}\n${readFileSync(file,'utf8')}`)
-          }
-          for (const file of ['package.json','src/outbox/errors.ts','src/outbox/service.ts','src/integrations/postgres-outbox.ts','src/integrations/postgres-outbox-resource.ts','.oxlintrc.json']) console.log(`SOURCE ${file}\n${readFileSync(file,'utf8')}`)
-          for (const pkg of ['better-effect-mq-outbox','better-effect-mq-postgres']) {
-            for (const file of readdirSync(`node_modules/${pkg}/dist`).filter(file=>/\.d\.(mts|ts)$/.test(file))) {
-              const lines=readFileSync(`node_modules/${pkg}/dist/${file}`,'utf8').split('\n')
-              for (const needle of ['interface OutboxStore {','interface PostgresOutboxStore','interface OutboxRecord {']) {
-                const start=lines.findIndex(line=>line.includes(needle))
-                if(start>=0) console.log(`PINNED ${pkg}/${file}\n${lines.slice(start,start+65).join('\n')}`)
-              }
-            }
-          }
-          NODE
-      - name: Observe the missing retry API against the current baseline
-        run: bun test tests/unit/outbox-retry-api.test.ts
+          if test -f .github/apply-outbox-retry.mjs; then
+            node .github/apply-outbox-retry.mjs
+            git rm .github/apply-outbox-retry.mjs
+          fi
+          bun install --frozen-lockfile
+          bun run format
+          bun run check:tooling
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat: wire guarded outbox retry and format sources'
+            git push origin HEAD:feat/outbox-failed-retry
+          fi
+      - name: Verify source, declarations and actual package consumers
+        run: |
+          bun run check > /tmp/outbox-check.log 2>&1 || { tail -180 /tmp/outbox-check.log; exit 1; }
+          grep -E '^PASS| pass| fail|Packed consumers' /tmp/outbox-check.log
