@@ -33,11 +33,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
-      - name: Apply checked exports and format authored code
+      - name: Integrate regressions and format authored code
         run: |
-          if test -f .github/apply-outbox-retry.mjs; then
-            node .github/apply-outbox-retry.mjs
-            git rm .github/apply-outbox-retry.mjs
+          if test -f .github/qualify-outbox-retry.mjs; then
+            node .github/qualify-outbox-retry.mjs
+            git rm .github/qualify-outbox-retry.mjs
           fi
           bun install --frozen-lockfile
           bun run format
@@ -46,10 +46,22 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -u
           if ! git diff --cached --quiet; then
-            git commit -m 'feat: wire guarded outbox retry and format sources'
+            git commit -m 'test: integrate PostgreSQL outbox retry qualification and format sources'
             git push origin HEAD:feat/outbox-failed-retry
           fi
-      - name: Verify source, declarations and actual package consumers
+      - name: Verify source, declarations and package boundaries
         run: |
-          bun run check > /tmp/outbox-check.log 2>&1 || { tail -180 /tmp/outbox-check.log; exit 1; }
-          grep -E '^PASS| pass| fail|Packed consumers' /tmp/outbox-check.log
+          bun run typecheck
+          bun run typecheck:minimum
+          bun test > /tmp/unit.log 2>&1 || { tail -160 /tmp/unit.log; exit 1; }
+          tail -6 /tmp/unit.log
+          bun run format:check
+          bun run build
+          bun run lint
+          bun run publint
+      - name: Verify old publisher lease fencing before the package matrix
+        run: bun -e "import { verifyOutboxRetryProtocol } from './tests/postgres/outbox-retry.ts'; await verifyOutboxRetryProtocol(process.env.MQ_TEST_DATABASE_URL)"
+      - name: Verify all installed PostgreSQL consumers
+        run: |
+          bun run test:package > /tmp/outbox-check.log 2>&1 || { tail -200 /tmp/outbox-check.log; exit 1; }
+          grep -E '^PASS|Packed consumers' /tmp/outbox-check.log
