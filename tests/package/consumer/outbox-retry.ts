@@ -22,7 +22,11 @@ import {
 } from 'better-nest-mq'
 import { migratePostgres, postgres, postgresOutbox } from 'better-nest-mq/postgres'
 
-const Value = z.union([z.string(), z.null(), z.object({ text: z.string() })])
+// Test-only switch models a destination contract becoming incompatible after failure.
+let rejectRevalidation = false
+const Value = z
+  .union([z.string(), z.null(), z.object({ text: z.string() })])
+  .refine((value) => !(rejectRevalidation && value === 'revalidate'))
 @Injectable()
 @Queue({ name: 'outbox-recovery', connection: 'target' })
 class RecoveryQueue extends QueueService {
@@ -86,7 +90,15 @@ async function verifyRecovery(connectionString: string): Promise<void> {
     return NestFactory.createApplicationContext(Application, { logger: false, abortOnError: false })
   }
   const inputs = ['123', null, { text: 'ação' }]
-  const ids = ['publication-0', 'publication-1', 'publication-2', 'corrupt', 'draining', 'delayed']
+  const ids = [
+    'publication-0',
+    'publication-1',
+    'publication-2',
+    'corrupt',
+    'draining',
+    'delayed',
+    'already-enqueued'
+  ]
   try {
     await migratePostgres({ pool: admin, schema })
     await admin.query(`CREATE TABLE "${schema}".business(id text PRIMARY KEY)`)
@@ -95,20 +107,21 @@ async function verifyRecovery(connectionString: string): Promise<void> {
       const service = initial.get(MqOutboxService)
       const queue = initial.get(RecoveryQueue)
       for (const [index, id] of ids.entries()) {
-        const job = await queue.echo.prepare(inputs[index] ?? 'control', {
+        const input = inputs[index]
+        const payload = input === undefined ? (id === 'corrupt' ? 'revalidate' : 'control') : input
+        const job = await queue.echo.prepare(payload, {
           jobId: `job-${id}`,
           retry: { attempts: 4, backoff: { type: 'fixed', delayMs: 10 } }
         })
-        // Preserve an actual null rather than replacing it with the control value.
-        const prepared =
-          index === 1
-            ? await queue.echo.prepare(null, {
-                jobId: `job-${id}`,
-                retry: { attempts: 4, backoff: { type: 'fixed', delayMs: 10 } }
-              })
-            : job
+        if (id === 'already-enqueued') {
+          // An earlier publication may have reached its target without a source acknowledgement.
+          await queue.echo.enqueue(payload, {
+            jobId: `job-${id}`,
+            retry: { attempts: 4, backoff: { type: 'fixed', delayMs: 10 } }
+          })
+        }
         await postgresOutbox(service, 'source').transaction(
-          { id, job: prepared, attempts: 2 },
+          { id, job, attempts: 2 },
           async (tx) => {
             await tx.query(`INSERT INTO "${schema}".business(id) VALUES($1)`, [id])
           }
@@ -161,7 +174,7 @@ async function verifyRecovery(connectionString: string): Promise<void> {
           `SELECT count(*)::integer AS total FROM "${schema}".better_effect_mq_jobs`
         )
       ).rows[0]?.total
-      assert.equal(jobsBefore, 0)
+      assert.equal(jobsBefore, 1, 'The uncertain publication already exists at its target')
       const raced = await Promise.allSettled([
         service.retryFailed('source', id, { expected: expected(failed), attempts: 3 }),
         competing.retryFailed('source', id, { expected: expected(failed), attempts: 3 })
@@ -207,14 +220,36 @@ async function verifyRecovery(connectionString: string): Promise<void> {
           await service.retryFailed('source', nextId, { expected: expected(old), attempts: 3 })
         )
       }
+      const existing = await record(service, 'already-enqueued')
+      accepted.push(
+        await service.retryFailed('source', existing.id, { expected: expected(existing), attempts: 1 })
+      )
       const corrupted = await record(service, 'corrupt')
+      rejectRevalidation = true
+      try {
+        await assert.rejects(
+          service.retryFailed('source', corrupted.id, {
+            expected: expected(corrupted),
+            attempts: 1
+          })
+        )
+        assert.deepEqual(await record(service, corrupted.id), corrupted)
+      } finally {
+        rejectRevalidation = false
+      }
       await admin.query(
         `UPDATE "${schema}".better_effect_mq_outbox SET request=jsonb_set(request,'{payload}','123'::jsonb) WHERE id='corrupt'`
       )
       await assert.rejects(
         service.retryFailed('source', 'corrupt', { expected: expected(corrupted), attempts: 2 })
       )
-      assert.equal((await record(service, 'corrupt')).state, 'failed')
+      // Digest validation must reject the corrupted record on ordinary reads as well.
+      await assert.rejects(service.get('source', 'corrupt'), MqOutboxException)
+      const invalid = await admin.query<{ state: string; attempts_max: number }>(
+        `SELECT state, attempts_max FROM "${schema}".better_effect_mq_outbox WHERE id='corrupt'`
+      )
+      assert.equal(invalid.rows[0]?.state, 'failed')
+      assert.equal(invalid.rows[0]?.attempts_max, corrupted.attemptsMax)
       console.log(
         'PASS concurrent administrators, optimistic guards, immutable requests, budgets and schema revalidation'
       )
@@ -280,14 +315,14 @@ async function verifyRecovery(connectionString: string): Promise<void> {
     try {
       const queue = consumer.get(RecoveryQueue)
       const service = consumer.get(MqOutboxService)
-      for (const [index, item] of accepted.entries()) {
+      for (const item of accepted) {
         const jobId = item.request.id
         assert.ok(jobId)
         const result = await queue.echo.awaitResult(jobId, {
           timeoutMs: 10_000,
           pollIntervalMs: 10
         })
-        assert.deepEqual(result, index < inputs.length ? inputs[index] : 'control')
+        assert.deepEqual(result, item.request.payload)
         await until(
           async () => (await record(service, item.id)).state === 'published',
           'recovered publication acknowledgement'
@@ -319,7 +354,7 @@ async function verifyRecovery(connectionString: string): Promise<void> {
         accepted.length
       )
       console.log(
-        'PASS post-restart publication and processing preserve job IDs/JSON/dispatch keys without rerunning business writes'
+        'PASS post-restart recovery preserves IDs/JSON/keys, reuses an existing job and never reruns business writes'
       )
     } finally {
       await consumer.close()
