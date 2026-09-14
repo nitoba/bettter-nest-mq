@@ -249,7 +249,7 @@ async function verifyRecovery(connectionString: string): Promise<void> {
       // Digest validation must reject the corrupted record on ordinary reads as well.
       await assert.rejects(service.get('source', 'corrupt'), MqOutboxException)
       const invalid = await admin.query<{ state: string; attempts_max: number }>(
-        `SELECT state, attempts_max FROM "${schema}".better_effect_mq_outbox WHERE id='corrupt'`
+        `SELECT state, attempts_max::integer AS attempts_max FROM "${schema}".better_effect_mq_outbox WHERE id='corrupt'`
       )
       assert.equal(invalid.rows[0]?.state, 'failed')
       assert.equal(invalid.rows[0]?.attempts_max, corrupted.attemptsMax)
