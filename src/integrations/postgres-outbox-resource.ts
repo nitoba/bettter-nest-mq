@@ -11,26 +11,49 @@ import { MqOutboxException } from '../outbox/errors.ts'
 import { postgresJsonPool } from './postgres-json-pool.ts'
 import { postgresOutboxRetry } from './postgres-outbox-retry.ts'
 
-interface NativeOutbox { readonly pool: Pool; readonly store: PostgresOutboxStore }
+interface NativeOutbox {
+  readonly pool: Pool
+  readonly store: PostgresOutboxStore
+}
 const resources = new WeakMap<OutboxStore, NativeOutbox>()
 
 /** Internal source-specific resource; importing the public factory does not acquire it. */
-export function postgresOutboxLayer(name: string, pool: Pool, schema: string, namespace: string): Layer<NamedOutbox, never> {
-  const sourceNamespace = `nestjs-outbox-${createHash('sha256').update(JSON.stringify([namespace, name])).digest('hex')}`
-  return Layer.scoped(outboxToken(name), () => {
-    const store = PostgresOutbox.make({ pool: postgresJsonPool(pool), schema, namespace: sourceNamespace, validateSchema: false })
-    resources.set(store, { pool, store })
-    bindOutboxRetry(store, postgresOutboxRetry(pool, schema, sourceNamespace))
-    return store
-  }, async (store) => {
-    const resource = resources.get(store)
-    resources.delete(store)
-    try { await closeOutboxRetry(store) }
-    finally { await resource?.store.dispose() }
-  })
+export function postgresOutboxLayer(
+  name: string,
+  pool: Pool,
+  schema: string,
+  namespace: string
+): Layer<NamedOutbox, never> {
+  const sourceNamespace = `nestjs-outbox-${createHash('sha256')
+    .update(JSON.stringify([namespace, name]))
+    .digest('hex')}`
+  return Layer.scoped(
+    outboxToken(name),
+    () => {
+      const store = PostgresOutbox.make({
+        pool: postgresJsonPool(pool),
+        schema,
+        namespace: sourceNamespace,
+        validateSchema: false
+      })
+      resources.set(store, { pool, store })
+      bindOutboxRetry(store, postgresOutboxRetry(pool, schema, sourceNamespace))
+      return store
+    },
+    async (store) => {
+      const resource = resources.get(store)
+      resources.delete(store)
+      try {
+        await closeOutboxRetry(store)
+      } finally {
+        await resource?.store.dispose()
+      }
+    }
+  )
 }
 export function nativePostgresOutbox(store: OutboxStore): NativeOutbox {
   const resource = resources.get(store)
-  if (resource === undefined) throw new MqOutboxException('unavailable', 'This source is not a PostgreSQL outbox')
+  if (resource === undefined)
+    throw new MqOutboxException('unavailable', 'This source is not a PostgreSQL outbox')
   return resource
 }

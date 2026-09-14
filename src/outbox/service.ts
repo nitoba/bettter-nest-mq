@@ -1,3 +1,4 @@
+import type { OutboxRetryOptions } from './retry-options.ts'
 import { Injectable } from '@nestjs/common'
 import type {
   OutboxCounts,
@@ -11,6 +12,9 @@ import type {
 @Injectable()
 export class MqOutboxService implements OutboxMonitor {
   constructor(private readonly monitor: OutboxMonitor) {}
+  retryFailed(source: string, id: string, options: OutboxRetryOptions): Promise<OutboxSnapshot> {
+    return this.monitor.retryFailed(source, id, options)
+  }
   get(source: string, id: string): Promise<OutboxSnapshot | undefined> {
     return this.monitor.get(source, id)
   }

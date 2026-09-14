@@ -1,4 +1,5 @@
 import 'reflect-metadata'
+export type { OutboxRetryOptions, OutboxRetryExpected } from './outbox/retry-options.ts'
 export { Schedule } from './schedules/decorator.ts'
 export { MqSchedulesService } from './schedules/service.ts'
 export { MqScheduleException } from './schedules/errors.ts'

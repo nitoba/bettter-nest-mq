@@ -4,7 +4,11 @@ import { MqOutboxException } from '../outbox/errors.ts'
 import { postgresJsonPool } from './postgres-json-pool.ts'
 
 /** A single conditional administrative transition; native publisher leases and settlement are unchanged. */
-export function postgresOutboxRetry(pool: Pool, schema: string, namespace: string): OutboxRetryWrite {
+export function postgresOutboxRetry(
+  pool: Pool,
+  schema: string,
+  namespace: string
+): OutboxRetryWrite {
   const database = postgresJsonPool(pool)
   const table = `"${schema.replaceAll('"', '""')}"."better_effect_mq_outbox"`
   return async (previous, next) => {
@@ -20,13 +24,28 @@ export function postgresOutboxRetry(pool: Pool, schema: string, namespace: strin
            AND published_at_ms IS NULL AND lease_owner IS NULL
            AND lease_token IS NULL AND lease_expires_at_ms IS NULL
          RETURNING id`,
-        [namespace, previous.id, next.attemptsMax, next.runAtMs, next.updatedAtMs,
-          previous.attemptsMade, previous.attemptsMax, previous.updatedAtMs,
-          previous.target, previous.requestDigest, JSON.stringify(previous.request),
-          previous.createdAtMs, previous.runAtMs, previous.failure === undefined ? null : JSON.stringify(previous.failure)]
+        [
+          namespace,
+          previous.id,
+          next.attemptsMax,
+          next.runAtMs,
+          next.updatedAtMs,
+          previous.attemptsMade,
+          previous.attemptsMax,
+          previous.updatedAtMs,
+          previous.target,
+          previous.requestDigest,
+          JSON.stringify(previous.request),
+          previous.createdAtMs,
+          previous.runAtMs,
+          previous.failure === undefined ? null : JSON.stringify(previous.failure)
+        ]
       )
       if (result.rows.length !== 1 || result.rows[0]?.id !== previous.id) {
-        throw new MqOutboxException('conflict', 'Publication changed concurrently; inspect it before retrying again')
+        throw new MqOutboxException(
+          'conflict',
+          'Publication changed concurrently; inspect it before retrying again'
+        )
       }
     } catch (cause) {
       if (cause instanceof MqOutboxException) throw cause

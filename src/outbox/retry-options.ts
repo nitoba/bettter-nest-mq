@@ -15,17 +15,22 @@ export interface OutboxRetryOptions {
 }
 
 function fields<Options extends object>(options: Options, allowed: readonly string[]): void {
-  if (options === null || options === undefined) throw new MqOutboxException('retry', 'Retry options are required')
+  if (options === null || options === undefined)
+    throw new MqOutboxException('retry', 'Retry options are required')
   const prototype = Object.getPrototypeOf(options)
-  if (prototype !== Object.prototype && prototype !== null) throw new MqOutboxException('retry', 'Retry options must be plain data')
+  if (prototype !== Object.prototype && prototype !== null)
+    throw new MqOutboxException('retry', 'Retry options must be plain data')
   for (const key of Reflect.ownKeys(options)) {
-    if (key !== String(key) || !allowed.includes(String(key))) throw new MqOutboxException('retry', `Unsupported retry option ${String(key)}`)
+    if (key !== String(key) || !allowed.includes(String(key)))
+      throw new MqOutboxException('retry', `Unsupported retry option ${String(key)}`)
     const descriptor = Object.getOwnPropertyDescriptor(options, key)
-    if (descriptor?.get !== undefined || descriptor?.set !== undefined) throw new MqOutboxException('retry', 'Retry option accessors are not supported')
+    if (descriptor?.get !== undefined || descriptor?.set !== undefined)
+      throw new MqOutboxException('retry', 'Retry option accessors are not supported')
   }
 }
 function integer(value: number, field: string, minimum: number): void {
-  if (!Number.isSafeInteger(value) || value < minimum) throw new MqOutboxException('retry', `${field} must be a safe integer >= ${minimum}`)
+  if (!Number.isSafeInteger(value) || value < minimum)
+    throw new MqOutboxException('retry', `${field} must be a safe integer >= ${minimum}`)
 }
 export function copyOutboxRetryOptions(options: OutboxRetryOptions): OutboxRetryOptions {
   fields(options, ['expected', 'attempts', 'runAtMs'])
@@ -34,8 +39,11 @@ export function copyOutboxRetryOptions(options: OutboxRetryOptions): OutboxRetry
   integer(options.expected.updatedAtMs, 'expected.updatedAtMs', 0)
   integer(options.expected.attemptsMade, 'expected.attemptsMade', 0)
   integer(options.expected.attemptsMax, 'expected.attemptsMax', 1)
-  if (options.expected.attemptsMade > options.expected.attemptsMax) throw new MqOutboxException('retry', 'Expected attemptsMade exceeds attemptsMax')
+  if (options.expected.attemptsMade > options.expected.attemptsMax)
+    throw new MqOutboxException('retry', 'Expected attemptsMade exceeds attemptsMax')
   if (options.runAtMs !== undefined) integer(options.runAtMs, 'runAtMs', 0)
   const copied = { expected: Object.freeze({ ...options.expected }), attempts: options.attempts }
-  return Object.freeze(options.runAtMs === undefined ? copied : { ...copied, runAtMs: options.runAtMs })
+  return Object.freeze(
+    options.runAtMs === undefined ? copied : { ...copied, runAtMs: options.runAtMs }
+  )
 }
