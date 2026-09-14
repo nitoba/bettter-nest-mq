@@ -128,6 +128,10 @@ export async function runKyselyOutbox<Database, Value>(
   })
   let value: Value | undefined
   try {
+    // Kysely skips destroy() on a never-initialized driver. Initialize its public
+    // connection wrapper without issuing SQL or acquiring another native client,
+    // so even a pre-query lifecycle misuse reaches the guarded driver.
+    await db.connection().execute(async () => undefined)
     value = await callback(view)
   } catch (cause) {
     driver.poison(cause)
