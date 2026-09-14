@@ -124,6 +124,7 @@ try {
     await writeFile(join(directory, 'package.json'), JSON.stringify(integratedManifest))
     await run(['bun', 'install', '--ignore-scripts'], directory)
     for (const fixture of [
+      'outbox-retry',
       'codec',
       'postgres',
       'execution',
@@ -134,8 +135,7 @@ try {
       'flows',
       'execution-extensions',
       'event-waits',
-      'kysely-outbox',
-      'outbox-retry'
+      'kysely-outbox'
     ]) {
       await run(
         ['node', 'node_modules/typescript/bin/tsc', '-p', `tsconfig.${fixture}.json`],
