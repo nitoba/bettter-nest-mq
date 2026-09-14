@@ -1,9 +1,12 @@
 import { makeOutboxId } from 'better-effect-mq-outbox'
 import type { OutboxRecord, OutboxStore } from 'better-effect-mq-outbox'
 import { Result } from 'better-result'
+import { isDeepStrictEqual } from 'node:util'
 import type { MqRegistry } from '../module/mq.registry.ts'
 import { MqOutboxException } from '../outbox/errors.ts'
 import type { MqOutboxService } from '../outbox/service.ts'
+import { copyOutboxRetryOptions } from '../outbox/retry-options.ts'
+import type { OutboxRetryOptions } from '../outbox/retry-options.ts'
 import type {
   OutboxCounts,
   OutboxEntry,
@@ -14,24 +17,56 @@ import type {
 } from '../outbox/types.ts'
 import type { EngineSession } from './engine-session.ts'
 import { compileOutboxRecord, outboxSnapshot } from './outbox-record.ts'
+import { outboxRetryAdapter, retryOutboxRecord } from './outbox-retry.ts'
 
 export type PrepareOutboxEntry = (entry: OutboxEntry) => Promise<OutboxRecord>
-
 export class OutboxCoordinator implements OutboxMonitor {
   constructor(
     private readonly session: EngineSession,
     private readonly registry: MqRegistry
   ) {}
-
   withSource<Value>(
     source: string,
     operation: (store: OutboxStore, prepare: PrepareOutboxEntry) => Value | PromiseLike<Value>
   ): Promise<Value> {
-    // Keep already-admitted transactions independent of registry destruction during shutdown.
+    // Capture the admitted registry so destruction cannot change a transaction's contracts.
     const jobs = this.registry.jobs()
     return this.session.withOutbox(source, (store) =>
       operation(store, (entry) => compileOutboxRecord(source, entry, jobs))
     )
+  }
+  async retryFailed(
+    source: string,
+    id: string,
+    options: OutboxRetryOptions
+  ): Promise<OutboxSnapshot> {
+    const copied = copyOutboxRetryOptions(options)
+    const parsed = makeOutboxId(id)
+    if (Result.isError(parsed))
+      throw new MqOutboxException('retry', 'Invalid outbox id', { cause: parsed.error })
+    return this.withSource(source, async (store, prepare) => {
+      const adapter = outboxRetryAdapter(store)
+      const result = await store.get(parsed.value)
+      if (Result.isError(result))
+        throw new MqOutboxException('read', 'Unable to inspect the failed publication', {
+          cause: result.error
+        })
+      const record = result.value
+      if (record === undefined)
+        throw new MqOutboxException('retry', 'The outbox record does not exist')
+      // Check the optimistic guard and bounds before asynchronous schema validation.
+      retryOutboxRecord(record, copied, Date.now())
+      const validated = await prepare({
+        id: record.id,
+        job: { connection: record.target, request: record.request },
+        attempts: record.attemptsMax
+      })
+      if (!isDeepStrictEqual(validated.request, record.request))
+        throw new MqOutboxException('retry', 'Retry cannot change the original prepared request')
+      const next = retryOutboxRecord(record, copied, Date.now())
+      await adapter.retry(record, next)
+      return outboxSnapshot(source, next)
+    })
   }
   async get(source: string, id: string): Promise<OutboxSnapshot | undefined> {
     const parsed = makeOutboxId(id)
@@ -70,9 +105,6 @@ export class OutboxCoordinator implements OutboxMonitor {
     return this.session.outboxPublisher()
   }
 }
-
-// Per-service bindings keep internal native access out of the public declarations. Each
-// coordinator still delegates admission/lifetime to its own application runtime.
 const coordinators = new WeakMap<MqOutboxService, OutboxCoordinator>()
 export function bindOutboxService(
   service: MqOutboxService,

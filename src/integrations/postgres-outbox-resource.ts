@@ -6,8 +6,10 @@ import type { OutboxStore } from 'better-effect-mq-outbox'
 import type { Pool } from 'pg'
 import { outboxToken } from '../engine/outbox-plan.ts'
 import type { NamedOutbox } from '../engine/outbox-plan.ts'
+import { bindOutboxRetry, closeOutboxRetry } from '../engine/outbox-retry.ts'
 import { MqOutboxException } from '../outbox/errors.ts'
 import { postgresJsonPool } from './postgres-json-pool.ts'
+import { postgresOutboxRetry } from './postgres-outbox-retry.ts'
 
 interface NativeOutbox {
   readonly pool: Pool
@@ -35,16 +37,20 @@ export function postgresOutboxLayer(
         validateSchema: false
       })
       resources.set(store, { pool, store })
+      bindOutboxRetry(store, postgresOutboxRetry(pool, schema, sourceNamespace))
       return store
     },
     async (store) => {
       const resource = resources.get(store)
       resources.delete(store)
-      await resource?.store.dispose()
+      try {
+        await closeOutboxRetry(store)
+      } finally {
+        await resource?.store.dispose()
+      }
     }
   )
 }
-
 export function nativePostgresOutbox(store: OutboxStore): NativeOutbox {
   const resource = resources.get(store)
   if (resource === undefined)

@@ -1,3 +1,4 @@
+import { verifyOutboxRetryProtocol } from '../tests/postgres/outbox-retry.ts'
 import { verifyOrdinaryRecovery } from '../tests/postgres/dispatch-recovery.ts'
 import { verifyPostgresControlledClock } from '../tests/postgres/controlled-clock.ts'
 import assert from 'node:assert/strict'
@@ -32,6 +33,7 @@ async function run(command: string[], cwd: string): Promise<void> {
 const recoveryDatabase = process.env.MQ_TEST_DATABASE_URL
 if (recoveryDatabase !== undefined) {
   await verifyOrdinaryRecovery(recoveryDatabase)
+  await verifyOutboxRetryProtocol(recoveryDatabase)
   await verifyPostgresControlledClock(recoveryDatabase)
 }
 
@@ -122,6 +124,7 @@ try {
     await writeFile(join(directory, 'package.json'), JSON.stringify(integratedManifest))
     await run(['bun', 'install', '--ignore-scripts'], directory)
     for (const fixture of [
+      'outbox-retry',
       'codec',
       'postgres',
       'execution',

@@ -2,7 +2,7 @@
 
 This integration makes a domain write and an outbox append part of one actual PostgreSQL transaction. A managed publisher later forwards committed records to the configured job stores. Nest application code uses an injected Service, typed transaction methods and Promises, not engine tokens or Effect programs.
 
-This first slice supports library-managed PostgreSQL transactions and get/list/count diagnostics. It is not an ORM transaction bridge, a cross-database transaction, a workflow engine or an exactly-once external-effects guarantee. The outbox engine and adapter packages remain normal internal dependencies; consumers need only their Nest environment and chosen native `pg` driver/types.
+It supports library-managed PostgreSQL transactions, get/list/count diagnostics, optional managed Kysely queries and guarded recovery of failed publications. It does not enroll arbitrary caller-owned ORM transactions, provide cross-database atomicity or promise exactly-once external effects. The engine and adapter packages remain normal internal dependencies; consumers need only their Nest environment and chosen native `pg` driver/types. See kysely-outbox.md and outbox-recovery.md for those additional APIs.
 
 ## Configure the source and execution roles
 
@@ -129,7 +129,7 @@ Business queries use the native pool/client type parsers, including custom JSON 
 
 SQL is trusted application code. Do not issue `BEGIN`, `COMMIT`, `ROLLBACK`, transaction-ending procedure calls or other manual transaction control through `tx.query`; the library owns that boundary and does not sandbox or parse SQL. Do not acquire another pool client for a write that must be atomic with this outbox. An ordinary repository call using its own connection is outside this transaction.
 
-This slice intentionally does not accept an arbitrary caller `PoolClient`, TypeORM EntityManager, Prisma transaction or Kysely executor. Those bridges need separate resource-identity and rollback tests. There is no `appendIn(unknownTransaction)` API pretending that a matching variable name proves atomicity.
+This API does not accept an arbitrary caller `PoolClient`, TypeORM EntityManager, Prisma transaction or Kysely executor. Those bridges need separate resource-identity and rollback tests. Managed Kysely queries on this transaction are supported separately; see kysely-outbox.md. There is no `appendIn(unknownTransaction)` API pretending that a matching variable name proves atomicity.
 
 The business callback is not automatically retried, including on a failed/uncertain commit response. A lost commit acknowledgement can leave the caller uncertain whether PostgreSQL committed; use stable domain identifiers and reconcile state before retrying. Transaction callbacks are not safe places for external non-transactional side effects that assume a future commit.
 
@@ -141,7 +141,7 @@ When the prepared request has no explicit job ID, the integration derives a stab
 
 Repeating the identical entry is a duplicate append, not a second record. Reusing its outbox ID for another prepared request, destination or publication-attempt budget fails and rolls back the transaction. The facade compares destination and dispatch key too; it does not rely only on the upstream request digest. Replay the original prepared data for intentional retries, since preparing again can change time-sensitive request fields.
 
-Duplicate append does **not** deduplicate the domain callback: the callback still runs. Use unique constraints, appropriate conflict handling or an application idempotency record for domain writes. Replaying a duplicate does not reschedule or reset an existing outbox record. `runAtMs` controls initial publication eligibility, not a hidden update operation.
+Duplicate append does **not** deduplicate the domain callback: the callback still runs. Use unique constraints, appropriate conflict handling or an application idempotency record for domain writes. Replaying a duplicate does not reschedule or reset an existing outbox record. `runAtMs` controls initial publication eligibility, not a hidden update operation. After explicit administrative recovery changes a publication budget, appending with its previous budget may conflict; use the recovery API instead of replaying business SQL.
 
 ## Publisher policy and recovery
 
@@ -162,21 +162,21 @@ An entry's `attempts` defaults to ten publication attempts and is independent of
 
 Only committed records are visible to publishers. Competing publishers coordinate claims through persisted leases. A crash after destination enqueue but before source acknowledgement can cause another publication attempt; it reuses the stable prepared request and destination idempotency behavior. This remains at-least-once delivery. Handlers and external effects must be idempotent where repeated execution would be harmful.
 
-Routing uses configured destination connection names. A publisher missing a target route cannot deliver that record and records the upstream classified failure; it does not guess another database or fall back to memory. Keep all required routes present during rolling deployments. A failed record is visible through diagnostics; this first slice does not export an automatic reset/retry-failed administration method.
+Routing uses configured destination connection names. A publisher missing a target route cannot deliver that record and records the upstream classified failure; it does not guess another database or fall back to memory. Keep all required routes present during rolling deployments. Failed records can be recovered explicitly with `MqOutboxService.retryFailed`; see outbox-recovery.md for required inspected-state guards, destination revalidation and unchanged job IDs. Recovery is never automatic and does not rerun the domain transaction.
 
-Shutdown stops admission and quiesces the publisher, releases its claims as appropriate, then releases stores and owned pools. It does not wait for every pending or future-dated outbox row to be published. Callback/driver cancellation remains cooperative; arbitrary non-cooperative application code is not forcibly interrupted. A completed transaction can leave a pending record safely for the next publisher process.
+Shutdown stops admission and quiesces the publisher, releases its claims as appropriate, then releases stores and owned pools. It does not wait for every pending or future-dated outbox row to be published. Callback/driver cancellation remains cooperative; arbitrary non-cooperative application code is not forcibly interrupted. A completed transaction can leave a pending record safely for the next publisher process. An already-admitted administrative retry is drained before its store resource is released.
 
 ## Inspection and errors
 
-Inject `MqOutboxService` and call `get(source, id)`, `list(source, { state, target, limit })`, `counts(source)` or `publisher()`. Record snapshots include state, route, encoded prepared request, publication attempts and classified failure, without active lease tokens. Publisher snapshots are local to the application; no publisher returns undefined. No automatic HTTP endpoints are installed.
+Inject `MqOutboxService` and call `get(source, id)`, `list(source, { state, target, limit })`, `counts(source)` or `publisher()`. Record snapshots include state, route, encoded prepared request, publication attempts and classified failure, without active lease tokens. Publisher snapshots are local to the application; no publisher returns undefined. `retryFailed(source, id, options)` is a separate explicit administrative transition, not a read or a job handler retry. No automatic HTTP endpoints are installed.
 
-`MqOutboxException` identifies configuration, preparation, availability, read, append, conflict and transaction misuse. Business callback errors retain their identity when cleanup succeeds. SQL/driver errors and error causes are trusted diagnostics and should not be serialized indiscriminately to untrusted HTTP users. Cleanup failures aggregate with the original failure instead of silently hiding it.
+`MqOutboxException` identifies configuration, preparation, availability, read, append, conflict, retry and transaction misuse. Business callback errors retain their identity when cleanup succeeds. SQL/driver errors and error causes are trusted diagnostics and should not be serialized indiscriminately to untrusted HTTP users. Cleanup failures aggregate with the original failure instead of silently hiding it.
 
 ## Qualification and remaining features
 
 The installed-package fixture covers domain rollback, uncommitted invisibility, native custom parsers, completed-handle rejection, conflicting destinations/keys, caught SQL failures, multiple/dynamic appends, scalar JSON/null payloads, competing publishers, independent process roles, replay of an abandoned post-enqueue record and persisted job outcomes after recreated application contexts. It compiles with TypeScript 6/7 and runs with Node and Bun against PostgreSQL. Existing dependency isolation, JSON fidelity and distributed-control tests remain enabled.
 
-The native PostgreSQL transaction boundary is the first outbox implementation. ORM transaction bridges, additional drivers, richer administrative recovery controls, flows and persistent schedules remain separate work. No npm publication, production environment provisioning or automatic migration is included.
+Native PostgreSQL outbox, managed Kysely queries, guarded failed-publication retry, flows and persistent schedules are implemented. Caller-owned ORM transaction enrollment, additional drivers, administrative audit history and bulk recovery remain separate work. No npm publication, production environment provisioning or automatic migration is included.
 
 ## Identity scope and operational qualifications
 
@@ -188,6 +188,6 @@ The pinned Worker supervisor requires queue/name/version uniqueness inside each 
 
 ## Persistent schedule integration
 
-Persistent Schedule declarations and MqSchedulesService are now implemented; see schedules.md for the supported API and exact recurrence semantics. Schedule stores opt in with postgres({ schedules: true }), sharing the existing pool, private JSON view and stable namespace. Definition deployment/validation and scheduler execution are independent from workers and the outbox publisher.
+Persistent Schedule declarations and MqSchedulesService are implemented; see schedules.md for the supported API and exact recurrence semantics. Schedule stores opt in with postgres({ schedules: true }), sharing the existing pool, private JSON view and stable namespace. Definition deployment/validation and scheduler execution are independent from workers and the outbox publisher.
 
-This does not add flows or external ORM transactions. The pinned schedule protocol cannot carry dispatch keys, so keyed/per-key-limited schedules reject explicitly. Normal startup preserves operator pauses and validates deployed definitions; explicit reconciliation is a coordinated administrative operation, not a cross-store transaction.
+Schedules are separate from the implemented durable flows and do not enroll external ORM transactions. The pinned schedule protocol cannot carry dispatch keys, so keyed/per-key-limited schedules reject explicitly. Normal startup preserves operator pauses and validates deployed definitions; explicit reconciliation is a coordinated administrative operation, not a cross-store transaction.

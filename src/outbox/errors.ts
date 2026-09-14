@@ -6,6 +6,7 @@ export type OutboxPhase =
   | 'append'
   | 'conflict'
   | 'transaction'
+  | 'retry'
 
 export class MqOutboxException extends Error {
   readonly code = 'MQ_OUTBOX'

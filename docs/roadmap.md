@@ -2,9 +2,9 @@
 
 ## Current delivery
 
-The foundation, typed producers/workers, PostgreSQL lifecycle and JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable flows, **named retry providers, explicit MQ enhancers, event-assisted result waits and managed Kysely outbox queries** are implemented. The library still lacks full better-effect-mq feature parity and remains unreleased at version 0.0.0.
+The foundation, typed producers/workers, PostgreSQL lifecycle and JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable flows, **named retry providers, explicit MQ enhancers, event-assisted result waits, managed Kysely outbox queries and guarded failed-publication recovery** are implemented. The library still lacks full better-effect-mq feature parity and remains unreleased at version 0.0.0.
 
-Current guides: README.md, docs/dependencies.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/controls.md, docs/outbox.md, docs/schedules.md, docs/flows.md, docs/execution-extensions.md, docs/event-waits.md and docs/kysely-outbox.md. Remaining APIs below are not exported as placeholders.
+Current guides: README.md, docs/dependencies.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/controls.md, docs/outbox.md, docs/schedules.md, docs/flows.md, docs/execution-extensions.md, docs/event-waits.md, docs/kysely-outbox.md and docs/outbox-recovery.md. Remaining APIs below are not exported as placeholders.
 
 ## M0 — Foundation — implemented
 
@@ -80,9 +80,15 @@ The upstream publisher forwards committed records using stable routing and indep
 
 The optional Kysely integration builds typed queries on the native outbox's already-acquired PostgreSQL client. Its factory supports dynamic appends and predeclared single/batch entries, preserving native parsers, rollback after caught driver/append failures, callback closure, admitted-query draining and borrowed ownership. Kysely never opens a second pool or controls a separate transaction. Installed PostgreSQL tests compare physical backend PIDs and transaction IDs and check invisibility, rollback and publication after producer shutdown. See kysely-outbox.md.
 
-## M6c — External ORM enrollment and administration — pending
+## M6c — Guarded failed-publication recovery — implemented
 
-Enrollment of caller-owned Kysely transactions, TypeORM/Prisma bridges, other adapters, failed-record reset/retry and richer recovery administration remain separate work. Preserve verified transaction identity, uncertain-commit semantics and borrowed ownership. A managed Kysely callback does not prove ownership of an arbitrary external transaction. Application outbox remains distinct from flow coordination.
+MqOutboxService.retryFailed requires an inspected timestamp/counter guard and an explicit new publication budget. PostgreSQL conditionally transitions only an unchanged failed record to pending. It compares the complete original request, route and failure, preserves cumulative attempts and the last failure, and validates the registered destination contract and dispatch key again. Pending, active and published records are not reset. Recovery neither reruns business SQL nor changes the job's execution budget. Admitted recovery SQL drains before native store disposal. See outbox-recovery.md.
+
+The native and installed-package regressions cover real publisher exhaustion, concurrent administrators, old publisher tokens, stale requests, schema drift, digest corruption, delayed eligibility, an already-enqueued target job and shutdown with a blocked UPDATE. The capability is PostgreSQL-only; unsupported adapters reject explicitly. No database migration or dependency update is required.
+
+## M6d — External ORM enrollment and further administration — pending
+
+Enrollment of caller-owned Kysely transactions, TypeORM/Prisma bridges, other adapters, audit history, pruning and bulk administration remain separate work. Preserve verified transaction identity, uncertain-commit semantics and borrowed ownership. A managed Kysely callback does not prove ownership of an arbitrary external transaction. Application outbox remains distinct from flow coordination.
 
 ## M7 — Operational and release qualification — pending
 
@@ -95,7 +101,7 @@ M0 → M1 → M2 → M3 → M3.1a
                   ├──→ M3.1b retry / MQ enhancers + M3.1c event waits implemented; subscriptions pending
                   ├──→ M4 additional adapters and resources
                   ├──→ M5a schedules + M5b durable flows implemented
-                  └──→ M6a native outbox + M6b managed Kysely implemented; external ORM enrollment pending
+                  └──→ M6a outbox + M6b Kysely + M6c recovery implemented; external ORM enrollment pending
        remaining integrations → M7 full parity and release qualification
 ```
 

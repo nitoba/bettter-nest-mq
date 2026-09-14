@@ -1,3 +1,4 @@
+import type { OutboxRetryOptions } from './retry-options.ts'
 import type { PreparedJob } from '../jobs/types.ts'
 
 export type OutboxState = 'pending' | 'active' | 'published' | 'failed'
@@ -65,6 +66,7 @@ export interface OutboxPublisherSnapshot {
   readonly activeCount: number
 }
 export interface OutboxMonitor {
+  retryFailed(source: string, id: string, options: OutboxRetryOptions): Promise<OutboxSnapshot>
   get(source: string, id: string): Promise<OutboxSnapshot | undefined>
   list(source: string, options?: OutboxListOptions): Promise<readonly OutboxSnapshot[]>
   counts(source: string): Promise<OutboxCounts>
