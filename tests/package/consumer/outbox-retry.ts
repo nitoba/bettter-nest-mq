@@ -321,15 +321,17 @@ async function verifyRecovery(connectionString: string): Promise<void> {
       for (const item of accepted) {
         const jobId = item.request.id
         assert.ok(jobId)
+        // Recovery only makes the outbox pending. Job result waiting requires
+        // the publisher to have created or confirmed the destination job first.
+        await until(
+          async () => (await record(service, item.id)).state === 'published',
+          'recovered publication acknowledgement'
+        )
         const result = await queue.echo.awaitResult(jobId, {
           timeoutMs: 10_000,
           pollIntervalMs: 10
         })
         assert.deepEqual(result, item.request.payload)
-        await until(
-          async () => (await record(service, item.id)).state === 'published',
-          'recovered publication acknowledgement'
-        )
         const published = await record(service, item.id)
         assert.equal(published.attemptsMade, 3)
         assert.deepEqual(published.request, item.request)
