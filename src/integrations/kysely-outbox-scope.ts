@@ -7,7 +7,10 @@ import type { PostgresOutboxParameter, PostgresOutboxTransaction } from './postg
 import type { KyselyOutboxCallback, KyselyOutboxTransaction } from './kysely-outbox.types.ts'
 
 function closed(): MqOutboxException {
-  return new MqOutboxException('transaction', 'This Kysely outbox transaction callback has finished')
+  return new MqOutboxException(
+    'transaction',
+    'This Kysely outbox transaction callback has finished'
+  )
 }
 
 /** A driver view, not a pool: every statement uses the existing managed transaction.
@@ -20,9 +23,10 @@ class ScopedDriver implements Driver, DatabaseConnection {
   constructor(private readonly transaction: PostgresOutboxTransaction) {}
 
   poison<Cause>(cause: Cause): void {
-    this.failure ??= cause instanceof Error
-      ? cause
-      : new MqOutboxException('transaction', 'Kysely outbox callback failed', { cause })
+    this.failure ??=
+      cause instanceof Error
+        ? cause
+        : new MqOutboxException('transaction', 'Kysely outbox callback failed', { cause })
   }
 
   private unsupported(operation: string): MqOutboxException {
@@ -38,8 +42,13 @@ class ScopedDriver implements Driver, DatabaseConnection {
     if (!this.accepting) return Promise.reject(closed())
     const task = Promise.resolve().then(operation)
     const drained = task.then(
-      () => { this.pending.delete(drained) },
-      (cause) => { this.poison(cause); this.pending.delete(drained) }
+      () => {
+        this.pending.delete(drained)
+      },
+      (cause) => {
+        this.poison(cause)
+        this.pending.delete(drained)
+      }
     )
     this.pending.add(drained)
     return task
@@ -78,7 +87,12 @@ class ScopedDriver implements Driver, DatabaseConnection {
       // This is not a schema validation claim or a JSON conversion of SQL values.
       const parameters = query.parameters as readonly PostgresOutboxParameter[]
       const result = await this.transaction.query<Row & QueryResultRow>(query.sql, parameters)
-      if (result.command === 'INSERT' || result.command === 'UPDATE' || result.command === 'DELETE' || result.command === 'MERGE') {
+      if (
+        result.command === 'INSERT' ||
+        result.command === 'UPDATE' ||
+        result.command === 'DELETE' ||
+        result.command === 'MERGE'
+      ) {
         return { rows: result.rows, numAffectedRows: BigInt(result.rowCount ?? 0) }
       }
       return { rows: result.rows }

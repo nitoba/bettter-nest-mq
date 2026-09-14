@@ -10,7 +10,7 @@ import { z } from 'zod'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const versionSchema = z.object({ version: z.string() })
-const optionalIntegrations = ['zod', 'pg']
+const optionalIntegrations = ['zod', 'pg', 'kysely']
 const internalPackages = [
   'better-effect',
   'better-result',
@@ -108,6 +108,7 @@ try {
       devDependencies: {
         ...manifest.devDependencies,
         zod: await installedVersion('zod'),
+        kysely: await installedVersion('kysely'),
         pg: await installedVersion('pg'),
         '@types/pg': await installedVersion('@types/pg')
       }
@@ -130,7 +131,8 @@ try {
       'schedules',
       'flows',
       'execution-extensions',
-      'event-waits'
+      'event-waits',
+      'kysely-outbox'
     ]) {
       await run(
         ['node', 'node_modules/typescript/bin/tsc', '-p', `tsconfig.${fixture}.json`],

@@ -6,10 +6,18 @@ import type { PostgresOutboxTransaction } from './postgres-outbox.types.ts'
 import { runKyselyOutbox } from './kysely-outbox-scope.ts'
 import type { KyselyOutboxCallback, KyselyOutboxClient } from './kysely-outbox.types.ts'
 
-export type { KyselyOutboxCallback, KyselyOutboxClient, KyselyOutboxDatabase, KyselyOutboxTransaction } from './kysely-outbox.types.ts'
+export type {
+  KyselyOutboxCallback,
+  KyselyOutboxClient,
+  KyselyOutboxDatabase,
+  KyselyOutboxTransaction
+} from './kysely-outbox.types.ts'
 
 /** Inert integration factory. Kysely never owns a separate database pool/runtime. */
-export function kyselyOutbox<Database>(service: MqOutboxService, source = 'default'): KyselyOutboxClient<Database> {
+export function kyselyOutbox<Database>(
+  service: MqOutboxService,
+  source = 'default'
+): KyselyOutboxClient<Database> {
   const native = postgresOutbox(service, source)
   return Object.freeze({
     async transaction<Value>(
@@ -17,9 +25,15 @@ export function kyselyOutbox<Database>(service: MqOutboxService, source = 'defau
       callback?: KyselyOutboxCallback<Database, Value>
     ): Promise<Value> {
       const run = input instanceof Function ? input : callback
-      if (run === undefined) throw new MqOutboxException('configuration', 'A Kysely outbox transaction requires a callback')
+      if (run === undefined)
+        throw new MqOutboxException(
+          'configuration',
+          'A Kysely outbox transaction requires a callback'
+        )
       const invoke = (transaction: PostgresOutboxTransaction) => runKyselyOutbox(transaction, run)
-      return input instanceof Function ? native.transaction(invoke) : native.transaction(input, invoke)
+      return input instanceof Function
+        ? native.transaction(invoke)
+        : native.transaction(input, invoke)
     }
   })
 }

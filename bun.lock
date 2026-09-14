@@ -20,6 +20,7 @@
         "@types/bun": "1.4.1",
         "@types/node": "^22.0.0",
         "@types/pg": "^8.15.5",
+        "kysely": "0.29.5",
         "lefthook": "^2.1.10",
         "oxfmt": "^0.63.0",
         "oxlint": "^1.78.0",
@@ -37,6 +38,7 @@
         "@nestjs/common": ">=12.0.0 <13.0.0",
         "@nestjs/core": ">=12.0.0 <13.0.0",
         "@types/pg": "^8.15.5",
+        "kysely": ">=0.29.5 <0.30.0",
         "pg": ">=8.11.0 <9.0.0",
         "reflect-metadata": "^0.2.2",
         "rxjs": "^7.8.2",
@@ -45,6 +47,7 @@
       },
       "optionalPeers": [
         "@types/pg",
+        "kysely",
         "pg",
         "typescript",
         "zod",
@@ -334,6 +337,8 @@
     "import-without-cache": ["import-without-cache@0.4.0", "", {}, "sha512-NkJQA7oZ4YHQhd2+H3BoRFKF3d/XNsiKpHZCQEMH9pDX27hQQLsTyOocyRgaIVtf8gHX3Nt3LPkR4e5EdtPAGQ=="],
 
     "iterare": ["iterare@1.2.1", "", {}, "sha512-RKYVTCjAnRthyJes037NX/IiqeidgN1xc3j1RjFfECFp28A1GVwK9nA+i0rJPaHqSZwygLzRnFlzUuHFoWWy+Q=="],
+
+    "kysely": ["kysely@0.29.5", "", {}, "sha512-ooa+eSbBNPTo3MycPEuW5jdrxQdQwdtB3LC3h43FiXQbIry5tR0C5lDG7eealK0E4D7XjrnOP5DIUg/LyjRMYQ=="],
 
     "lefthook": ["lefthook@2.1.12", "", { "optionalDependencies": { "lefthook-darwin-arm64": "2.1.12", "lefthook-darwin-x64": "2.1.12", "lefthook-freebsd-arm64": "2.1.12", "lefthook-freebsd-x64": "2.1.12", "lefthook-linux-arm64": "2.1.12", "lefthook-linux-x64": "2.1.12", "lefthook-openbsd-arm64": "2.1.12", "lefthook-openbsd-x64": "2.1.12", "lefthook-windows-arm64": "2.1.12", "lefthook-windows-x64": "2.1.12" }, "bin": { "lefthook": "bin/index.js" } }, "sha512-2uOexfsrrRhCiTUWdGyDySxVHHhOFJ8MQejs27dM3hugrQB48/z1ZVlaNoxpZ1SnzQ1GaDIbO5rAvicwyiknYQ=="],
 
