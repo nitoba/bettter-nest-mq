@@ -184,6 +184,9 @@ async function verify(databaseUrl: string): Promise<void> {
               .insertInto('business')
               .values({ id: failedId, note: mode, payload: null })
               .execute()
+            // Prove rollback removes an already-appended record, not merely a
+            // deferred entry that was never written because the callback failed.
+            assert.equal((await tx.append(failedEntry)).duplicate, false)
             if (mode === 'callback') throw new Error('Intentional business failure')
             if (mode === 'query')
               await assert.rejects(
@@ -246,6 +249,15 @@ async function verify(databaseUrl: string): Promise<void> {
       abortOnError: false
     })
     try {
+      // An outbox commit is not a queue enqueue. Await the actual publisher
+      // state before using awaitResult, which correctly rejects missing jobs.
+      const deadline = Date.now() + 10_000
+      while (
+        (await processor.get(MqOutboxService).counts('primary')).published !== delivered.length
+      ) {
+        assert.ok(Date.now() < deadline, 'Committed outbox jobs must be published before waiting')
+        await sleep(10)
+      }
       for (const item of delivered)
         assert.deepEqual(
           await processor
@@ -253,13 +265,6 @@ async function verify(databaseUrl: string): Promise<void> {
             .echo.awaitResult(item.id, { timeoutMs: 10_000, pollIntervalMs: 10 }),
           item.payload
         )
-      const deadline = Date.now() + 10_000
-      while (
-        (await processor.get(MqOutboxService).counts('primary')).published !== delivered.length
-      ) {
-        assert.ok(Date.now() < deadline)
-        await sleep(10)
-      }
     } finally {
       await processor.close()
     }
