@@ -2,7 +2,7 @@
 
 NestJS-native producers and decorated workers backed by the better-effect-mq engine.
 
-**Status: Core execution, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable PostgreSQL flows, named retry providers, explicit MQ enhancers and event-assisted result waits are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can be published, processed, retried, cancelled, scheduled and coordinated as durable fan-out/collect flows through the Nest facade. ORM transaction bridges and additional integrations remain on the roadmap.
+**Status: Core execution, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable PostgreSQL flows, named retry providers, explicit MQ enhancers, event-assisted result waits and managed Kysely outbox queries are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can be published, processed, retried, cancelled, scheduled and coordinated as durable fan-out/collect flows through the Nest facade. External ORM transaction enrollment and additional integrations remain on the roadmap.
 
 Repository: `nitoba/bettter-nest-mq` (three `t` characters). Package name: `better-nest-mq`.
 
@@ -12,7 +12,13 @@ Queue Services declare typed jobs using Standard Schema or optional Zod codecs. 
 
 Producers support enqueue, decoded enqueue, batches, preparation without publication, polling, result waiting, publish-and-wait execution, attempt history, promotion, retry and cancellation. Workers support known failures, configurable retries, execution timeout, local worker/handler concurrency, cooperative cancellation and attempt-local scoped dependencies. PostgreSQL resource ownership, explicit migrations and live connection probes remain available.
 
-See [event-assisted result waits](docs/event-waits.md), [retry providers and MQ enhancers](docs/execution-extensions.md), [durable flows](docs/flows.md), [persistent schedules](docs/schedules.md), [transactional outbox](docs/outbox.md), [PostgreSQL JSON fidelity](docs/postgres-json.md), [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+See [Kysely outbox transactions](docs/kysely-outbox.md), [event-assisted result waits](docs/event-waits.md), [retry providers and MQ enhancers](docs/execution-extensions.md), [durable flows](docs/flows.md), [persistent schedules](docs/schedules.md), [transactional outbox](docs/outbox.md), [PostgreSQL JSON fidelity](docs/postgres-json.md), [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+
+## Kysely outbox transactions
+
+The optional `better-nest-mq/kysely` entry point provides `kyselyOutbox<Database>(outboxes, 'primary').transaction(async ({ db, append }) => ...)`. Typed business queries and outbox appends use the existing managed PostgreSQL transaction. Kysely does not acquire another pool or commit a separate transaction.
+
+Use the scoped query builder in participating repositories. Caught driver/append failures still prevent commit, admitted SQL drains before release, and escaped builders cannot query after the callback. Nested transactions, streaming and driver destruction reject explicitly. This is not enrollment of an arbitrary pre-existing ORM transaction. Kysely is optional and supplied only by applications choosing this integration; internal engine dependencies remain automatic. See [docs/kysely-outbox.md](docs/kysely-outbox.md) for the Service example and ownership rules.
 
 ## Event-assisted result waits
 
@@ -172,7 +178,7 @@ bun add pg@^8.16.3
 bun add -d @types/pg
 ```
 
-The engine and its PostgreSQL/outbox adapters are normal internal dependencies, installed automatically with this library. Nest consumers do not install better-effect, better-result or any better-effect-mq package manually. Only the chosen native driver/schema library is application-facing. The root remains usable without loading pg or Zod, and outbox storage is enabled explicitly with postgres({ outbox: true }), not merely by installing its internal dependency. See [dependency ownership](docs/dependencies.md).
+The engine and its PostgreSQL/outbox adapters are normal internal dependencies, installed automatically with this library. Nest consumers do not install better-effect, better-result or any better-effect-mq package manually. Only the chosen native driver, schema library or query builder is application-facing. The root remains usable without loading pg, Zod or Kysely, and outbox storage is enabled explicitly with postgres({ outbox: true }), not merely by installing its internal dependency. See [dependency ownership](docs/dependencies.md).
 
 Execute migrations deliberately in a deployment script:
 
@@ -202,7 +208,7 @@ Input and decoded types remain distinct through `InputOf`, `PayloadOf`, `ResultO
 
 `MqConnectionsService` exposes safe connection snapshots/live probes. `MqWorkersService` exposes local state and awaitIdle; idle does not mean every delayed job in the database has completed. Shutdown detaches producers, stops admission and drains/cooperatively aborts workers before releasing stores and owned pools.
 
-Current boundaries: polling or opt-in event-assisted result waits; class-based Worker providers; explicit JobData/JobContext parameters; no HTTP enhancer execution. Method/class HTTP guards, pipes, interceptors and filters are rejected instead of silently ignored. Global HTTP enhancers do not apply. Named custom retry providers and explicit MQ enhancers are implemented; resumable event subscriptions, other adapters and ORM outbox bridges remain pending. Native PostgreSQL outbox transactions and a managed publisher are available.
+Current boundaries: polling or opt-in event-assisted result waits; class-based Worker providers; explicit JobData/JobContext parameters; no HTTP enhancer execution. Method/class HTTP guards, pipes, interceptors and filters are rejected instead of silently ignored. Global HTTP enhancers do not apply. Named custom retry providers and explicit MQ enhancers are implemented; resumable event subscriptions, other adapters and external ORM transaction enrollment remain pending. Native PostgreSQL outbox transactions, their managed Kysely query bridge and a managed publisher are available.
 
 ## Development and tests
 
