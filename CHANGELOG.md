@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Managed Kysely outbox transactions
+
+- Add optional better-nest-mq/kysely with typed transaction-scoped queries and dynamic or predeclared outbox entries on the same native PostgreSQL client.
+- Reuse native commit/rollback, parser semantics, source ownership and publication without a second pool/runtime or automatic callback replay.
+- Guard escaped builders, reject nested transactions/streaming/destruction, drain admitted SQL and preserve failure poisoning after caught driver or append errors.
+- Qualify real Kysely compilation and installed PostgreSQL consumers, including physical backend/transaction identity, pre-commit invisibility, rollback and later job execution.
+- Add Kysely 0.29.5 as a development dependency and optional application-facing peer; retain the internal engine versions and required root dependencies.
+
 ### Event-assisted result waits
 
 - Add opt-in PostgreSQL event readers sharing the existing pool, raw namespace and application runtime.
@@ -100,7 +108,7 @@
 
 - Configure Bun, TypeScript 6 compatibility, unchanged upstream Oxlint/Oxfmt/plugin, tsdown, publint, Lefthook and CI.
 
-Still pending: external ORM transaction bridges, additional drivers and durable event integration. Version remains 0.0.0; no npm release has been published.
+Still pending: external ORM transaction enrollment, additional drivers and resumable event subscriptions. Version remains 0.0.0; no npm release has been published.
 
 ### PR #4 completion and packaging correction
 
