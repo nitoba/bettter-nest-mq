@@ -1,0 +1,41 @@
+name: Outbox retry development
+on:
+  push:
+    branches: [feat/outbox-failed-retry]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      - name: Review current guides and exact pinned administrative contracts
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, readdirSync } from 'node:fs'
+          for (const file of ['README.md','docs/kysely-outbox.md','docs/event-waits.md','docs/execution-extensions.md','docs/flows.md','docs/schedules.md','docs/dependencies.md','docs/postgres-json.md','docs/controls.md','docs/contracts.md','docs/connections.md','docs/execution.md','docs/outbox.md','docs/architecture.md','docs/roadmap.md']) {
+            console.log(`GUIDE ${file}\n${readFileSync(file,'utf8')}`)
+          }
+          for (const file of ['package.json','src/outbox/errors.ts','src/outbox/service.ts','src/integrations/postgres-outbox.ts','src/integrations/postgres-outbox-resource.ts','.oxlintrc.json']) console.log(`SOURCE ${file}\n${readFileSync(file,'utf8')}`)
+          for (const pkg of ['better-effect-mq-outbox','better-effect-mq-postgres']) {
+            for (const file of readdirSync(`node_modules/${pkg}/dist`).filter(file=>/\.d\.(mts|ts)$/.test(file))) {
+              const lines=readFileSync(`node_modules/${pkg}/dist/${file}`,'utf8').split('\n')
+              for (const needle of ['interface OutboxStore {','interface PostgresOutboxStore','interface OutboxRecord {']) {
+                const start=lines.findIndex(line=>line.includes(needle))
+                if(start>=0) console.log(`PINNED ${pkg}/${file}\n${lines.slice(start,start+65).join('\n')}`)
+              }
+            }
+          }
+          NODE
+      - name: Observe the missing retry API against the current baseline
+        run: bun test tests/unit/outbox-retry-api.test.ts
