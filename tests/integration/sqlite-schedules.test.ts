@@ -184,9 +184,11 @@ scheduleTest(
         })
       ).toBe('null')
       await schedules.sweep()
-      expect(database.prepare('SELECT count(*) AS total FROM better_effect_mq_jobs').get()).toEqual({
-        total: 1
-      })
+      expect(database.prepare('SELECT count(*) AS total FROM better_effect_mq_jobs').get()).toEqual(
+        {
+          total: 1
+        }
+      )
       expect(schedules.scheduler()).toMatchObject({ state: 'running', reportedErrors: 0 })
     } finally {
       await app.close()
