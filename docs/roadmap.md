@@ -2,9 +2,9 @@
 
 ## Current delivery
 
-The foundation, typed producers/workers, PostgreSQL lifecycle and JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable flows, **named retry providers, explicit MQ enhancers, event-assisted result waits, managed Kysely outbox queries and guarded failed-publication recovery** are implemented. The library still lacks full better-effect-mq feature parity and remains unreleased at version 0.0.0.
+The foundation, typed producers/workers, PostgreSQL lifecycle and JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable flows, **named retry providers, explicit MQ enhancers, event-assisted result waits, managed Kysely outbox queries, guarded failed-publication recovery and native Node/Bun SQLite jobs with opt-in event readers** are implemented. The library still lacks full better-effect-mq feature parity and remains unreleased at version 0.0.0.
 
-Current guides: README.md, docs/dependencies.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/controls.md, docs/outbox.md, docs/schedules.md, docs/flows.md, docs/execution-extensions.md, docs/event-waits.md, docs/kysely-outbox.md and docs/outbox-recovery.md. Remaining APIs below are not exported as placeholders.
+Current guides: README.md, docs/dependencies.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/controls.md, docs/outbox.md, docs/schedules.md, docs/flows.md, docs/execution-extensions.md, docs/event-waits.md, docs/kysely-outbox.md, docs/outbox-recovery.md and docs/sqlite.md. Remaining APIs below are not exported as placeholders.
 
 ## M0 — Foundation — implemented
 
@@ -40,7 +40,7 @@ UseMqGuards/Pipes/Interceptors/Filters compose explicit class/method stages over
 
 ## M3.1c — Event-assisted result waits — implemented
 
-Opt-in PostgreSQL event readers share the raw namespace, native pool and existing runtime. Job awaitResult/execute support the native events strategy with bounded polling fallback, race-safe result rereads, timeout/abort isolation and no consumer-visible engine tokens. Reader configuration is explicit; runtime event failures can degrade to job polling. See event-waits.md. Native event-log polling remains adapter-specific; no push-only performance guarantee is claimed.
+Opt-in PostgreSQL event readers share the raw namespace, native pool and existing runtime. Job awaitResult/execute support the native events strategy with bounded polling fallback, race-safe result rereads, timeout/abort isolation and no consumer-visible engine tokens. Reader configuration is explicit; runtime event failures can degrade to job polling. See event-waits.md. Native event-log polling remains adapter-specific; no push-only performance guarantee is claimed. SQLite readers reuse this strategy as described in M4b.1 and sqlite.md.
 
 ## M3.1d — Durable subscriptions and further failure qualification — pending
 
@@ -52,9 +52,17 @@ Separate Node DatabaseSync and Bun Database entry points wrap the existing SQLit
 
 The package tests use native file-backed databases with separate worker processes, both TypeScript compilers and Node/Bun. They verify scalar/null/Date persistence, retry history, idempotency, cancellation, promotion, preparation without publication and namespace isolation. Root and Node declarations are compiled without Bun ambient types. See sqlite.md.
 
-## M4b — Additional adapters and SQLite resource bundles — pending
+## M4b.1 — SQLite event-assisted waits and ordinary crash qualification — implemented
 
-Add MySQL, Redis/Valkey and MongoDB wrappers with tested topology/transaction semantics. Extend SQLite with qualified flow/schedule/outbox/event resources and further cross-process control/failure tests. The common upstream migration set already includes extension tables, but that does not expose their Nest APIs. PostgreSQL continues to supply its existing optional resources; native synchronous SQLite remains local embedded storage, not a multi-host database.
+Both native entry points accept sqlite({ events: true }). The native event layer borrows the already-acquired database, derives its namespace from the stable raw JobStore token and joins the existing runtime. The normal event alias, result rereads, fallback and caller cancellation semantics remain unchanged. No new dependency, retention policy, required-writer activation, subscriber checkpoint or automatic migration is introduced.
+
+Native source tests verify actual event SELECTs, matching physical namespaces, execute/results, runtime SELECT failure fallback, event-probe rollback, borrowed ownership/pragmas, startup catalog/history preservation and shutdown. Installed consumers run separate readers and workers in all four Node/Bun directions under both compilers. They cover scalar/null/Date results, typed failures/retries, restarted readers and SIGKILL after an ordinary active claim followed by a replacement worker and persisted stalled/completed history. This does not qualify every controlled-claim, flow or policy-change failure window. See sqlite.md.
+
+## M4b.2 — Additional adapters and remaining SQLite resource bundles — pending
+
+Add MySQL, Redis/Valkey and MongoDB wrappers with tested topology/transaction semantics. Extend SQLite with qualified flow/schedule/outbox resources and further cross-process control/failure tests. The common upstream migration set already includes extension tables, but that does not expose their Nest APIs. PostgreSQL continues to supply its existing optional resources; native synchronous SQLite remains local embedded storage, not a multi-host database.
+
+SQLite schedules are blocked by the reproduced released-adapter data-integrity bug [better-effect#390](https://github.com/nitoba/better-effect/issues/390): cloneRecord reparses decoded JSON-looking strings, and a pause transition can overwrite the original payload. Correct and qualify the upstream adapter before pinning a release and enabling schedules here. Do not hide the bug behind payload envelopes, monkey patches, a replacement scheduler or claims that existing extension tables are sufficient. Other independent roadmap work may proceed while this prerequisite is unresolved.
 
 ## M5a — Persistent schedules — implemented
 
@@ -105,7 +113,7 @@ Extend diagnostics to authenticated opt-in administration, durable cursors, obse
 ```text
 M0 → M1 → M2 → M3 → M3.1a
                   ├──→ M3.1b retry / MQ enhancers + M3.1c event waits implemented; subscriptions pending
-                  ├──→ M4 additional adapters and resources
+                  ├──→ M4a SQLite jobs + M4b.1 event readers implemented; M4b.2 integrations pending
                   ├──→ M5a schedules + M5b durable flows implemented
                   └──→ M6a outbox + M6b Kysely + M6c recovery implemented; external ORM enrollment pending
        remaining integrations → M7 full parity and release qualification

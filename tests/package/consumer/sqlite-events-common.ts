@@ -166,27 +166,29 @@ function launch(
   const args = [script, mode, path, namespace]
   if (runtime === 'node') args.unshift('--experimental-sqlite')
   const child = spawn(runtime, args, { stdio: ['ignore', 'pipe', 'inherit'] })
-  const active = Promise.withResolvers<void>()
-  const done = Promise.withResolvers<{
+  const active = new Promise<void>((resolve) => {
+    let output = ''
+    child.stdout.on('data', (chunk: Buffer) => {
+      output += chunk.toString()
+      if (output.includes('SQLITE_EVENT_ACTIVE\n')) resolve()
+    })
+  })
+  const done = new Promise<{
     code: number | null
     signal: string | null
     error?: Error
-  }>()
-  let output = ''
-  child.stdout.on('data', (chunk: Buffer) => {
-    output += chunk.toString()
-    if (output.includes('SQLITE_EVENT_ACTIVE\n')) active.resolve()
+  }>((resolve) => {
+    const watchdog = setTimeout(() => child.kill('SIGKILL'), 20_000)
+    child.once('error', (error) => {
+      clearTimeout(watchdog)
+      resolve({ code: null, signal: null, error })
+    })
+    child.once('exit', (code, signal) => {
+      clearTimeout(watchdog)
+      resolve({ code, signal })
+    })
   })
-  const watchdog = setTimeout(() => child.kill('SIGKILL'), 20_000)
-  child.once('error', (error) => {
-    clearTimeout(watchdog)
-    done.resolve({ code: null, signal: null, error })
-  })
-  child.once('exit', (code, signal) => {
-    clearTimeout(watchdog)
-    done.resolve({ code, signal })
-  })
-  return { child, active: active.promise, done: done.promise }
+  return { child, active, done }
 }
 async function stop(worker: ReturnType<typeof launch>): Promise<void> {
   if (worker.child.exitCode === null && worker.child.signalCode === null) {

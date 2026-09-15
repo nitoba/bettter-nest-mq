@@ -2,7 +2,7 @@
 
 NestJS-native producers and decorated workers backed by the better-effect-mq engine.
 
-**Status: Core execution, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable PostgreSQL flows, named retry providers, explicit MQ enhancers, event-assisted result waits, managed Kysely outbox queries and native Node/Bun SQLite job storage are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can be published, processed, retried, cancelled, scheduled and coordinated as durable fan-out/collect flows through the Nest facade. External ORM transaction enrollment and additional integrations remain on the roadmap.
+**Status: Core execution, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable PostgreSQL flows, named retry providers, explicit MQ enhancers, event-assisted result waits, managed Kysely outbox queries and native Node/Bun SQLite job storage with opt-in event readers are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can be published, processed, retried, cancelled, scheduled and coordinated as durable fan-out/collect flows through the Nest facade. External ORM transaction enrollment and additional integrations remain on the roadmap.
 
 Repository: `nitoba/bettter-nest-mq` (three `t` characters). Package name: `better-nest-mq`.
 
@@ -12,7 +12,7 @@ Queue Services declare typed jobs using Standard Schema or optional Zod codecs. 
 
 Producers support enqueue, decoded enqueue, batches, preparation without publication, polling, result waiting, publish-and-wait execution, attempt history, promotion, retry and cancellation. Workers support known failures, configurable retries, execution timeout, local worker/handler concurrency, cooperative cancellation and attempt-local scoped dependencies. PostgreSQL resource ownership, explicit migrations and live connection probes remain available.
 
-See [SQLite job storage](docs/sqlite.md), [Kysely outbox transactions](docs/kysely-outbox.md), [event-assisted result waits](docs/event-waits.md), [retry providers and MQ enhancers](docs/execution-extensions.md), [durable flows](docs/flows.md), [persistent schedules](docs/schedules.md), [transactional outbox](docs/outbox.md), [PostgreSQL JSON fidelity](docs/postgres-json.md), [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+See [SQLite job storage and event waits](docs/sqlite.md), [Kysely outbox transactions](docs/kysely-outbox.md), [event-assisted result waits](docs/event-waits.md), [retry providers and MQ enhancers](docs/execution-extensions.md), [durable flows](docs/flows.md), [persistent schedules](docs/schedules.md), [transactional outbox](docs/outbox.md), [PostgreSQL JSON fidelity](docs/postgres-json.md), [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
 
 ## SQLite on Node and Bun
 
@@ -20,7 +20,9 @@ Use `sqlite({ path: './data/jobs.db', namespace: 'app' })` from `better-nest-mq/
 
 File-backed handles open only during application acquisition and close after worker/store cleanup. A native borrowed handle remains caller-owned and keeps its pragmas unless configuration is explicitly requested. Internal SQLite adapter dependencies are installed by the library; no Effect imports or manual engine installation are needed.
 
-This increment covers ordinary file-backed jobs, schema codecs, retries, cancellation and recovery through restarted application/worker processes. It is local embedded storage, not a multi-host broker. SQLite flow/schedule/outbox/event resources and expanded cross-process controls remain separate work. See [docs/sqlite.md](docs/sqlite.md) for host-specific usage and limits.
+Enable `sqlite({ path, namespace: 'app', events: true })` in an application selecting `job.awaitResult(id, { strategy: 'events', pollFallbackMs: 5000, timeoutMs: 30000 })`. The reader shares the native database, raw job namespace and existing runtime. `events: false` disables only the reader, not native event writes. Timeout/abort ends the wait, not the durable job. No retention policy, required-writer activation or subscriber checkpoint is installed. Native event polling and authoritative job rereads remain part of the strategy.
+
+SQLite supports file-backed jobs, schema codecs, retries, cancellation, restarted readers/workers and ordinary job recovery after a killed worker. It is local embedded storage, not a multi-host broker. SQLite flow/schedule/outbox resources and expanded cross-process controls remain separate work. Schedules require the upstream data-integrity correction tracked in [better-effect#390](https://github.com/nitoba/better-effect/issues/390), rather than a payload workaround. See [docs/sqlite.md](docs/sqlite.md) for host-specific usage and limits.
 
 ## Kysely outbox transactions
 
@@ -30,9 +32,9 @@ Use the scoped query builder in participating repositories. Caught driver/append
 
 ## Event-assisted result waits
 
-Enable `postgres({ events: true, ...connectionOptions })` in the app waiting for results, then select `job.awaitResult(id, { strategy: 'events', pollFallbackMs: 5000, timeoutMs: 30000 })`. Polling remains the default. The reader shares the existing pool/runtime and raw namespace; its internal operation alias does not create another durable address.
+Enable `postgres({ events: true, ...connectionOptions })` or `sqlite({ events: true, ...connectionOptions })` in the app waiting for results, then select `job.awaitResult(id, { strategy: 'events', pollFallbackMs: 5000, timeoutMs: 30000 })`. Polling remains the default. The reader shares the existing native connection/runtime and raw namespace; its internal operation alias does not create another durable address.
 
-Events are wake-up hints. The engine rereads persisted job results, handles registration races and retains bounded fallback for lost hints/reader failures. Wait timeout/abort does not cancel the job. Missing explicit reader configuration is rejected. Native PostgreSQL event readers may themselves poll; this is not a zero-polling or reduced-load guarantee. See [event waits](docs/event-waits.md) for deployment, options and the distinction from resumable subscriptions.
+Events are wake-up hints. The engine rereads persisted job results, handles registration races and retains bounded fallback for lost hints/reader failures. Wait timeout/abort does not cancel the job. Missing explicit reader configuration is rejected. Native PostgreSQL and SQLite event readers may themselves poll; this is not a zero-polling or reduced-load guarantee. See [event waits](docs/event-waits.md) and [SQLite](docs/sqlite.md) for deployment, options and the distinction from resumable subscriptions.
 
 ## Retry providers and MQ enhancers
 
@@ -230,7 +232,7 @@ bun run hooks:install
 bun run check
 ```
 
-The complete gate checks tooling hashes, both compilers, real Nest/engine tests, formatting, type-aware lint, ESM/declarations, publint and external package consumers. CI covers Node 22/24 and a real PostgreSQL 16 service. The PostgreSQL job additionally runs packed producers/workers under Node and Bun with both compiler versions, including producer shutdown, separate consumer startup and durable result verification.
+The complete gate checks tooling hashes, both compilers, real Nest/engine tests, formatting, type-aware lint, ESM/declarations, publint and external package consumers. CI covers Node 22/24 and a real PostgreSQL 16 service. The PostgreSQL job additionally runs packed producers/workers under Node and Bun with both compiler versions, including producer shutdown, separate consumer startup and durable result verification. Native SQLite fixtures exercise both hosts and all four producer/reader-to-worker host directions, including event waits and ordinary active-worker SIGKILL recovery.
 
 ```sh
 MQ_TEST_DATABASE_URL='postgresql://user:password@localhost:5432/dedicated_test_db' bun run test:postgres
