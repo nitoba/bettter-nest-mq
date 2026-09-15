@@ -12,9 +12,11 @@ import { MqModule } from 'better-nest-mq'
 import { sqlite } from 'better-nest-mq/sqlite/node'
 
 @Module({
-  imports: [MqModule.forRoot({
-    connections: { primary: sqlite({ path: './data/jobs.db', namespace: 'reports' }) }
-  })]
+  imports: [
+    MqModule.forRoot({
+      connections: { primary: sqlite({ path: './data/jobs.db', namespace: 'reports' }) }
+    })
+  ]
 })
 export class MessagingModule {}
 ```

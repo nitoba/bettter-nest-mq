@@ -5,7 +5,9 @@ export default defineConfig({
     index: 'src/index.ts',
     zod: 'src/integrations/zod.ts',
     postgres: 'src/integrations/postgres.ts',
-    kysely: 'src/integrations/kysely.ts'
+    kysely: 'src/integrations/kysely.ts',
+    'sqlite-node': 'src/integrations/sqlite-node.ts',
+    'sqlite-bun': 'src/integrations/sqlite-bun.ts'
   },
   format: ['esm'],
   platform: 'node',
@@ -23,7 +25,8 @@ export default defineConfig({
       'rxjs',
       'zod',
       'pg',
-      'kysely'
+      'kysely',
+      'bun:sqlite'
     ]
   }
 })
