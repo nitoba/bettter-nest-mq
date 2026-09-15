@@ -21,17 +21,13 @@ jobs:
         with:
           bun-version: '1.4.2'
       - run: bun install --frozen-lockfile
-      - name: Verify explicit SQLite resource options
-        run: bun test tests/unit/sqlite-resources-api.test.ts
-      - name: Reproduce released schedule JSON behavior
-        if: always()
-        run: bun .github/probe-sqlite-schedules.mjs
-      - name: Inspect pinned event and schedule declarations
+      - run: bun run typecheck && bun run typecheck:minimum
+      - name: Verify native event resources
+        run: bun test tests/unit/sqlite-resources-api.test.ts tests/integration/sqlite-events.test.ts
+      - name: Verify lint and formatting
         if: always()
         run: |
-          for file in node_modules/better-effect-mq-sqlite/dist/*.d.mts; do
-            echo "DECLARATION $file"
-            sed -n '/interface SqliteJobEventStoreConfig/,+55p' "$file"
-            sed -n '/declare const SqliteJobEventStore/,+55p' "$file"
-          done
+          bun run lint
+          bun run format
           git diff --exit-code
+          bun run check:tooling

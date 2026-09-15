@@ -10,6 +10,7 @@ import type { MqConnection } from '../connections/connection.ts'
 import { MqConnectionException } from '../connections/errors.ts'
 import { requireInteger, requireName } from '../contracts/policies.ts'
 import { defineConnection } from '../engine/connection-definition.ts'
+import { sqliteEventLayer } from './sqlite-event-resource.ts'
 import type { SqliteLocation, SqliteMigrationReport, SqliteOptions } from './sqlite.types.ts'
 
 /** Private host boundary; no host constructor or acquired handle enters the root module. */
@@ -69,10 +70,13 @@ export function sqliteConnection<Database extends object>(
       'configurePragmas',
       'busyTimeoutMs',
       'pollIntervalMs',
+      'events',
       'requireCapabilities'
     ])
     const source = location(options)
     const namespace = validateNamespace(options.namespace ?? 'default')
+    const events = options.events === undefined ? false : options.events
+    if (events !== true && events !== false) throw new Error('events must be boolean')
     const configurePragmas = options.configurePragmas ?? source.ownership === 'owned'
     if (configurePragmas !== true && configurePragmas !== false)
       throw new Error('configurePragmas must be boolean')
@@ -110,7 +114,13 @@ export function sqliteConnection<Database extends object>(
             pollIntervalMs,
             validateSchema: true
           })
-          return source.ownership === 'owned' ? { layer, release } : { layer }
+          const resource = source.ownership === 'owned' ? { layer, release } : { layer }
+          return events
+            ? {
+                ...resource,
+                events: (name: string) => sqliteEventLayer(name, native, namespace, pollIntervalMs)
+              }
+            : resource
         } catch (cause) {
           try {
             await release()
