@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { Module } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import { z } from 'zod'
@@ -166,11 +166,13 @@ export async function verifySqlite(api: SqliteApi, runtime: 'node' | 'bun'): Pro
     // A genuinely new process must read the producer's file and process its jobs.
     const script = process.argv[1]
     assert.ok(script)
+    const target = process.argv[2] === 'cross' ? (runtime === 'node' ? 'bun' : 'node') : runtime
+    const targetScript = target === runtime ? script : join(dirname(script), `sqlite-${target}.js`)
     const args =
-      runtime === 'node'
-        ? ['--experimental-sqlite', script, 'consume', path]
-        : [script, 'consume', path]
-    const child = spawn(process.execPath, args, { stdio: 'inherit' })
+      target === 'node'
+        ? ['--experimental-sqlite', targetScript, 'consume', path]
+        : [targetScript, 'consume', path]
+    const child = spawn(target, args, { stdio: 'inherit' })
     const timeout = setTimeout(() => child.kill('SIGKILL'), 15_000)
     try {
       await new Promise<void>((resolve, reject) => {
@@ -199,7 +201,7 @@ export async function verifySqlite(api: SqliteApi, runtime: 'node' | 'bun'): Pro
       await isolated.close()
     }
     console.log(
-      `PASS ${runtime} SQLite: native file persistence, independent worker process, JSON/null/Date, retries, cancellation, promotion and namespace isolation`
+      `PASS ${runtime}->${target} SQLite: native file persistence, independent worker process, JSON/null/Date, retries, cancellation, promotion and namespace isolation`
     )
   } finally {
     await rm(directory, { recursive: true, force: true })

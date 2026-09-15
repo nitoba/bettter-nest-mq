@@ -165,6 +165,8 @@ try {
       directory
     )
     await run(['bun', 'dist/sqlite-bun.js'], directory)
+    await run(['node', '--experimental-sqlite', 'dist/sqlite-node.js', 'cross'], directory)
+    await run(['bun', 'dist/sqlite-bun.js', 'cross'], directory)
     console.log(
       `Packed consumers passed with TypeScript ${version}; no engine or adapter dependencies were declared by the application`
     )

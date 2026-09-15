@@ -46,9 +46,15 @@ Opt-in PostgreSQL event readers share the raw namespace, native pool and existin
 
 Add resumable subscription APIs with explicit cursor/checkpoint/retention/recovery semantics. Extend crash/lease-loss and mid-flight policy-change qualification. Do not substitute process-local observers for a durable log or treat ephemeral result waits as acknowledged subscriber checkpoints.
 
-## M4 — Additional adapters and resource bundles — pending
+## M4a — Native SQLite JobStore — implemented
 
-Add MySQL, Redis/Valkey, MongoDB and Node SQLite wrappers with optional drivers and tested topology/transaction semantics. Reuse upstream conformance/failure tests. PostgreSQL currently shares its pool among JobStore, schedules, native outbox and flows; equivalent resources for other adapters remain pending.
+Separate Node DatabaseSync and Bun Database entry points wrap the existing SQLite adapter. File/borrowed configuration is inert, migrations are explicit, schemas are validated at startup, raw connection namespaces remain stable and owned handles close after store/worker cleanup. Borrowed native handles remain caller-owned. The adapter is an ordinary internal dependency, not a required consumer peer.
+
+The package tests use native file-backed databases with separate worker processes, both TypeScript compilers and Node/Bun. They verify scalar/null/Date persistence, retry history, idempotency, cancellation, promotion, preparation without publication and namespace isolation. Root and Node declarations are compiled without Bun ambient types. See sqlite.md.
+
+## M4b — Additional adapters and SQLite resource bundles — pending
+
+Add MySQL, Redis/Valkey and MongoDB wrappers with tested topology/transaction semantics. Extend SQLite with qualified flow/schedule/outbox/event resources and further cross-process control/failure tests. The common upstream migration set already includes extension tables, but that does not expose their Nest APIs. PostgreSQL continues to supply its existing optional resources; native synchronous SQLite remains local embedded storage, not a multi-host database.
 
 ## M5a — Persistent schedules — implemented
 

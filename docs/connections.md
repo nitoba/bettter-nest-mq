@@ -96,3 +96,9 @@ This does not add flows or external ORM transactions. The pinned schedule protoc
 Event-assisted awaitResult/execute is implemented; see event-waits.md for the API and exact scope. Configure postgres({ events: true }) on the waiting application and select strategy: 'events' with pollFallbackMs. Polling remains the default. The raw event token shares the job namespace; only an in-runtime operation alias is added. No second pool/runtime, automatic migrations or required-writer activation is introduced.
 
 Runtime reader errors/lost hints use the existing bounded fallback; missing explicit reader configuration still fails. Timeout and abort do not cancel durable work. Keep tests for shutdown, parser fidelity and installed consumers. Resumable subscriptions, checkpoint APIs and retention administration remain pending; this is not a promise of zero polling.
+
+## SQLite JobStore boundary
+
+Native SQLite JobStore integration is implemented through separate sqlite/node and sqlite/bun entry points; read docs/sqlite.md (sqlite.md within docs). The raw named token is passed to the upstream layerFor factory. Never replace it with an unscoped make/file wrapper that loses namespace or store disposal. Native databases are acquired lazily and owned handles close only after the existing runtime releases stores. Borrowed handles keep ownership and default pragmas. Schema migration is explicit.
+
+The released SQLite adapter remains an internal dependency. Tests must execute actual files and native host drivers, not memory queue substitutes. Keep Node/root declaration compilation independent from Bun typings and verify installed consumers under both compilers. SQLite optional resource bundles remain pending despite extension tables in its complete migration set. Do not advertise multi-host distribution or asynchronous driver execution.

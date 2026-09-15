@@ -3,7 +3,16 @@ import { Database } from 'bun:sqlite'
 import assert from 'node:assert/strict'
 import { Inject, Injectable } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
-import { Job, JobData, MqConnectionException, MqModule, Process, Queue, QueueService, Worker } from '../../src/index.ts'
+import {
+  Job,
+  JobData,
+  MqConnectionException,
+  MqModule,
+  Process,
+  Queue,
+  QueueService,
+  Worker
+} from '../../src/index.ts'
 import { sqlite, migrateSqlite } from '../../src/integrations/sqlite-bun.ts'
 import { sqliteConnection, type SqliteHost } from '../../src/integrations/sqlite-connection.ts'
 import { z } from 'zod'
@@ -44,10 +53,16 @@ test('owned SQLite handles remain open until the admitted handler is drained', a
       database.close(true)
     }
   }
-  const app = await Test.createTestingModule({ imports: [
-    MqModule.forRoot({ connections: { primary: sqliteConnection({ path: './unused-lifecycle.db' }, host) }, shutdown: { gracePeriodMs: 2000 } }),
-    MqModule.forFeature([DrainQueue])
-  ], providers: [Gate, DrainWorker] }).compile()
+  const app = await Test.createTestingModule({
+    imports: [
+      MqModule.forRoot({
+        connections: { primary: sqliteConnection({ path: './unused-lifecycle.db' }, host) },
+        shutdown: { gracePeriodMs: 2000 }
+      }),
+      MqModule.forFeature([DrainQueue])
+    ],
+    providers: [Gate, DrainWorker]
+  }).compile()
   const gate = app.get(Gate)
   try {
     await app.init()
@@ -59,14 +74,23 @@ test('owned SQLite handles remain open until the admitted handler is drained', a
     await stopping
     expect(closed).toBe(1)
     expect(snapshots).toEqual([{ state: 'completed', result: '"completed before close"' }])
-  } finally { gate.release.resolve(); await app.close() }
+  } finally {
+    gate.release.resolve()
+    await app.close()
+  }
 })
 
 test('duplicate lexical file paths are rejected before resource acquisition', async () => {
-  const app = await Test.createTestingModule({ imports: [MqModule.forRoot({ connections: {
-    one: sqlite({ path: './duplicate.db', namespace: 'same' }),
-    two: sqlite({ path: './nested/../duplicate.db', namespace: 'same' })
-  } })] }).compile()
+  const app = await Test.createTestingModule({
+    imports: [
+      MqModule.forRoot({
+        connections: {
+          one: sqlite({ path: './duplicate.db', namespace: 'same' }),
+          two: sqlite({ path: './nested/../duplicate.db', namespace: 'same' })
+        }
+      })
+    ]
+  }).compile()
   await assert.rejects(app.init(), MqConnectionException)
   await assert.rejects(app.close())
 })
@@ -76,13 +100,26 @@ test('borrowed pragma mutation requires explicit configuration and capability fa
   try {
     await migrateSqlite({ database })
     expect(() => sqlite({ database, busyTimeoutMs: 30 })).toThrow(MqConnectionException)
-    const app = await Test.createTestingModule({ imports: [MqModule.forRoot({ connections: {
-      primary: sqlite({ database, configurePragmas: true, busyTimeoutMs: 31, requireCapabilities: ['durableChangeFeed'] })
-    } })] }).compile()
+    const app = await Test.createTestingModule({
+      imports: [
+        MqModule.forRoot({
+          connections: {
+            primary: sqlite({
+              database,
+              configurePragmas: true,
+              busyTimeoutMs: 31,
+              requireCapabilities: ['durableChangeFeed']
+            })
+          }
+        })
+      ]
+    }).compile()
     await assert.rejects(app.init(), MqConnectionException)
     await assert.rejects(app.close())
     expect(database.prepare('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 })
     expect(database.prepare('PRAGMA busy_timeout').get()).toEqual({ timeout: 31 })
     expect(database.prepare('SELECT 1 AS ok').get()).toEqual({ ok: 1 })
-  } finally { database.close() }
+  } finally {
+    database.close()
+  }
 })
