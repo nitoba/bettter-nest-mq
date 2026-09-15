@@ -26,7 +26,7 @@ import { zodCodec } from 'better-nest-mq/zod'
 interface NativeDatabase {
   prepare(sql: string): {
     all(...parameters: (string | number)[]): unknown[]
-    run(...parameters: (string | number)[]): unknown
+    run(...parameters: (string | number)[]): void
   }
   close(): void
 }
@@ -37,7 +37,11 @@ interface Api {
     schedules: boolean
     events: boolean
   }): MqConnection
-  migrateSqlite(options: { path: string }): Promise<unknown>
+  migrateSqlite(options: { path: string }): Promise<{
+    readonly component: string
+    readonly version: number
+    readonly applied: readonly number[]
+  }>
 }
 const values = [
   'null',

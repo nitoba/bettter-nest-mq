@@ -10,6 +10,7 @@ import type { MqConnection } from '../connections/connection.ts'
 import { MqConnectionException } from '../connections/errors.ts'
 import { requireInteger, requireName } from '../contracts/policies.ts'
 import { defineConnection } from '../engine/connection-definition.ts'
+import type { AcquiredConnection } from '../engine/connection-definition.ts'
 import { sqliteScheduleLayer } from './sqlite-schedule-resource.ts'
 import { sqliteEventLayer } from './sqlite-event-resource.ts'
 import type { SqliteLocation, SqliteMigrationReport, SqliteOptions } from './sqlite.types.ts'
@@ -118,11 +119,13 @@ export function sqliteConnection<Database extends object>(
             pollIntervalMs,
             validateSchema: true
           })
-          const resource = {
-            ...(source.ownership === 'owned' ? { layer, release } : { layer }),
-            ...(schedules
-              ? { schedules: (name: string) => sqliteScheduleLayer(name, native, namespace) }
-              : {})
+          let resource: AcquiredConnection =
+            source.ownership === 'owned' ? { layer, release } : { layer }
+          if (schedules) {
+            resource = {
+              ...resource,
+              schedules: (name) => sqliteScheduleLayer(name, native, namespace)
+            }
           }
           return events
             ? {
