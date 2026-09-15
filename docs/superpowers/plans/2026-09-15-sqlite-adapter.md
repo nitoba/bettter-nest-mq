@@ -1,0 +1,9 @@
+# SQLite JobStore integration
+
+Continue M4 with a bounded native JobStore delivery: Node DatabaseSync and Bun Database entry points, inert file/borrowed configuration, explicit migration/validation, correct resource ownership, normal Nest producers/workers and persistent file-backed tests. The adapter is better-effect-mq-sqlite@0.1.2, verified available from npm in baseline run 34970902687. It remains an internal normal dependency.
+
+The baseline public API regression failed because sqlite/node and sqlite/bun exports were absent. Add runtime/schema/codec/persistence regressions, then implement the connection factory over SqliteJobStore.layerFor. Do not reuse the upstream file wrapper that bypasses named namespace/finalizer composition. Let the existing host release owned databases only after its runtime has released stores. Do not introduce a second runtime, shared global handle, fake memory engine, automatic migrations or new peers for internal packages.
+
+Public options are strict plain data. Exactly one file path or native database is required. Reject unknown resource flags, accessors, ambiguous sources, invalid timers and implicit in-memory filenames. Borrowed native handles retain ownership and default pragma configuration. File handles configure WAL explicitly. Use actual Node/Bun engines to qualify installed declaration boundaries and file persistence across context/process/host changes.
+
+Run the existing full quality/PostgreSQL package gates unchanged, plus SQLite host-specific installed consumers with both TypeScript compilers. Update current support and remaining scope in docs. Remove temporary write-enabled generation workflows before the final exact-head CI and merge. No automatic npm publication or production deployment. SQLite optional resource bundles are a following milestone; existing tables alone are not an implemented facade.

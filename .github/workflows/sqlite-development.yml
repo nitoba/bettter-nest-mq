@@ -3,33 +3,58 @@ on:
   push:
     branches: [feat/sqlite-adapter]
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: sqlite-development
+  cancel-in-progress: false
 jobs:
-  inspect:
+  verify:
+    if: github.ref == 'refs/heads/feat/sqlite-adapter'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mq
+          POSTGRES_PASSWORD: mq_test_only
+          POSTGRES_DB: mq_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U mq -d mq_test" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MQ_TEST_DATABASE_URL: postgresql://mq:mq_test_only@localhost:5432/mq_test
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
-      - run: bun install --frozen-lockfile
-      - name: Observe missing SQLite API against the current baseline
-        run: bun test tests/unit/sqlite-public-api.test.ts
-      - name: Inspect required guides, build and resource boundaries
-        if: always()
+      - name: Apply package integration and generate lockfile with Bun
         run: |
-          for file in README.md docs/kysely-outbox.md docs/event-waits.md docs/execution-extensions.md docs/flows.md docs/schedules.md docs/dependencies.md docs/postgres-json.md docs/controls.md docs/contracts.md docs/connections.md docs/execution.md docs/outbox.md docs/architecture.md docs/roadmap.md; do
-            echo "GUIDE $file"
-            cat "$file"
-          done
-          for file in tsdown.config.ts scripts/test-package.ts src/engine/connection-definition.ts src/connections/connection.ts src/integrations/postgres.ts tests/unit/internal-dependencies.test.ts; do
-            echo "SOURCE $file"
-            test ! -f "$file" || cat "$file"
-          done
-          bun -e 'const r=await fetch("https://registry.npmjs.org/better-effect-mq-sqlite/0.1.2"); if(!r.ok)throw new Error(`Registry ${r.status}`); const p=await r.json();console.log("SQLITE RELEASE", JSON.stringify({version:p.version,peerDependencies:p.peerDependencies,dist:p.dist}))'
+          if test -f .github/apply-sqlite.mjs; then
+            node .github/apply-sqlite.mjs
+            git rm .github/apply-sqlite.mjs
+          fi
+          bun install
+          bun run format
+          bun run check:tooling
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat: wire SQLite subpaths and generate the Bun dependency lock'
+            git push origin HEAD:feat/sqlite-adapter
+          fi
+      - name: Verify SQLite regressions and minimum compiler
+        run: |
+          bun run typecheck
+          bun run typecheck:minimum
+          bun test tests/unit/sqlite-public-api.test.ts tests/integration/sqlite.test.ts
+      - name: Verify all source and installed PostgreSQL/native SQLite consumers
+        run: |
+          bun run check > /tmp/sqlite-check.log 2>&1 || { tail -220 /tmp/sqlite-check.log; exit 1; }
+          grep -E '^PASS| pass| fail|Packed consumers' /tmp/sqlite-check.log
