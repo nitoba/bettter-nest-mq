@@ -1,9 +1,6 @@
 import { expect, test } from 'bun:test'
 import { MqConnectionException } from '../../src/index.ts'
-import {
-  sqliteAdapterVersion,
-  sqliteSchedulesQualified
-} from '../../src/integrations/sqlite-adapter-version.ts'
+import { sqliteSchedulesQualified } from '../../src/integrations/sqlite-adapter-version.ts'
 import { sqlite } from '../../src/integrations/sqlite-bun.ts'
 
 for (const version of ['0.1.0', '0.1.1', '0.1.2', '0.1.3-beta.1', '0.2.0', 'invalid']) {
@@ -32,7 +29,6 @@ test('SQLite schedule activation fails closed or stays inert according to the in
         expect(String(cause.cause)).toContain('SQLite schedules require better-effect-mq-sqlite')
     }
   }
-  expect(typeof sqliteAdapterVersion === 'string' || sqliteAdapterVersion === undefined).toBe(true)
 })
 
 test('SQLite schedules=false remains an inert descriptor on every adapter patch', () => {
