@@ -31,7 +31,7 @@ jobs:
       - name: Inspect published SQLite version and preserve pinned dependencies
         working-directory: nest
         run: |
-          npm view better-effect-mq-sqlite version dist.integrity --json > "$RUNNER_TEMP/registry-sqlite.json"
+          (cd "$RUNNER_TEMP" && npm view better-effect-mq-sqlite version dist.integrity --json) > "$RUNNER_TEMP/registry-sqlite.json"
           cat "$RUNNER_TEMP/registry-sqlite.json"
           bun install --frozen-lockfile
           bun run check:tooling
