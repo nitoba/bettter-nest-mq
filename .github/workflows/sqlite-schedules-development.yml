@@ -1,0 +1,61 @@
+name: SQLite schedule development
+on:
+  push:
+    branches: [feat/sqlite-schedules]
+permissions:
+  contents: read
+concurrency:
+  group: sqlite-schedule-development
+  cancel-in-progress: true
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: nest
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: nitoba/better-effect
+          ref: 788f9526f2d25e8575b2a4b18286fc466d07a693
+          path: engine
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Inspect published SQLite version and preserve pinned dependencies
+        working-directory: nest
+        run: |
+          npm view better-effect-mq-sqlite version dist.integrity --json > "$RUNNER_TEMP/registry-sqlite.json"
+          cat "$RUNNER_TEMP/registry-sqlite.json"
+          bun install --frozen-lockfile
+          bun run check:tooling
+      - name: Build corrected upstream source as a private test archive
+        working-directory: engine
+        run: |
+          bun install --frozen-lockfile
+          bun run build --filter=better-effect-mq-sqlite... > /tmp/build.log 2>&1 || { tail -100 /tmp/build.log; exit 1; }
+          mkdir -p "$RUNNER_TEMP/sqlite-candidate"
+          (cd packages/better-effect-mq-sqlite && bun pm pack --ignore-scripts --destination "$RUNNER_TEMP/sqlite-candidate")
+          cp packages/better-effect-mq-sqlite/src/SqliteJobScheduleStore.ts "$RUNNER_TEMP/sqlite-candidate/"
+          git diff --exit-code
+      - name: Package isolated development dependencies for offline verification
+        working-directory: nest
+        run: |
+          mkdir -p "$RUNNER_TEMP/dev-artifacts"
+          tar -czf "$RUNNER_TEMP/dev-artifacts/dependencies.tar.gz" node_modules
+          cp "$(command -v bun)" "$RUNNER_TEMP/dev-artifacts/bun"
+          gzip "$RUNNER_TEMP/dev-artifacts/bun"
+          cp "$RUNNER_TEMP/registry-sqlite.json" "$RUNNER_TEMP/dev-artifacts/"
+          cp "$RUNNER_TEMP/sqlite-candidate/"* "$RUNNER_TEMP/dev-artifacts/"
+          git diff --exit-code
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-schedule-development
+          path: ${{ runner.temp }}/dev-artifacts
+          retention-days: 1
