@@ -23,11 +23,15 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck && bun run typecheck:minimum
       - name: Verify native event resources
-        run: bun test tests/unit/sqlite-resources-api.test.ts tests/integration/sqlite-events.test.ts
-      - name: Verify lint and formatting
+        run: bun test tests/unit/sqlite-resources-api.test.ts tests/integration/sqlite-events.test.ts tests/integration/sqlite-event-lifecycle.test.ts
+      - name: Build and verify lint
+        if: always()
+        run: bun run build && bun run lint
+      - name: Inspect formatter differences
         if: always()
         run: |
-          bun run lint
           bun run format
           git diff --exit-code
           bun run check:tooling
+      - name: Verify actual installed consumers
+        run: bun run test:package

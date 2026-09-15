@@ -2,8 +2,14 @@ import assert from 'node:assert/strict'
 import { Database } from 'bun:sqlite'
 import * as api from 'better-nest-mq/sqlite/bun'
 import { verifySqlite } from './sqlite-common.js'
+import { verifySqliteEvents } from './sqlite-events-common.js'
 
-await verifySqlite(api, 'bun')
+const mode = process.argv[2]
+if (mode?.startsWith('events-')) await verifySqliteEvents(api, 'bun')
+else {
+  await verifySqlite(api, 'bun')
+  if (mode !== 'consume') await verifySqliteEvents(api, 'bun')
+}
 const database = new Database(':memory:')
 try {
   await api.migrateSqlite({ database })
