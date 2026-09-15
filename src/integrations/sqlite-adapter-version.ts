@@ -1,14 +1,18 @@
 import { createRequire } from 'node:module'
 
+interface AdapterPackageManifest {
+  readonly version?: string
+}
+
 const qualifiedScheduleVersion = Object.freeze({ major: 0, minor: 1, patch: 3 })
 
 function readAdapterVersion(): string | undefined {
   try {
     const load = createRequire(import.meta.url)
-    const metadata: unknown = load('better-effect-mq-sqlite/package.json')
-    if (typeof metadata !== 'object' || metadata === null) return undefined
-    const version: unknown = Reflect.get(metadata, 'version')
-    return typeof version === 'string' ? version : undefined
+    // SAFETY: this is the exported package.json of our pinned internal dependency; the exact
+    // stable semver is validated by sqliteSchedulesQualified before the value enables schedules.
+    const manifest = load('better-effect-mq-sqlite/package.json') as AdapterPackageManifest
+    return manifest.version
   } catch {
     return undefined
   }
