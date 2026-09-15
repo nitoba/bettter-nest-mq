@@ -10,8 +10,10 @@ export type SqliteOptions<Database extends object> = SqliteLocation<Database> & 
   /** Apply connection-local foreign_keys/busy_timeout; defaults true for owned files, false for borrowed handles. */
   readonly configurePragmas?: boolean
   readonly busyTimeoutMs?: number
-  /** Native adapter wake polling for commits made by another local process. */
+  /** Native job/event polling for commits made by another local process. */
   readonly pollIntervalMs?: number
+  /** Enable a result-wait event reader on the same database without changing writer activation or retention. */
+  readonly events?: boolean
   readonly requireCapabilities?: readonly MqCapability[]
 }
 
