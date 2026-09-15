@@ -2,7 +2,7 @@
 
 ## Scope and status
 
-Read docs/kysely-outbox.md, docs/event-waits.md, docs/execution-extensions.md, docs/flows.md, docs/schedules.md, README.md, docs/dependencies.md, docs/postgres-json.md, docs/controls.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/outbox.md, docs/architecture.md and docs/roadmap.md before changing APIs. Foundations, typed producers/workers, PostgreSQL lifecycle/JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable PostgreSQL flows, named retry providers, explicit MQ enhancers, event-assisted waits and managed Kysely outbox queries are implemented. External ORM transaction enrollment, other drivers and further execution integration remain planned. Never simulate missing APIs or silently fall back to memory.
+Read docs/sqlite.md, docs/kysely-outbox.md, docs/event-waits.md, docs/execution-extensions.md, docs/flows.md, docs/schedules.md, README.md, docs/dependencies.md, docs/postgres-json.md, docs/controls.md, docs/contracts.md, docs/connections.md, docs/execution.md, docs/outbox.md, docs/architecture.md and docs/roadmap.md before changing APIs. Foundations, typed producers/workers, PostgreSQL lifecycle/JSON fidelity, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable PostgreSQL flows, named retry providers, explicit MQ enhancers, event-assisted waits and managed Kysely outbox queries are implemented. External ORM transaction enrollment, other drivers and further execution integration remain planned. Never simulate missing APIs or silently fall back to memory.
 
 ## Toolchain
 
@@ -79,12 +79,16 @@ Qualify schedules through installed tarballs with independent PostgreSQL schedul
 
 ## Event-assisted wait integration
 
-Event-assisted awaitResult/execute is implemented; see docs/event-waits.md for the API and exact scope. Configure postgres({ events: true }) on the waiting application and select strategy: 'events' with pollFallbackMs. Polling remains the default. The raw event token shares the job namespace; only an in-runtime operation alias is added. No second pool/runtime, automatic migrations or required-writer activation is introduced.
+Event-assisted awaitResult/execute is implemented; see docs/event-waits.md and docs/sqlite.md for the API and exact scope. Configure postgres({ events: true }) or sqlite({ events: true }) on the waiting application and select strategy: 'events' with pollFallbackMs. Polling remains the default. The raw event token shares the job namespace; only an in-runtime operation alias is added. No second native connection/runtime, automatic migrations or required-writer activation is introduced.
 
 Runtime reader errors/lost hints use the existing bounded fallback; missing explicit reader configuration still fails. Timeout and abort do not cancel durable work. Keep tests for shutdown, parser fidelity and installed consumers. Resumable subscriptions, checkpoint APIs and retention administration remain pending; this is not a promise of zero polling.
 
-## SQLite JobStore boundary
+## SQLite JobStore and event-reader boundary
 
 Native SQLite JobStore integration is implemented through separate sqlite/node and sqlite/bun entry points; read docs/sqlite.md (sqlite.md within docs). The raw named token is passed to the upstream layerFor factory. Never replace it with an unscoped make/file wrapper that loses namespace or store disposal. Native databases are acquired lazily and owned handles close only after the existing runtime releases stores. Borrowed handles keep ownership and default pragmas. Schema migration is explicit.
 
-The released SQLite adapter remains an internal dependency. Tests must execute actual files and native host drivers, not memory queue substitutes. Keep Node/root declaration compilation independent from Bun typings and verify installed consumers under both compilers. SQLite optional resource bundles remain pending despite extension tables in its complete migration set. Do not advertise multi-host distribution or asynchronous driver execution.
+The released SQLite adapter remains an internal dependency. Tests must execute actual files and native host drivers, not memory queue substitutes. Keep Node/root declaration compilation independent from Bun typings and verify installed consumers under both compilers. SQLite flow/schedule/outbox resources remain pending despite extension tables in its complete migration set. Do not advertise multi-host distribution or asynchronous driver execution.
+
+SQLite events:true enables only a native scoped reader on the same acquired database and raw namespace. It does not enable required writer activation, mutate retention, prune history or create a subscriber checkpoint. Native writer bookkeeping can be initialized lazily by upstream job writes; reader-only startup must leave the catalog and activation/history unchanged. Keep SELECT/probe failure, caller isolation, borrowed pragma/ownership, shutdown and installed cross-runtime SIGKILL/recovery regressions.
+
+SQLite schedule integration is gated by the reproduced scalar JSON corruption tracked in better-effect#390. A corrected upstream release must be qualified before enabling the facade. Do not monkey-patch installed dependencies, change payload envelopes or accept unsafe schedules merely because their tables exist. Ordinary crash recovery does not establish every distributed-control or flow failure guarantee.

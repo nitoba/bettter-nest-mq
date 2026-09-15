@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### SQLite event-assisted waits
+
+- Add explicit events:true to both native SQLite entry points, sharing the existing acquired database, raw job namespace and private runtime.
+- Reuse the native scoped event reader and existing awaitResult/execute strategy with authoritative rereads, bounded fallback and caller timeout/abort isolation.
+- Preserve borrowed ownership/pragmas, startup rollback and native waiter disposal before owned database closure.
+- Verify real event SELECTs, matching physical namespaces, reader SQL/probe failures, shutdown, unchanged catalog and retained event history/activation.
+- Add installed Node/Bun reader/worker scenarios in all four host directions, typed scalar/null/Date results and actual SIGKILL/replacement recovery with persisted attempt history.
+- Keep ES2023 consumers, TS6/7, dependency versions, all original tooling and read-only retained CI unchanged. No new retention policy, required writer activation, durable checkpoint or npm release.
+- Record the independently reproduced SQLite schedule payload-corruption prerequisite in better-effect#390; schedules remain unsupported rather than receiving a lossy workaround.
+
 ### Native SQLite JobStore
 
 - Add isolated Node and Bun SQLite entry points with typed native handles or local file paths.
