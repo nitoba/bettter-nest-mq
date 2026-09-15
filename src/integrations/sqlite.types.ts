@@ -14,6 +14,8 @@ export type SqliteOptions<Database extends object> = SqliteLocation<Database> & 
   readonly pollIntervalMs?: number
   /** Enable a result-wait event reader on the same database without changing writer activation or retention. */
   readonly events?: boolean
+  /** Enable persistent schedules on the same database; requires a corrected adapter release. */
+  readonly schedules?: boolean
   readonly requireCapabilities?: readonly MqCapability[]
 }
 

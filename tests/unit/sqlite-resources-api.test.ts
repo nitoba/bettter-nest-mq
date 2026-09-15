@@ -17,8 +17,8 @@ for (const events of [null, 1, 'true', {}, { retention: { count: 10 } }]) {
   })
 }
 
-test('unqualified SQLite schedules remain rejected until upstream JSON fidelity is corrected', () => {
-  const options = JSON.parse('{"path":"./jobs.db","schedules":true}')
+test('unqualified SQLite flows remain rejected', () => {
+  const options = JSON.parse('{"path":"./jobs.db","flows":true}')
   expect(() => sqlite(options)).toThrow(MqConnectionException)
 })
 
