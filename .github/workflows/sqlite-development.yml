@@ -1,0 +1,35 @@
+name: SQLite development verification
+on:
+  push:
+    branches: [feat/sqlite-adapter]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      - name: Observe missing SQLite API against the current baseline
+        run: bun test tests/unit/sqlite-public-api.test.ts
+      - name: Inspect required guides, build and resource boundaries
+        if: always()
+        run: |
+          for file in README.md docs/kysely-outbox.md docs/event-waits.md docs/execution-extensions.md docs/flows.md docs/schedules.md docs/dependencies.md docs/postgres-json.md docs/controls.md docs/contracts.md docs/connections.md docs/execution.md docs/outbox.md docs/architecture.md docs/roadmap.md; do
+            echo "GUIDE $file"
+            cat "$file"
+          done
+          for file in tsdown.config.ts scripts/test-package.ts src/engine/connection-definition.ts src/connections/connection.ts src/integrations/postgres.ts tests/unit/internal-dependencies.test.ts; do
+            echo "SOURCE $file"
+            test ! -f "$file" || cat "$file"
+          done
+          bun -e 'const r=await fetch("https://registry.npmjs.org/better-effect-mq-sqlite/0.1.2"); if(!r.ok)throw new Error(`Registry ${r.status}`); const p=await r.json();console.log("SQLITE RELEASE", JSON.stringify({version:p.version,peerDependencies:p.peerDependencies,dist:p.dist}))'
