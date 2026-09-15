@@ -94,6 +94,7 @@ test('SQLite waits read the real event log in the raw job namespace before fallb
       .all(id)
     expect(eventNamespace).toEqual(jobNamespace)
     expect(eventNamespace).toHaveLength(1)
+    expect(await job.execute('true', { wait })).toBe('true')
   } finally {
     app.get(Gate).release.resolve()
     await app.close()
@@ -112,7 +113,9 @@ test('events=false rejects the strategy without disabling persisted native event
     await assert.rejects(job.awaitResult(id, wait), MqJobException)
     expect(
       source.database
-        .prepare("SELECT job_id FROM better_effect_mq_job_events WHERE event_type = 'job-completed'")
+        .prepare(
+          "SELECT job_id FROM better_effect_mq_job_events WHERE event_type = 'job-completed'"
+        )
         .all()
     ).toHaveLength(1)
   } finally {
