@@ -11,8 +11,9 @@ import { MqConnectionException } from '../connections/errors.ts'
 import { requireInteger, requireName } from '../contracts/policies.ts'
 import { defineConnection } from '../engine/connection-definition.ts'
 import type { AcquiredConnection } from '../engine/connection-definition.ts'
-import { sqliteScheduleLayer } from './sqlite-schedule-resource.ts'
+import { assertQualifiedSqliteSchedules } from './sqlite-adapter-version.ts'
 import { sqliteEventLayer } from './sqlite-event-resource.ts'
+import { sqliteScheduleLayer } from './sqlite-schedule-resource.ts'
 import type { SqliteLocation, SqliteMigrationReport, SqliteOptions } from './sqlite.types.ts'
 
 /** Private host boundary; no host constructor or acquired handle enters the root module. */
@@ -76,12 +77,13 @@ export function sqliteConnection<Database extends object>(
       'schedules',
       'requireCapabilities'
     ])
-    const source = location(options)
     const namespace = validateNamespace(options.namespace ?? 'default')
     const schedules = options.schedules === undefined ? false : options.schedules
     if (schedules !== true && schedules !== false) throw new Error('schedules must be boolean')
+    if (schedules) assertQualifiedSqliteSchedules()
     const events = options.events === undefined ? false : options.events
     if (events !== true && events !== false) throw new Error('events must be boolean')
+    const source = location(options)
     const configurePragmas = options.configurePragmas ?? source.ownership === 'owned'
     if (configurePragmas !== true && configurePragmas !== false)
       throw new Error('configurePragmas must be boolean')

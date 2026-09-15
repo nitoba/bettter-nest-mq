@@ -11,6 +11,7 @@ import { z } from 'zod'
 import {
   Job,
   JobData,
+  MqConnectionException,
   MqModule,
   MqSchedulesService,
   Process,
@@ -183,12 +184,34 @@ function child(runtime: 'node' | 'bun', script: string, mode: string, path: stri
   }
 }
 
+function hasQualifiedSchedules(api: Api): boolean {
+  try {
+    api.sqlite({
+      path: './not-opened-schedule-capability.db',
+      namespace: 'schedule-capability',
+      schedules: true,
+      events: false
+    })
+    return true
+  } catch (cause) {
+    assert.ok(cause instanceof MqConnectionException)
+    assert.match(String(cause.cause), /SQLite schedules require better-effect-mq-sqlite/)
+    return false
+  }
+}
+
 export async function verifySqliteSchedules(
   api: Api,
   runtime: 'node' | 'bun',
   open: (path: string) => NativeDatabase
 ) {
   const mode = process.argv[2]
+  if (!hasQualifiedSchedules(api)) {
+    console.log(
+      `PASS ${runtime} SQLite schedules fail closed while the internal adapter is below the qualified release`
+    )
+    return
+  }
   if (mode === 'schedules-child' || mode === 'schedules-worker') {
     const path = process.argv[3]
     assert.ok(path)
@@ -309,7 +332,6 @@ export async function verifySqliteSchedules(
     } finally {
       await Promise.all([first.dispose(), second.dispose()])
     }
-    // Only after both schedulers and the producer close does a new process execute the jobs.
     const worker = child(target, script, 'schedules-worker', path)
     try {
       await worker.ready()
