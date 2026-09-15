@@ -1,16 +1,37 @@
-name: SQLite schedule development
+name: SQLite schedules candidate
+
 on:
   push:
     branches: [feat/sqlite-schedules]
+  pull_request:
+    paths:
+      - 'src/integrations/sqlite*'
+      - 'tests/**/sqlite*'
+      - 'docs/sqlite-schedules.md'
+      - '.github/workflows/sqlite-schedules-development.yml'
+
 permissions:
   contents: read
+
 concurrency:
-  group: sqlite-schedule-development
+  group: sqlite-schedules-candidate-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
-  prepare:
+  candidate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mq
+          POSTGRES_PASSWORD: mq_test_only
+          POSTGRES_DB: mq_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U mq -d mq_test" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MQ_TEST_DATABASE_URL: postgresql://mq:mq_test_only@localhost:5432/mq_test
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,34 +49,55 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
-      - name: Inspect published SQLite version and preserve pinned dependencies
-        working-directory: nest
-        run: |
-          (cd "$RUNNER_TEMP" && npm view better-effect-mq-sqlite version dist.integrity --json) > "$RUNNER_TEMP/registry-sqlite.json"
-          cat "$RUNNER_TEMP/registry-sqlite.json"
-          bun install --frozen-lockfile
-          bun run check:tooling
-      - name: Build corrected upstream source as a private test archive
+      - name: Build and pack corrected upstream source without publishing
         working-directory: engine
         run: |
           bun install --frozen-lockfile
-          bun run build --filter=better-effect-mq-sqlite... > /tmp/build.log 2>&1 || { tail -100 /tmp/build.log; exit 1; }
+          bun run build --filter=better-effect-mq-sqlite... > /tmp/engine-build.log 2>&1 || { tail -100 /tmp/engine-build.log; exit 1; }
           mkdir -p "$RUNNER_TEMP/sqlite-candidate"
           (cd packages/better-effect-mq-sqlite && bun pm pack --ignore-scripts --destination "$RUNNER_TEMP/sqlite-candidate")
-          cp packages/better-effect-mq-sqlite/src/SqliteJobScheduleStore.ts "$RUNNER_TEMP/sqlite-candidate/"
+          sha256sum "$RUNNER_TEMP/sqlite-candidate/"*.tgz
           git diff --exit-code
-      - name: Package isolated development dependencies for offline verification
+      - name: Select the corrected archive only in the disposable checkout
         working-directory: nest
         run: |
-          mkdir -p "$RUNNER_TEMP/dev-artifacts"
-          tar -czf "$RUNNER_TEMP/dev-artifacts/dependencies.tar.gz" node_modules
-          cp "$(command -v bun)" "$RUNNER_TEMP/dev-artifacts/bun"
-          gzip "$RUNNER_TEMP/dev-artifacts/bun"
-          cp "$RUNNER_TEMP/registry-sqlite.json" "$RUNNER_TEMP/dev-artifacts/"
-          cp "$RUNNER_TEMP/sqlite-candidate/"* "$RUNNER_TEMP/dev-artifacts/"
-          git diff --exit-code
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sqlite-schedule-development
-          path: ${{ runner.temp }}/dev-artifacts
-          retention-days: 1
+          bun install --frozen-lockfile
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFileSync, writeFileSync, readdirSync } from 'node:fs'
+          import { join } from 'node:path'
+          import { pathToFileURL } from 'node:url'
+          const directory = join(process.env.RUNNER_TEMP, 'sqlite-candidate')
+          const archives = readdirSync(directory).filter((name) => name.endsWith('.tgz'))
+          assert.equal(archives.length, 1)
+          const manifest = JSON.parse(readFileSync('package.json', 'utf8'))
+          assert.equal(manifest.dependencies['better-effect-mq-sqlite'], '0.1.2')
+          assert.equal(manifest.peerDependencies['better-effect-mq-sqlite'], undefined)
+          manifest.dependencies['better-effect-mq-sqlite'] = pathToFileURL(join(directory, archives[0])).href
+          writeFileSync('package.json', JSON.stringify(manifest, null, 2) + '\n')
+          NODE
+          bun install --ignore-scripts
+      - name: Verify installed candidate bytes rather than registry fallback
+        working-directory: nest
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFileSync, readdirSync } from 'node:fs'
+          import { join } from 'node:path'
+          const expected = '../engine/packages/better-effect-mq-sqlite/dist'
+          for (const file of readdirSync(expected).filter((name) => /\.(mjs|mts)$/.test(name))) {
+            assert.deepEqual(readFileSync(join('node_modules/better-effect-mq-sqlite/dist', file)), readFileSync(join(expected, file)), file)
+          }
+          console.log('Verified exact corrected SQLite archive from 788f9526f2d25e8575b2a4b18286fc466d07a693')
+          NODE
+      - name: Full source and live PostgreSQL installed-consumer matrix
+        working-directory: nest
+        run: |
+          bun run check > /tmp/schedules-check.log 2>&1 || { tail -200 /tmp/schedules-check.log; exit 1; }
+          grep -E '^PASS| pass| fail|Packed consumers passed' /tmp/schedules-check.log
+      - name: Restore candidate selections and require unchanged checkouts
+        if: always()
+        run: |
+          git -C nest restore package.json bun.lock
+          git -C nest diff --exit-code
+          git -C engine diff --exit-code

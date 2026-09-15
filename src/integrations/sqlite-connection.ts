@@ -10,6 +10,7 @@ import type { MqConnection } from '../connections/connection.ts'
 import { MqConnectionException } from '../connections/errors.ts'
 import { requireInteger, requireName } from '../contracts/policies.ts'
 import { defineConnection } from '../engine/connection-definition.ts'
+import { sqliteScheduleLayer } from './sqlite-schedule-resource.ts'
 import { sqliteEventLayer } from './sqlite-event-resource.ts'
 import type { SqliteLocation, SqliteMigrationReport, SqliteOptions } from './sqlite.types.ts'
 
@@ -71,10 +72,13 @@ export function sqliteConnection<Database extends object>(
       'busyTimeoutMs',
       'pollIntervalMs',
       'events',
+      'schedules',
       'requireCapabilities'
     ])
     const source = location(options)
     const namespace = validateNamespace(options.namespace ?? 'default')
+    const schedules = options.schedules === undefined ? false : options.schedules
+    if (schedules !== true && schedules !== false) throw new Error('schedules must be boolean')
     const events = options.events === undefined ? false : options.events
     if (events !== true && events !== false) throw new Error('events must be boolean')
     const configurePragmas = options.configurePragmas ?? source.ownership === 'owned'
@@ -114,7 +118,12 @@ export function sqliteConnection<Database extends object>(
             pollIntervalMs,
             validateSchema: true
           })
-          const resource = source.ownership === 'owned' ? { layer, release } : { layer }
+          const resource = {
+            ...(source.ownership === 'owned' ? { layer, release } : { layer }),
+            ...(schedules
+              ? { schedules: (name: string) => sqliteScheduleLayer(name, native, namespace) }
+              : {})
+          }
           return events
             ? {
                 ...resource,
