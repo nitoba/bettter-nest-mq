@@ -9,7 +9,7 @@ try {
   await api.migrateSqlite({ database })
   await api.validateSqlite({ database })
   assert.equal(api.sqlite({ database }).ownership, 'borrowed')
-  assert.equal(database.prepare('SELECT 1 AS ok').get()?.ok, 1)
+  assert.deepEqual(database.prepare('SELECT 1 AS ok').get(), { ok: 1 })
 } finally {
   database.close(true)
 }
