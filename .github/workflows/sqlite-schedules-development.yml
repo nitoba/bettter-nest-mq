@@ -90,11 +90,33 @@ jobs:
           }
           console.log('Verified exact corrected SQLite archive from 788f9526f2d25e8575b2a4b18286fc466d07a693')
           NODE
-      - name: Full source and live PostgreSQL installed-consumer matrix
+      - name: Verify source against the exact candidate
         working-directory: nest
         run: |
-          bun run check > /tmp/schedules-check.log 2>&1 || { tail -200 /tmp/schedules-check.log; exit 1; }
-          grep -E '^PASS| pass| fail|Packed consumers passed' /tmp/schedules-check.log
+          bun run check:tooling
+          bun run typecheck
+          bun run typecheck:minimum
+          bun test > /tmp/schedules-tests.log 2>&1 || { tail -120 /tmp/schedules-tests.log; exit 1; }
+          tail -5 /tmp/schedules-tests.log
+          bun run format:check
+          bun run build
+          bun run lint
+      - name: Inspect the original registry manifest separately from local candidate routing
+        working-directory: nest
+        run: |
+          # A file-based development dependency is intentionally not publishable.
+          # Keep publint unchanged and validate the committed registry manifest,
+          # not the temporary test routing. This does not clear the release gate.
+          cp package.json "$RUNNER_TEMP/sqlite-candidate-manifest.json"
+          git restore package.json
+          bun run publint
+          cp "$RUNNER_TEMP/sqlite-candidate-manifest.json" package.json
+      - name: Live PostgreSQL and unchanged installed-consumer matrix with candidate archives
+        working-directory: nest
+        run: |
+          bun run test:postgres
+          bun run test:package > /tmp/schedules-package.log 2>&1 || { tail -200 /tmp/schedules-package.log; exit 1; }
+          grep -E '^PASS|Packed consumers passed' /tmp/schedules-package.log
       - name: Restore candidate selections and require unchanged checkouts
         if: always()
         run: |
