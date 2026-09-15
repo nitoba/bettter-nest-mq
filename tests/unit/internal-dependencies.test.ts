@@ -17,7 +17,8 @@ for (const name of [
   'better-result',
   'better-effect-mq',
   'better-effect-mq-postgres',
-  'better-effect-mq-outbox'
+  'better-effect-mq-outbox',
+  'better-effect-mq-sqlite'
 ]) {
   test(`${name} is managed internally, not a peer the Nest application must install`, () => {
     expect(manifest.dependencies[name]).toBeDefined()

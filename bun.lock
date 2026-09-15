@@ -10,6 +10,7 @@
         "better-effect-mq": "0.1.3",
         "better-effect-mq-outbox": "0.1.3",
         "better-effect-mq-postgres": "0.1.4",
+        "better-effect-mq-sqlite": "0.1.2",
         "better-result": "3.0.1",
       },
       "devDependencies": {
@@ -307,6 +308,8 @@
     "better-effect-mq-outbox": ["better-effect-mq-outbox@0.1.3", "", { "peerDependencies": { "better-effect": ">=0.14.0 <0.15.0", "better-effect-mq": ">=0.1.0 <0.2.0", "better-result": "^3.0.0", "typescript": ">=6.0.0" } }, "sha512-FguWnrXvr/p+7Lm0/59q6cDBe83DjuXQtuOqhq9Znfcpa91zNOb1gw9MT3dv4D7DUQ9h/H3vzfMptpRD0VkFdQ=="],
 
     "better-effect-mq-postgres": ["better-effect-mq-postgres@0.1.4", "", { "peerDependencies": { "better-effect": ">=0.14.0 <0.15.0", "better-effect-mq": ">=0.1.3 <0.2.0", "better-effect-mq-outbox": ">=0.1.0 <0.2.0", "better-result": "^3.0.0", "pg": ">=8.11.0 <9.0.0", "typescript": ">=6.0.0" }, "optionalPeers": ["pg"] }, "sha512-1Z6Kl6WpJF/sx6VjXGJX6PBptBp6Gdf95uo24QyHnU3nw1pVBqQA7qe89kOOk/97YmvJPyZEOTkjLycNfSvkUg=="],
+
+    "better-effect-mq-sqlite": ["better-effect-mq-sqlite@0.1.2", "", { "peerDependencies": { "better-effect": ">=0.14.0 <0.15.0", "better-effect-mq": ">=0.1.0 <0.2.0", "better-effect-mq-outbox": ">=0.1.0 <0.2.0", "better-result": "^3.0.0", "typescript": ">=6.0.0" } }, "sha512-Naq4NMUd8Gt9vA+D5zL03OQTQTez2anF31lbY6tTNfhbGt6s4CiP+mE1T2r+KH2B/07UvKzYAmfVgfyak9+UHw=="],
 
     "better-result": ["better-result@3.0.1", "", {}, "sha512-rnCeqEXkKPHmz5MO5ZroPRDyHe4YvlNPyy7qj8cVcWs/GnvSvC3086G74/220W+wWcIWlXgzvcjskFV0A4blUQ=="],
 

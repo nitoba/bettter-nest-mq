@@ -2,7 +2,7 @@
 
 NestJS-native producers and decorated workers backed by the better-effect-mq engine.
 
-**Status: Core execution, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable PostgreSQL flows, named retry providers, explicit MQ enhancers, event-assisted result waits and managed Kysely outbox queries are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can be published, processed, retried, cancelled, scheduled and coordinated as durable fan-out/collect flows through the Nest facade. External ORM transaction enrollment and additional integrations remain on the roadmap.
+**Status: Core execution, distributed controls, native PostgreSQL transactional outbox, persistent schedules, durable PostgreSQL flows, named retry providers, explicit MQ enhancers, event-assisted result waits, managed Kysely outbox queries and native Node/Bun SQLite job storage are implemented. Version 0.0.0, unreleased on npm.** PostgreSQL jobs can be published, processed, retried, cancelled, scheduled and coordinated as durable fan-out/collect flows through the Nest facade. External ORM transaction enrollment and additional integrations remain on the roadmap.
 
 Repository: `nitoba/bettter-nest-mq` (three `t` characters). Package name: `better-nest-mq`.
 
@@ -12,7 +12,15 @@ Queue Services declare typed jobs using Standard Schema or optional Zod codecs. 
 
 Producers support enqueue, decoded enqueue, batches, preparation without publication, polling, result waiting, publish-and-wait execution, attempt history, promotion, retry and cancellation. Workers support known failures, configurable retries, execution timeout, local worker/handler concurrency, cooperative cancellation and attempt-local scoped dependencies. PostgreSQL resource ownership, explicit migrations and live connection probes remain available.
 
-See [Kysely outbox transactions](docs/kysely-outbox.md), [event-assisted result waits](docs/event-waits.md), [retry providers and MQ enhancers](docs/execution-extensions.md), [durable flows](docs/flows.md), [persistent schedules](docs/schedules.md), [transactional outbox](docs/outbox.md), [PostgreSQL JSON fidelity](docs/postgres-json.md), [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+See [SQLite job storage](docs/sqlite.md), [Kysely outbox transactions](docs/kysely-outbox.md), [event-assisted result waits](docs/event-waits.md), [retry providers and MQ enhancers](docs/execution-extensions.md), [durable flows](docs/flows.md), [persistent schedules](docs/schedules.md), [transactional outbox](docs/outbox.md), [PostgreSQL JSON fidelity](docs/postgres-json.md), [distributed controls](docs/controls.md), [execution](docs/execution.md), [contracts and codecs](docs/contracts.md), [connections](docs/connections.md), [architecture](docs/architecture.md) and [remaining roadmap](docs/roadmap.md).
+
+## SQLite on Node and Bun
+
+Use `sqlite({ path: './data/jobs.db', namespace: 'app' })` from `better-nest-mq/sqlite/node` or `better-nest-mq/sqlite/bun`. Jobs and Worker Services keep the same API. Run `migrateSqlite({ path })` explicitly before startup, which validates rather than migrates.
+
+File-backed handles open only during application acquisition and close after worker/store cleanup. A native borrowed handle remains caller-owned and keeps its pragmas unless configuration is explicitly requested. Internal SQLite adapter dependencies are installed by the library; no Effect imports or manual engine installation are needed.
+
+This increment covers ordinary file-backed jobs, schema codecs, retries, cancellation and recovery through restarted application/worker processes. It is local embedded storage, not a multi-host broker. SQLite flow/schedule/outbox/event resources and expanded cross-process controls remain separate work. See [docs/sqlite.md](docs/sqlite.md) for host-specific usage and limits.
 
 ## Kysely outbox transactions
 

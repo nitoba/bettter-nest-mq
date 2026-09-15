@@ -17,7 +17,8 @@ const internalPackages = [
   'better-result',
   'better-effect-mq',
   'better-effect-mq-postgres',
-  'better-effect-mq-outbox'
+  'better-effect-mq-outbox',
+  'better-effect-mq-sqlite'
 ]
 
 async function installedVersion(name: string): Promise<string> {
@@ -144,6 +145,28 @@ try {
       await run(['node', `dist/${fixture}.js`], directory)
       await run(['bun', `dist/${fixture}.js`], directory)
     }
+    // Node/root declarations were already compiled with no Bun ambient types installed.
+    await run(
+      ['node', 'node_modules/typescript/bin/tsc', '-p', 'tsconfig.sqlite-node.json'],
+      directory
+    )
+    await run(['node', '--experimental-sqlite', 'dist/sqlite-node.js'], directory)
+    const bunManifest = {
+      ...integratedManifest,
+      devDependencies: {
+        ...integratedManifest.devDependencies,
+        '@types/bun': await installedVersion('@types/bun')
+      }
+    }
+    await writeFile(join(directory, 'package.json'), JSON.stringify(bunManifest))
+    await run(['bun', 'install', '--ignore-scripts'], directory)
+    await run(
+      ['node', 'node_modules/typescript/bin/tsc', '-p', 'tsconfig.sqlite-bun.json'],
+      directory
+    )
+    await run(['bun', 'dist/sqlite-bun.js'], directory)
+    await run(['node', '--experimental-sqlite', 'dist/sqlite-node.js', 'cross'], directory)
+    await run(['bun', 'dist/sqlite-bun.js', 'cross'], directory)
     console.log(
       `Packed consumers passed with TypeScript ${version}; no engine or adapter dependencies were declared by the application`
     )

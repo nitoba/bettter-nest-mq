@@ -11,6 +11,7 @@ The following are normal dependencies of better-nest-mq, not consumer peer depen
 - better-effect-mq
 - better-effect-mq-postgres
 - better-effect-mq-outbox
+- better-effect-mq-sqlite
 
 Their compatible versions are pinned and maintained by this package. They appear in the installed dependency tree because their code is reused; they are not copied out or removed. The consumer does not need to list or import them, create a Runtime/Layer, or return a Result from a worker. Native driver objects, such as a borrowed pg Pool, remain part of the selected integration rather than exposing engine objects.
 
@@ -37,6 +38,12 @@ bun add -d @types/pg
 Add Zod separately only when using Zod. There is no instruction to install internal better-effect packages. No npm release has been published; the tarball path above refers to a locally built artifact, not an existing registry release.
 
 The package root does not load the PostgreSQL adapter or native driver merely because a QueueService is imported. Installing internal adapter code is different from loading it or opening a connection. Package managers may also resolve transitive peer dependencies; this document does not promise a minimal installed dependency count. External tests explicitly remove pg, Zod and Kysely to verify root-only usage does not require them at runtime.
+
+## Native SQLite integration
+
+The SQLite adapter is pinned and installed internally, just like the PostgreSQL adapter. Applications import better-nest-mq/sqlite/node with Node's DatabaseSync or better-nest-mq/sqlite/bun with Bun's Database. Native modules load only inside the selected integration; the package root imports neither. TypeScript consumers use the corresponding host typings (@types/node or @types/bun). Node/root consumers are tested with Bun typings absent.
+
+No additional native SQLite npm driver is required by these entry points. File-backed or explicitly borrowed databases follow the ownership/migration rules in sqlite.md. Optional SQLite resource tables are not a claim of implemented flow/outbox/schedule/event facades.
 
 ## Optional Kysely integration
 

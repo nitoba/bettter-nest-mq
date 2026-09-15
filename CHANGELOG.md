@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Native SQLite JobStore
+
+- Add isolated Node and Bun SQLite entry points with typed native handles or local file paths.
+- Reuse the published SQLite adapter as an internal dependency; keep the root free of native-host imports.
+- Add explicit migration/validation helpers, immutable configuration and owned/borrowed resource lifecycles with startup rollback.
+- Add file-backed source and installed-package regressions for JSON/null/Date, retries, idempotency, cancellation, promotion, identity isolation, new worker processes and shutdown draining.
+- Preserve TypeScript 6/7, the 20 upstream tooling files and the complete existing PostgreSQL feature matrix.
+
 ### Managed Kysely outbox transactions
 
 - Add optional better-nest-mq/kysely with typed transaction-scoped queries and dynamic or predeclared outbox entries on the same native PostgreSQL client.

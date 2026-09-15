@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["node"] },
+  "include": ["sqlite-bun.ts", "sqlite-common.ts", "node_modules/bun-types/sqlite.d.ts"]
+}
