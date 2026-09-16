@@ -67,7 +67,11 @@ async function until(check: () => Promise<boolean>, label: string): Promise<void
   }
 }
 
-async function application(api: Api, path: string, role: 'producer' | 'publisher' | 'worker' | 'reader') {
+async function application(
+  api: Api,
+  path: string,
+  role: 'producer' | 'publisher' | 'worker' | 'reader'
+) {
   const usesOutbox = role !== 'worker'
   @Module({
     imports: [
@@ -146,7 +150,10 @@ export async function verifySqliteOutbox(
     const app = await application(api, path, 'publisher')
     try {
       const service = app.get(MqOutboxService)
-      await until(async () => (await service.counts('primary')).published === 3, 'publisher completion')
+      await until(
+        async () => (await service.counts('primary')).published === 3,
+        'publisher completion'
+      )
     } finally {
       await app.close()
     }
@@ -236,12 +243,18 @@ export async function verifySqliteOutbox(
       assert.deepEqual(committed.prepare("SELECT value FROM business WHERE id='committed'").get(), {
         value: 'yes'
       })
-      assert.equal(committed.prepare("SELECT id FROM business WHERE id='temporary'").get(), undefined)
+      assert.equal(
+        committed.prepare("SELECT id FROM business WHERE id='temporary'").get(),
+        undefined
+      )
       assert.deepEqual(
         committed.prepare('SELECT state FROM better_effect_mq_outbox ORDER BY id').all(),
         [{ state: 'pending' }, { state: 'pending' }, { state: 'pending' }]
       )
-      assert.equal(committed.prepare('SELECT count(*) AS total FROM better_effect_mq_jobs').get()?.total, 0)
+      assert.equal(
+        committed.prepare('SELECT count(*) AS total FROM better_effect_mq_jobs').get()?.total,
+        0
+      )
     } finally {
       committed.close()
     }
@@ -258,7 +271,10 @@ export async function verifySqliteOutbox(
         published.prepare('SELECT state FROM better_effect_mq_outbox ORDER BY id').all(),
         [{ state: 'published' }, { state: 'published' }, { state: 'published' }]
       )
-      assert.equal(published.prepare('SELECT count(*) AS total FROM better_effect_mq_jobs').get()?.total, 3)
+      assert.equal(
+        published.prepare('SELECT count(*) AS total FROM better_effect_mq_jobs').get()?.total,
+        3
+      )
     } finally {
       published.close()
     }
@@ -273,7 +289,9 @@ export async function verifySqliteOutbox(
     try {
       const jobs = reader.get(Jobs).echo
       assert.deepEqual(
-        await Promise.all(jobIds.map((id) => jobs.awaitResult(id, { timeoutMs: 2000, pollIntervalMs: 10 }))),
+        await Promise.all(
+          jobIds.map((id) => jobs.awaitResult(id, { timeoutMs: 2000, pollIntervalMs: 10 }))
+        ),
         ['first', 'second', 'dynamic']
       )
       assert.deepEqual(await reader.get(MqOutboxService).counts('primary'), {

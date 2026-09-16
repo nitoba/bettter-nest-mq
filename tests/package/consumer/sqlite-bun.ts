@@ -7,8 +7,7 @@ import { verifySqliteOutbox } from './sqlite-outbox-common.js'
 import { verifySqliteSchedules } from './sqlite-schedules-common.js'
 
 const mode = process.argv[2]
-if (mode?.startsWith('outbox-'))
-  await verifySqliteOutbox(api, 'bun', (path) => new Database(path))
+if (mode?.startsWith('outbox-')) await verifySqliteOutbox(api, 'bun', (path) => new Database(path))
 else if (mode?.startsWith('schedules-'))
   await verifySqliteSchedules(api, 'bun', (path) => new Database(path))
 else if (mode?.startsWith('events-')) await verifySqliteEvents(api, 'bun')

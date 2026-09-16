@@ -21,7 +21,10 @@ function asError<Cause>(cause: Cause): Error {
 }
 
 function closedTransaction(): MqOutboxException {
-  return new MqOutboxException('transaction', 'This SQLite outbox transaction callback has finished')
+  return new MqOutboxException(
+    'transaction',
+    'This SQLite outbox transaction callback has finished'
+  )
 }
 
 function assertApplicationSql(sql: string): void {
@@ -179,8 +182,7 @@ export async function sqliteOutboxTransaction<Value>(
         primary ??= asError(cause)
       }
       if (primary !== undefined) throw primary
-      for (const record of beforeLast)
-        appendPrepared(database, resource.namespace, source, record)
+      for (const record of beforeLast) appendPrepared(database, resource.namespace, source, record)
       return Result.ok(value)
     },
     { namespace: resource.namespace }
