@@ -28,6 +28,7 @@ export function sqliteOutboxLayer(
 ): Layer<NamedOutbox, never> {
   const token = outboxToken(name)
   const sourceNamespace = scopedNamespace(name, namespace)
+  let acquired: DisposableSqliteOutboxStore | undefined
   return Layer.scoped(
     token,
     () => {
@@ -39,12 +40,15 @@ export function sqliteOutboxLayer(
         configurePragmas: false,
         validateSchema: true
       }) as DisposableSqliteOutboxStore
+      acquired = store
       resources.set(store, Object.freeze({ database, namespace: sourceNamespace }))
       return store
     },
     async (store) => {
       resources.delete(store)
-      await (store as DisposableSqliteOutboxStore).dispose()
+      const resource = acquired
+      acquired = undefined
+      await resource?.dispose()
     }
   )
 }
