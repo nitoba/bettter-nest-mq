@@ -17,7 +17,7 @@ void client.transaction({ id: 'one', job: prepared }, (transaction: SqliteOutbox
   void transaction.append({ id: 'two', job: prepared })
   return row?.value
 })
-// @ts-expect-error SQLite bind parameters do not accept arbitrary JSON objects.
 void client.transaction({ id: 'bad', job: prepared }, (transaction) =>
+  // @ts-expect-error SQLite bind parameters do not accept arbitrary JSON objects.
   transaction.run('SELECT ?', [{}])
 )
