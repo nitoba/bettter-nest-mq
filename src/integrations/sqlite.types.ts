@@ -16,6 +16,8 @@ export type SqliteOptions<Database extends object> = SqliteLocation<Database> & 
   readonly events?: boolean
   /** Enable persistent schedules on the same database; requires a corrected adapter release. */
   readonly schedules?: boolean
+  /** Enable a durable outbox source and optional publisher on the same native database. */
+  readonly outbox?: boolean
   readonly requireCapabilities?: readonly MqCapability[]
 }
 
