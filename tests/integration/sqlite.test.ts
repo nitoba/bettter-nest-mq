@@ -241,7 +241,7 @@ test.each([
   { path: '' },
   { path: ':memory:' },
   { path: 'file:jobs.db' },
-  { path: 'jobs.db', outbox: true },
+  { path: 'jobs.db', flows: true },
   { path: 'jobs.db', pollIntervalMs: 0 },
   { path: 'jobs.db', busyTimeoutMs: -1 },
   { path: 'jobs.db', pollIntervalMs: 2_147_483_648 },
