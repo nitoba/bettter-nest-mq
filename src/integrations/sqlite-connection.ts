@@ -13,6 +13,7 @@ import { defineConnection } from '../engine/connection-definition.ts'
 import type { AcquiredConnection } from '../engine/connection-definition.ts'
 import { assertQualifiedSqliteSchedules } from './sqlite-adapter-version.ts'
 import { sqliteEventLayer } from './sqlite-event-resource.ts'
+import { sqliteOutboxLayer } from './sqlite-outbox-resource.ts'
 import { sqliteScheduleLayer } from './sqlite-schedule-resource.ts'
 import type { SqliteLocation, SqliteMigrationReport, SqliteOptions } from './sqlite.types.ts'
 
@@ -75,6 +76,7 @@ export function sqliteConnection<Database extends object>(
       'pollIntervalMs',
       'events',
       'schedules',
+      'outbox',
       'requireCapabilities'
     ])
     const namespace = validateNamespace(options.namespace ?? 'default')
@@ -83,6 +85,8 @@ export function sqliteConnection<Database extends object>(
     if (schedules) assertQualifiedSqliteSchedules()
     const events = options.events === undefined ? false : options.events
     if (events !== true && events !== false) throw new Error('events must be boolean')
+    const outbox = options.outbox === undefined ? false : options.outbox
+    if (outbox !== true && outbox !== false) throw new Error('outbox must be boolean')
     const source = location(options)
     const configurePragmas = options.configurePragmas ?? source.ownership === 'owned'
     if (configurePragmas !== true && configurePragmas !== false)
@@ -123,12 +127,16 @@ export function sqliteConnection<Database extends object>(
           })
           let resource: AcquiredConnection =
             source.ownership === 'owned' ? { layer, release } : { layer }
-          if (schedules) {
+          if (schedules)
             resource = {
               ...resource,
               schedules: (name) => sqliteScheduleLayer(name, native, namespace)
             }
-          }
+          if (outbox)
+            resource = {
+              ...resource,
+              outbox: (name) => sqliteOutboxLayer(name, native, namespace)
+            }
           return events
             ? {
                 ...resource,

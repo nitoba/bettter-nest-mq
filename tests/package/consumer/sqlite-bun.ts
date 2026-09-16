@@ -3,10 +3,12 @@ import { Database } from 'bun:sqlite'
 import * as api from 'better-nest-mq/sqlite/bun'
 import { verifySqlite } from './sqlite-common.js'
 import { verifySqliteEvents } from './sqlite-events-common.js'
+import { verifySqliteOutbox } from './sqlite-outbox-common.js'
 import { verifySqliteSchedules } from './sqlite-schedules-common.js'
 
 const mode = process.argv[2]
-if (mode?.startsWith('schedules-'))
+if (mode?.startsWith('outbox-')) await verifySqliteOutbox(api, 'bun', (path) => new Database(path))
+else if (mode?.startsWith('schedules-'))
   await verifySqliteSchedules(api, 'bun', (path) => new Database(path))
 else if (mode?.startsWith('events-')) await verifySqliteEvents(api, 'bun')
 else {
@@ -14,6 +16,7 @@ else {
   if (mode !== 'consume') {
     await verifySqliteEvents(api, 'bun')
     await verifySqliteSchedules(api, 'bun', (path) => new Database(path))
+    await verifySqliteOutbox(api, 'bun', (path) => new Database(path))
   }
 }
 const database = new Database(':memory:')

@@ -11,6 +11,16 @@ import type { SqliteLocation, SqliteOptions, SqliteMigrationReport } from './sql
 export type SqliteConnectionOptions = SqliteOptions<Database>
 export type SqliteMigrationOptions = SqliteLocation<Database>
 export type { SqliteMigrationReport } from './sqlite.types.ts'
+export { sqliteOutbox } from './sqlite-outbox.ts'
+export type {
+  SqliteOutboxCallback,
+  SqliteOutboxCell,
+  SqliteOutboxClient,
+  SqliteOutboxParameter,
+  SqliteOutboxRow,
+  SqliteOutboxRunResult,
+  SqliteOutboxTransaction
+} from './sqlite-outbox.types.ts'
 const bunHost: SqliteHost<Database> = {
   async open(path) {
     const { Database: SqliteDatabase } = await import('bun:sqlite')
