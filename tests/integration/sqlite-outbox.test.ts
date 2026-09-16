@@ -56,7 +56,9 @@ test('SQLite domain writes and predeclared/dynamic outbox entries commit atomica
       ],
       async (transaction) => {
         escaped = transaction
-        expect(transaction.run('INSERT INTO domain_items (id,value) VALUES (?,?)', ['a', 'one']).changes).toBe(1)
+        expect(
+          transaction.run('INSERT INTO domain_items (id,value) VALUES (?,?)', ['a', 'one']).changes
+        ).toBe(1)
         transaction.run('INSERT INTO domain_items (id,value) VALUES (?,?)', ['b', 'two'])
         expect(
           transaction.get<{ id: string; value: string }>(
@@ -74,9 +76,10 @@ test('SQLite domain writes and predeclared/dynamic outbox entries commit atomica
       { id: 'b', value: 'two' }
     ])
     expect(await outboxes.counts('primary')).toMatchObject({ pending: 3, total: 3 })
-    assert.ok(escaped)
-    expect(() => escaped.run('SELECT 1')).toThrow(MqOutboxException)
-    await assert.rejects(escaped.append({ id: 'closed', job: first }), MqOutboxException)
+    const closed = escaped
+    assert.ok(closed)
+    expect(() => closed.run('SELECT 1')).toThrow(MqOutboxException)
+    await assert.rejects(closed.append({ id: 'closed', job: first }), MqOutboxException)
   } finally {
     await app.close()
     database.close(true)
@@ -86,22 +89,27 @@ test('SQLite domain writes and predeclared/dynamic outbox entries commit atomica
 test('caught SQLite SQL failures poison commit and roll back both domain and outbox writes', async () => {
   const database = new Database(':memory:')
   await migrateSqlite({ database })
-  database.exec("CREATE TABLE domain_items (id TEXT PRIMARY KEY); INSERT INTO domain_items VALUES ('seed')")
+  database.exec(
+    "CREATE TABLE domain_items (id TEXT PRIMARY KEY); INSERT INTO domain_items VALUES ('seed')"
+  )
   const app = await application(database)
   try {
     const jobs = app.get(Jobs)
     const outboxes = app.get(MqOutboxService)
     const prepared = await jobs.echo.prepare('rollback')
     await assert.rejects(
-      sqliteOutbox(outboxes, 'primary').transaction({ id: 'rollback', job: prepared }, (transaction) => {
-        transaction.run("INSERT INTO domain_items VALUES ('temporary')")
-        try {
-          transaction.run("INSERT INTO domain_items VALUES ('seed')")
-        } catch {
-          // The transaction scope must still remember the native failure.
+      sqliteOutbox(outboxes, 'primary').transaction(
+        { id: 'rollback', job: prepared },
+        (transaction) => {
+          transaction.run("INSERT INTO domain_items VALUES ('temporary')")
+          try {
+            transaction.run("INSERT INTO domain_items VALUES ('seed')")
+          } catch {
+            // The transaction scope must still remember the native failure.
+          }
+          return 'ignored'
         }
-        return 'ignored'
-      })
+      )
     )
     expect(database.prepare("SELECT id FROM domain_items WHERE id='temporary'").get()).toBeNull()
     expect(await outboxes.get('primary', 'rollback')).toBeUndefined()
@@ -120,14 +128,17 @@ test('SQLite transaction control cannot escape the managed native boundary', asy
     const outboxes = app.get(MqOutboxService)
     const prepared = await jobs.echo.prepare('guarded')
     await assert.rejects(
-      sqliteOutbox(outboxes, 'primary').transaction({ id: 'guarded', job: prepared }, (transaction) => {
-        try {
-          transaction.run('COMMIT')
-        } catch {
-          // Caught misuse must still poison the managed transaction.
+      sqliteOutbox(outboxes, 'primary').transaction(
+        { id: 'guarded', job: prepared },
+        (transaction) => {
+          try {
+            transaction.run('COMMIT')
+          } catch {
+            // Caught misuse must still poison the managed transaction.
+          }
+          return undefined
         }
-        return undefined
-      }),
+      ),
       MqOutboxException
     )
     expect(await outboxes.get('primary', 'guarded')).toBeUndefined()
